@@ -3,7 +3,7 @@
 
   // ==================== 配置区域 ====================
   // 请将此处替换为您的 Railway 后端地址
-  const API_BASE_URL = 'https://maxsui-backbend.railway.internal/api';
+  const API_BASE_URL = 'https://你的Railway域名.up.railway.app/api';
   // =================================================
 
   // ---------- DOM 元素 ----------
@@ -133,7 +133,7 @@
     if (avatarUrl) {
       avatarContainer.innerHTML = `
         <div class="avatar-circle">
-          <img src="${avatarUrl}" alt="头像">
+          <img src="${avatarUrl}" alt="头像" style="width:100%; height:100%; object-fit:cover;">
         </div>
       `;
     } else {
@@ -185,8 +185,8 @@
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         const postId = btn.dataset.id;
-        // 跳转到博客详情页（可自定义 URL 格式）
-        window.location.href = `https://www.maxsui.org/Blog/${postId}`;
+        // 博客跳转地址已改为 GitHub Pages 域名
+        window.location.href = `https://suixiuliang.github.io/Blog/${postId}`;
       });
     });
   }
@@ -281,12 +281,11 @@
   // ---------- API 数据获取 ----------
   async function fetchAllData() {
     try {
-      // 获取个人资料
       const profileRes = await fetch(`${API_BASE_URL}/profile`);
       if (profileRes.ok) {
         const data = await profileRes.json();
         if (data && Object.keys(data).length) {
-          profileData = data;
+          profileData = { ...defaultProfile, ...data };
         }
       } else {
         console.warn('获取个人资料失败，使用默认数据');
@@ -296,7 +295,6 @@
     }
 
     try {
-      // 获取博客列表
       const blogRes = await fetch(`${API_BASE_URL}/blog`);
       if (blogRes.ok) {
         const posts = await blogRes.json();
@@ -311,7 +309,6 @@
     }
 
     try {
-      // 获取作品列表
       const worksRes = await fetch(`${API_BASE_URL}/works`);
       if (worksRes.ok) {
         const works = await worksRes.json();
@@ -325,7 +322,6 @@
       console.error('API 请求错误 (works):', err);
     }
 
-    // 渲染所有内容
     renderProfile();
     renderBlog();
     renderWorks();
@@ -333,15 +329,12 @@
 
   // ---------- 初始化 ----------
   async function init() {
-    // 先显示默认占位，避免空白
     renderProfile();
     renderBlog();
     renderWorks();
     setupContactUnlock();
     setupMessageForm();
     updateActiveNavFromScroll();
-
-    // 从后端拉取最新数据并更新 UI
     await fetchAllData();
   }
 
