@@ -3,7 +3,7 @@
 
   // ==================== 配置区域 ====================
   // 请将此处替换为您的 Railway 后端地址
-  const API_BASE_URL = 'https://你的Railway域名.up.railway.app/api';
+  const API_BASE_URL = 'https://maxsui-backbend.railway.internal/api';
   // =================================================
 
   // ---------- DOM 元素 ----------
