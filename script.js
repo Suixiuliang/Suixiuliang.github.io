@@ -10,7 +10,7 @@
   const sections = document.querySelectorAll('.panel');
   const navLinks = document.querySelectorAll('.nav-btn[data-section]');
 
-  // ---------- 默认个人资料（仅用于 API 失败时占位） ----------
+  // 默认个人资料（仅占位）
   const defaultProfile = {
     name: "隋修梁 MaxSui",
     age: 16,
@@ -20,13 +20,12 @@
     avatar: null
   };
 
-  // 博客和作品不再有默认数据，完全依赖后端
   let profileData = { ...defaultProfile };
   let blogPosts = [];
   let worksData = [];
   let contactInfo = { email: '', wechat: '', qq: '' };
 
-  // ---------- 头像连续点击计数器 ----------
+  // 头像连续点击计数器
   let avatarClickCount = 0;
   let avatarClickTimer = null;
 
@@ -41,14 +40,11 @@
         window.location.href = 'https://suixiuliang.github.io/backendmgr';
         avatarClickCount = 0;
       } else {
-        avatarClickTimer = setTimeout(() => {
-          avatarClickCount = 0;
-        }, 2000);
+        avatarClickTimer = setTimeout(() => { avatarClickCount = 0; }, 2000);
       }
     });
   }
 
-  // ---------- 导航栏滚动 ----------
   window.addEventListener('scroll', () => {
     nav.classList.toggle('scrolled', window.scrollY > 20);
   });
@@ -80,12 +76,21 @@
     });
   });
 
-  // ---------- 渲染个人资料 ----------
   function renderProfile() {
     const container = document.getElementById('profileContainer');
     const avatarContainer = document.getElementById('avatarContainer');
     const interestsStr = (profileData.interests || []).join(' · ');
-    const avatarUrl = profileData.avatar;
+    const rawAvatar = profileData.avatar;
+
+    // 修复相对路径：拼接后端域名
+    let fullAvatarUrl = null;
+    if (rawAvatar) {
+      if (rawAvatar.startsWith('http')) {
+        fullAvatarUrl = rawAvatar;
+      } else {
+        fullAvatarUrl = API_BASE_URL.replace('/api', '') + (rawAvatar.startsWith('/') ? rawAvatar : '/' + rawAvatar);
+      }
+    }
 
     container.innerHTML = `
       <span class="hero-badge"><i class="fas fa-cog"></i> ${profileData.grade || '高中'} · ${profileData.age || ''}岁 · 热爱编程</span>
@@ -97,8 +102,8 @@
       </div>
     `;
 
-    if (avatarUrl) {
-      avatarContainer.innerHTML = `<div class="avatar-circle"><img src="${avatarUrl}" alt="头像" style="width:100%; height:100%; object-fit:cover;"></div>`;
+    if (fullAvatarUrl) {
+      avatarContainer.innerHTML = `<div class="avatar-circle"><img src="${fullAvatarUrl}" alt="头像" style="width:100%; height:100%; object-fit:cover;"></div>`;
     } else {
       avatarContainer.innerHTML = `<div class="avatar-circle avatar-placeholder"><i class="fas fa-user-astronaut"></i></div>`;
     }
@@ -112,11 +117,9 @@
       });
     });
 
-    // 绑定头像秘密入口
     setupAvatarSecret();
   }
 
-  // ---------- 渲染博客（完全依赖 API） ----------
   function renderBlog() {
     const grid = document.getElementById('blogGrid');
     if (!blogPosts.length) {
@@ -144,12 +147,12 @@
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         const postId = btn.dataset.id;
-        window.location.href = `https://suixiuliang.github.io/Blog/${postId}`;
+        // 跳转到详情页
+        window.location.href = `https://suixiuliang.github.io/blog.html?id=${postId}`;
       });
     });
   }
 
-  // ---------- 渲染作品 ----------
   function renderWorks() {
     const grid = document.getElementById('worksGrid');
     if (!worksData.length) {
@@ -170,7 +173,6 @@
     grid.innerHTML = html;
   }
 
-  // ---------- 联系方式解锁 ----------
   function setupContactUnlock() {
     const displayArea = document.getElementById('contactDisplayArea');
     const unlockBtn = document.getElementById('unlockContactBtn');
@@ -216,7 +218,6 @@
     });
   }
 
-  // ---------- API 数据获取 ----------
   async function fetchAllData() {
     try {
       const profileRes = await fetch(`${API_BASE_URL}/profile`);
@@ -224,9 +225,7 @@
         const data = await profileRes.json();
         if (data && Object.keys(data).length) profileData = { ...defaultProfile, ...data };
       }
-    } catch (err) {
-      console.error('获取个人资料失败', err);
-    }
+    } catch (err) { console.error('获取个人资料失败', err); }
 
     try {
       const blogRes = await fetch(`${API_BASE_URL}/blog`);
@@ -234,9 +233,7 @@
         const posts = await blogRes.json();
         if (Array.isArray(posts)) blogPosts = posts;
       }
-    } catch (err) {
-      console.error('获取博客失败', err);
-    }
+    } catch (err) { console.error('获取博客失败', err); }
 
     try {
       const worksRes = await fetch(`${API_BASE_URL}/works`);
@@ -244,9 +241,7 @@
         const works = await worksRes.json();
         if (Array.isArray(works)) worksData = works;
       }
-    } catch (err) {
-      console.error('获取作品失败', err);
-    }
+    } catch (err) { console.error('获取作品失败', err); }
 
     renderProfile();
     renderBlog();
