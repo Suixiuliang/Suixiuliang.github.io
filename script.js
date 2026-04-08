@@ -2,7 +2,7 @@
   "use strict";
 
   // ==================== 配置区域 ====================
-  const API_BASE_URL = 'https://maxsui-backbend.railway.internal/api';
+  const API_BASE_URL = 'https://maxsui-backbend-production.up.railway.app/api';
   // =================================================
 
   const nav = document.getElementById('mainNav');
