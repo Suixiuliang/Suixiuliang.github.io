@@ -4,21 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MaxSui 后台管理</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <style>
     * { box-sizing: border-box; margin: 0; }
     body { font-family: system-ui, sans-serif; background: #f1f5f9; padding: 2rem; }
-    .container { max-width: 800px; margin: 0 auto; }
+    .container { max-width: 900px; margin: 0 auto; }
     .card { background: white; border-radius: 24px; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
     h2 { margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; }
     label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-    input, textarea { width: 100%; padding: 0.8rem 1rem; border: 1px solid #cbd5e1; border-radius: 16px; font-size: 1rem; margin-bottom: 1rem; }
+    input, textarea { width: 100%; padding: 0.8rem 1rem; border: 1px solid #cbd5e1; border-radius: 16px; font-size: 1rem; margin-bottom: 1rem; font-family: inherit; }
     button { background: #2563eb; color: white; border: none; padding: 0.8rem 2rem; border-radius: 40px; font-weight: 600; cursor: pointer; }
     .logout { background: #64748b; margin-left: 1rem; }
     .status { margin-top: 1rem; color: #10b981; }
-    .array-item { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
-    .blog-item, .work-item { border: 1px solid #e2e8f0; border-radius: 16px; padding: 1rem; margin-bottom: 1rem; }
-    .login-panel { text-align: center; }
+    .blog-item, .work-item { border: 1px solid #e2e8f0; border-radius: 20px; padding: 1.2rem; margin-bottom: 1.5rem; background: #f8fafc; }
+    .blog-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 600; }
+    .blog-header i { transition: transform 0.2s; }
+    .blog-body { margin-top: 1rem; display: none; }
+    .blog-body.active { display: block; }
+    .blog-field { margin-bottom: 1rem; }
+    .blog-field label { font-size: 0.9rem; color: #475569; margin-bottom: 0.2rem; }
+    .blog-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+    .btn-sm { padding: 0.4rem 1rem; border-radius: 30px; font-size: 0.9rem; }
+    .btn-danger { background: #ef4444; color: white; border: none; }
     .hidden { display: none; }
+    .login-panel { text-align: center; }
   </style>
 </head>
 <body>
@@ -49,7 +58,7 @@
       <input type="number" id="profileAge" />
       <label>兴趣标签（用逗号分隔）</label>
       <input type="text" id="profileInterests" placeholder="C, C++, C#" />
-      <label>头像 URL（或上传后自动填充）</label>
+      <label>头像 URL（上传后自动填充）</label>
       <input type="text" id="profileAvatar" />
       <input type="file" id="avatarUpload" accept="image/*" style="margin-top:0.5rem;" />
       <button id="uploadAvatarBtn">上传新头像</button>
@@ -59,8 +68,8 @@
     <!-- 博客管理 -->
     <div class="card">
       <h2>📝 博客文章</h2>
-      <div id="blogList"></div>
-      <button id="addBlogBtn">+ 添加新文章</button>
+      <div id="blogList" class="blog-editor-container"></div>
+      <button id="addBlogBtn" style="margin-top: 1rem;">+ 添加新文章</button>
     </div>
 
     <!-- 作品管理 -->
@@ -95,9 +104,7 @@
   const mainPanel = document.getElementById('mainPanel');
 
   // 自动登录检查
-  if (token) {
-    verifyAndLoad();
-  }
+  if (token) verifyAndLoad();
 
   document.getElementById('loginBtn').addEventListener('click', async () => {
     const pwd = document.getElementById('adminPassword').value;
@@ -147,9 +154,7 @@
         localStorage.removeItem('adminToken');
         token = '';
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async function loadSettings() {
@@ -178,24 +183,57 @@
     renderWorkList();
   }
 
-  function renderBlogList() {
-    const container = document.getElementById('blogList');
-    container.innerHTML = blogData.map((post, idx) => `
-      <div class="blog-item">
-        <input value="${post.title || ''}" placeholder="标题" data-index="${idx}" data-field="title" />
-        <input value="${post.summary || ''}" placeholder="摘要" data-index="${idx}" data-field="summary" />
-        <input value="${post.date || ''}" placeholder="日期" data-index="${idx}" data-field="date" />
-        <input value="${post.readTime || ''}" placeholder="阅读时长" data-index="${idx}" data-field="readTime" />
-        <input value="${post.icon || ''}" placeholder="图标 (fa-xxx)" data-index="${idx}" data-field="icon" />
-        <button onclick="deleteBlog(${idx})">删除</button>
-      </div>
-    `).join('');
-    attachBlogInputs();
+  // ---------- 博客编辑（新版，带正文） ----------
+  function escapeHtml(text) {
+    if (!text) return text;
+    return String(text).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
   }
 
-  function attachBlogInputs() {
-    document.querySelectorAll('#blogList input').forEach(input => {
-      input.addEventListener('change', (e) => {
+  function renderBlogList() {
+    const container = document.getElementById('blogList');
+    if (!blogData.length) {
+      container.innerHTML = '<p style="color:#64748b;">暂无文章，点击下方按钮添加</p>';
+      return;
+    }
+    container.innerHTML = blogData.map((post, idx) => {
+      const postId = post.id || Date.now() + idx;
+      return `
+        <div class="blog-item" data-index="${idx}">
+          <div class="blog-header" onclick="toggleBlogBody(${idx})">
+            <span>📄 ${escapeHtml(post.title) || '未命名文章'}</span>
+            <i class="fas fa-chevron-down" id="blog-chevron-${idx}"></i>
+          </div>
+          <div class="blog-body" id="blog-body-${idx}">
+            <div class="blog-field">
+              <label>标题</label>
+              <input type="text" value="${escapeHtml(post.title) || ''}" data-field="title" data-index="${idx}" placeholder="文章标题">
+            </div>
+            <div class="blog-field">
+              <label>摘要</label>
+              <textarea rows="3" data-field="summary" data-index="${idx}" placeholder="简短摘要">${escapeHtml(post.summary) || ''}</textarea>
+            </div>
+            <div class="blog-field">
+              <label>正文内容 (支持 Markdown 或 HTML)</label>
+              <textarea rows="6" data-field="content" data-index="${idx}" placeholder="文章完整内容">${escapeHtml(post.content) || ''}</textarea>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+              <div class="blog-field"><label>日期</label><input type="text" value="${post.date || ''}" data-field="date" data-index="${idx}"></div>
+              <div class="blog-field"><label>阅读时长</label><input type="text" value="${post.readTime || ''}" data-field="readTime" data-index="${idx}"></div>
+            </div>
+            <div class="blog-field">
+              <label>图标 (Font Awesome 类名)</label>
+              <input type="text" value="${post.icon || 'fa-pen'}" data-field="icon" data-index="${idx}">
+            </div>
+            <div class="blog-actions">
+              <button class="btn-sm btn-danger" onclick="deleteBlog(${idx})"><i class="fas fa-trash"></i> 删除</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('[data-field]').forEach(el => {
+      el.addEventListener('input', (e) => {
         const idx = e.target.dataset.index;
         const field = e.target.dataset.field;
         if (!blogData[idx]) blogData[idx] = { id: Date.now() + idx };
@@ -204,33 +242,49 @@
     });
   }
 
+  window.toggleBlogBody = (idx) => {
+    const body = document.getElementById(`blog-body-${idx}`);
+    const chevron = document.getElementById(`blog-chevron-${idx}`);
+    body.classList.toggle('active');
+    chevron.style.transform = body.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+  };
+
   window.deleteBlog = (idx) => {
-    blogData.splice(idx, 1);
-    renderBlogList();
+    if (confirm('确定删除这篇文章吗？')) {
+      blogData.splice(idx, 1);
+      renderBlogList();
+    }
   };
 
   document.getElementById('addBlogBtn').addEventListener('click', () => {
-    blogData.push({ id: Date.now(), title: '新文章', summary: '', date: new Date().toISOString().split('T')[0], readTime: '5 min', icon: 'fa-pen' });
+    const newPost = {
+      id: Date.now(),
+      title: '新文章',
+      summary: '',
+      content: '',
+      date: new Date().toISOString().split('T')[0],
+      readTime: '5 min',
+      icon: 'fa-pen'
+    };
+    blogData.push(newPost);
     renderBlogList();
+    setTimeout(() => toggleBlogBody(blogData.length - 1), 50);
   });
 
+  // ---------- 作品管理 ----------
   function renderWorkList() {
     const container = document.getElementById('workList');
     container.innerHTML = worksData.map((work, idx) => `
       <div class="work-item">
-        <input value="${work.name || ''}" placeholder="名称" data-index="${idx}" data-field="name" />
-        <input value="${work.description || ''}" placeholder="描述" data-index="${idx}" data-field="description" />
-        <input value="${work.icon || ''}" placeholder="图标" data-index="${idx}" data-field="icon" />
-        <input value="${work.link || ''}" placeholder="链接" data-index="${idx}" data-field="link" />
+        <input value="${escapeHtml(work.name) || ''}" placeholder="名称" data-index="${idx}" data-field="name" />
+        <input value="${escapeHtml(work.description) || ''}" placeholder="描述" data-index="${idx}" data-field="description" />
+        <input value="${escapeHtml(work.icon) || ''}" placeholder="图标" data-index="${idx}" data-field="icon" />
+        <input value="${escapeHtml(work.link) || ''}" placeholder="链接" data-index="${idx}" data-field="link" />
         <button onclick="deleteWork(${idx})">删除</button>
       </div>
     `).join('');
-    attachWorkInputs();
-  }
-
-  function attachWorkInputs() {
-    document.querySelectorAll('#workList input').forEach(input => {
-      input.addEventListener('change', (e) => {
+    container.querySelectorAll('[data-field]').forEach(el => {
+      el.addEventListener('input', (e) => {
         const idx = e.target.dataset.index;
         const field = e.target.dataset.field;
         if (!worksData[idx]) worksData[idx] = { id: Date.now() + idx };
@@ -239,16 +293,13 @@
     });
   }
 
-  window.deleteWork = (idx) => {
-    worksData.splice(idx, 1);
-    renderWorkList();
-  };
-
+  window.deleteWork = (idx) => { worksData.splice(idx, 1); renderWorkList(); };
   document.getElementById('addWorkBtn').addEventListener('click', () => {
     worksData.push({ id: Date.now(), name: '新作品', description: '', icon: 'fa-code', link: '#' });
     renderWorkList();
   });
 
+  // ---------- 保存 ----------
   document.getElementById('saveAllBtn').addEventListener('click', async () => {
     const profile = {
       name: document.getElementById('profileName').value,
@@ -279,23 +330,30 @@
     }
   });
 
+  // ---------- 头像上传 ----------
   document.getElementById('uploadAvatarBtn').addEventListener('click', async () => {
     const fileInput = document.getElementById('avatarUpload');
     const file = fileInput.files[0];
     if (!file) return alert('请选择图片');
     const formData = new FormData();
     formData.append('avatar', file);
-    const res = await fetch(`${API_BASE}/profile/upload-avatar`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: formData
-    });
-    const data = await res.json();
-    if (res.ok) {
-      document.getElementById('profileAvatar').value = data.avatarUrl;
-      document.getElementById('avatarStatus').innerText = '头像已上传';
-    } else {
-      alert('上传失败');
+    const statusEl = document.getElementById('avatarStatus');
+    statusEl.innerText = '上传中...';
+    try {
+      const res = await fetch(`${API_BASE}/profile/upload-avatar`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('profileAvatar').value = data.avatarUrl;
+        statusEl.innerText = '✅ 头像已上传，请点击“保存所有更改”生效';
+      } else {
+        statusEl.innerText = '❌ 上传失败：' + (data.error || '未知错误');
+      }
+    } catch (e) {
+      statusEl.innerText = '网络错误';
     }
   });
 </script>
