@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文章详情 · 隋修梁 MaxSui</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', system-ui, sans-serif;
+      background: linear-gradient(145deg, #e8f0fe 0%, #d9e6f2 40%, #c7ddef 100%);
+      min-height: 100vh;
+      padding: 2rem;
+      color: #1e2b3c;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(255,255,255,0.25);
+      backdrop-filter: blur(12px);
+      border-radius: 40px;
+      padding: 2.5rem;
+      box-shadow: 0 20px 40px -12px rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 2rem;
+      color: #2563eb;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 1rem;
+      color: #0f172a;
+    }
+    .meta {
+      color: #475569;
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 2rem;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      padding-bottom: 1rem;
+    }
+    .content {
+      line-height: 1.8;
+      font-size: 1.1rem;
+    }
+    .content img { max-width: 100%; border-radius: 16px; }
+    .loading, .error { text-align: center; padding: 3rem; font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> 返回主页</a>
+    <div id="postContent">
+      <div class="loading">加载中...</div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = 'https://maxsui-backbend-production.up.railway.app/api';
+    const params = new URLSearchParams(window.location.search);
+    const postId = params.get('id');
+
+    if (!postId) {
+      document.getElementById('postContent').innerHTML = '<div class="error">缺少文章ID</div>';
+    } else {
+      fetch(`${API_BASE_URL}/blog/${postId}`)
+        .then(res => {
+          if (!res.ok) throw new Error('文章不存在');
+          return res.json();
+        })
+        .then(post => {
+          document.getElementById('postContent').innerHTML = `
+            <h1>${post.title || '无标题'}</h1>
+            <div class="meta">
+              <span><i class="far fa-calendar"></i> ${post.date || ''}</span>
+              <span><i class="far fa-clock"></i> ${post.readTime || ''}</span>
+            </div>
+            <div class="content">
+              ${post.content || '<p>暂无正文内容</p>'}
+            </div>
+          `;
+        })
+        .catch(err => {
+          document.getElementById('postContent').innerHTML = `
+            <div class="error">
+              <p>文章加载失败</p>
+              <p><small>${err.message}</small></p>
+            </div>
+          `;
+        });
+    }
+  </script>
+</body>
+</html>
