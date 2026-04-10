@@ -17,7 +17,7 @@ body {
   flex-direction: column;
 }
 
-/* ---------- 顶部导航栏：灵动岛胶囊设计 ---------- */
+/* ---------- 顶部导航栏：灵动岛胶囊设计（加宽版） ---------- */
 .glass-nav {
   position: sticky;
   top: 16px;
@@ -25,15 +25,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 900px;
+  max-width: 800px;               /* 胶囊加宽 */
   width: fit-content;
   margin: 0 auto;
-  padding: 0.5rem 1.2rem;
+  padding: 0.5rem 1.5rem;
   
-  /* 超大圆角胶囊外形 */
   border-radius: 60px;
   
-  /* 基础液态玻璃效果（始终存在） */
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -46,13 +44,11 @@ body {
   transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1);
 }
 
-/* 滚动后背景稍微加深 */
 .glass-nav.scrolled {
   background: rgba(255, 255, 255, 0.35);
   box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.2);
 }
 
-/* Logo 区域 */
 .logo {
   font-weight: 600;
   font-size: 1.5rem;
@@ -70,7 +66,6 @@ body {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
-/* 导航链接容器 */
 .nav-links {
   display: flex;
   gap: 0.5rem;
@@ -97,14 +92,12 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* 按钮图标 */
 .nav-btn i {
   font-size: 1.1rem;
   opacity: 0.9;
   color: #ffffff;
 }
 
-/* 悬停效果 */
 .nav-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
@@ -304,7 +297,7 @@ body {
   filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
 }
 
-/* ---------- 博客网格 ---------- */
+/* ---------- 博客网格（大卡片） ---------- */
 .blog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -418,62 +411,70 @@ body {
   text-decoration: underline;
 }
 
-/* ---------- 联系区域 ---------- */
+/* ---------- 联系区域（加大版） ---------- */
 .contact-wrapper {
   display: flex;
   flex-wrap: wrap;
-  gap: 2rem;
+  gap: 2.5rem;
 }
 
 .contact-info {
-  flex: 1 1 260px;
+  flex: 1 1 300px;
+  padding: 2.5rem 2.8rem;
+}
+
+.contact-form {
+  flex: 2 1 400px;
+  padding: 2.5rem 2.8rem;
 }
 
 .contact-method {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 1.2rem;
+  margin-bottom: 2rem;
   color: #ffffff;
+  font-size: 1.1rem;
 }
 
 .contact-method i {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   background: rgba(255,255,255,0.25);
   backdrop-filter: blur(6px);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   border: 1px solid rgba(255,255,255,0.4);
   color: #ffffff;
 }
 
 .locked-contact {
   text-align: center;
-  padding: 1rem 0;
+  padding: 1.5rem 0;
   color: #ffffff;
 }
 
 .password-area {
   display: flex;
-  gap: 0.5rem;
-  margin: 1rem 0;
+  gap: 0.8rem;
+  margin: 1.5rem 0;
   justify-content: center;
   flex-wrap: wrap;
 }
 
 .password-area input {
-  padding: 0.6rem 1rem;
+  padding: 0.8rem 1.2rem;
   border-radius: 40px;
   border: 1px solid rgba(255,255,255,0.5);
   background: rgba(255,255,255,0.2);
   backdrop-filter: blur(6px);
-  flex: 1 1 160px;
+  flex: 1 1 180px;
   outline: none;
   color: #ffffff;
+  font-size: 1rem;
 }
 
 .password-area input::placeholder {
@@ -483,7 +484,7 @@ body {
 .unlock-btn {
   background: rgba(255, 255, 255, 0.3);
   border: 1px solid rgba(255,255,255,0.5);
-  padding: 0.6rem 1.5rem;
+  padding: 0.8rem 1.8rem;
   border-radius: 40px;
   color: #ffffff;
   font-weight: 600;
@@ -491,30 +492,26 @@ body {
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 10px -4px rgba(0,0,0,0.3);
   transition: 0.2s;
+  font-size: 1rem;
 }
 
 .unlock-btn:hover {
   background: rgba(255,255,255,0.5);
 }
 
-.contact-form {
-  flex: 2 1 300px;
-  min-width: 0;
-}
-
 .input-group {
-  margin-bottom: 1.2rem;
+  margin-bottom: 1.5rem;
 }
 
 .input-group input,
 .input-group textarea {
   width: 100%;
-  padding: 1rem 1.2rem;
+  padding: 1.2rem 1.5rem;
   background: rgba(255,255,255,0.15);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,0.4);
   border-radius: 40px;
-  font-size: 1rem;
+  font-size: 1.05rem;
   outline: none;
   color: #ffffff;
 }
@@ -527,10 +524,11 @@ body {
 .send-btn {
   background: rgba(255, 255, 255, 0.25);
   border: 1px solid rgba(255,255,255,0.5);
-  padding: 1rem 2.2rem;
+  padding: 1.2rem 2.5rem;
   border-radius: 60px;
   color: #ffffff;
   font-weight: 600;
+  font-size: 1.1rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -578,9 +576,14 @@ a {
 }
 
 /* ---------- 响应式调整 ---------- */
-@media (max-width: 700px) {
+@media (max-width: 800px) {
   .glass-nav {
     max-width: 95vw;
+  }
+}
+
+@media (max-width: 700px) {
+  .glass-nav {
     padding: 0.4rem 1rem;
   }
   .logo span {
@@ -602,6 +605,10 @@ a {
     gap: 2rem;
   }
   .blog-card {
+    padding: 2rem 1.8rem;
+  }
+  .contact-info,
+  .contact-form {
     padding: 2rem 1.8rem;
   }
 }
