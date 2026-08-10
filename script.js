@@ -94,7 +94,7 @@
 
     container.innerHTML = `
       <span class="hero-badge"><i class="fas fa-cog"></i> ${profileData.grade || '高中'} · ${profileData.age || ''}岁 · 热爱编程</span>
-      <h1><span class="hero-highlight">${profileData.name || '隋修梁 MaxSui'}</span><br>构建 · 思考 · 创造</h1>
+      <h1><span class="hero-highlight">${profileData.name || '隋修梁 MaxSui'}</span><br>I Can, because I think I Can!</h1>
       <p>${profileData.bio || ''}<br>技术栈：${interestsStr}</p>
       <div style="display: flex; gap: 16px; flex-wrap: wrap;">
         <a href="#works" class="nav-btn" style="background:#2563eb; color:white; border:none;"><i class="fas fa-arrow-down"></i> 查看作品</a>
@@ -213,7 +213,7 @@
     const form = document.getElementById('messageForm');
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      alert('✨ 留言已发送 (演示模式)');
+      alert('留言未发送(功能还没实现啊哥们)');
       form.reset();
     });
   }
