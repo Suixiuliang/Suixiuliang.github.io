@@ -331,9 +331,9 @@
     const fullAvatarUrl = 'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg';
     
     container.innerHTML = `
-      <span class="hero-badge"><i class="fas fa-cog"></i> ${profileData.grade || '高中'} · ${profileData.age || ''}岁 · 热爱编程</span>
-      <h1><span class="hero-highlight">${profileData.name || '隋修梁 MaxSui'}</span><br>I Can, because I think I Can!</h1>
-      <p>${profileData.bio || ''}<br>技术栈：${interestsStr}</p>
+      <span class="hero-badge"><i class="fas fa-cog"></i> ${profileData.grade || '高中'} · ${profileData.age || ''}岁 · 热爱各种奇怪的东西</span>
+      <h1><span class="hero-highlight">${profileData.name || 'MaxSui'}</span><br>I Can, because I think I Can!</h1>
+      <p>${profileData.bio || ''}<br>个人爱好：${interestsStr}</p>
       <div style="display: flex; gap: 16px; flex-wrap: wrap;">
         <a href="#works" class="nav-btn" style="background:#2563eb; color:white; border:none; border-radius:40px; padding:0.6rem 1.2rem; text-decoration:none; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-arrow-down"></i> 查看作品</a>
         <a href="#contact" class="nav-btn" style="background:rgba(255,255,255,0.2); color:white; border:none; border-radius:40px; padding:0.6rem 1.2rem; text-decoration:none; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-comment"></i> 联系我</a>
