@@ -9,11 +9,11 @@
   const navLinks = document.querySelectorAll('.nav-btn[data-section]');
 
   const defaultProfile = {
-    name: "隋修梁 MaxSui",
+    name: "MaxSui",
     age: 16,
-    grade: "高一",
-    bio: "热爱计算机底层与系统编程，熟悉 C / C# / C++，喜欢探索算法与图形学。",
-    interests: ["C", "C#", "C++", "算法", "图形学"],
+    grade: "高二",
+    bio: "热爱计算机底层与系统编程，熟悉 C / C# / C++，喜欢探索新的算法。",
+    interests: ["C", "C#", "C++", "OIer", "Minecraft", "CR-中国铁路", "Airbus"],
     avatar: null
   };
 
