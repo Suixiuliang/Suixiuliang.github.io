@@ -5,8 +5,10 @@
 
   const nav = document.getElementById('mainNav');
   const scrollContainer = document.getElementById('scrollContainer');
-  const sections = document.querySelectorAll('.panel');
-  const navLinks = document.querySelectorAll('.nav-btn[data-section]');
+  function getSections() { return document.querySelectorAll('.panel'); }
+  function getNavLinks() { return document.querySelectorAll('.nav-btn[data-section]'); }
+
+  let adminUnlocked = false;
 
   const defaultProfile = {
     name: "MaxSui",
@@ -14,17 +16,44 @@
     grade: "高二",
     bio: "热爱计算机底层与系统编程，熟悉 C / C# / C++，喜欢探索新的算法。",
     interests: ["C", "C#", "C++", "OIer", "Minecraft", "CR-中国铁路", "Airbus"],
-    avatar: null
+    avatar: null,
+    // QQ 风格状态：管理员在后台改 profile.status / profile.statusType
+    // statusType: online | busy | away | offline | custom
+    status: "在线",
+    statusType: "online"
   };
 
   let profileData = { ...defaultProfile };
   let blogPosts = [];
-  let worksData = [];
 
   let avatarClickCount = 0;
   let avatarClickTimer = null;
 
-  // ========== 博客双阶段滚动状态 ==========
+  // 滑动胶囊：只动胶囊，导航栏外壳尺寸不变
+  let navCapsule = null;
+  let lastScrollLeft = 0;
+  let lastScrollTime = performance.now();
+  let capsuleScale = 1;
+  let capsuleScaleVel = 0;
+  let capsuleScaleRaf = null;
+  let capsuleX = 0;
+  let capsuleW = 0;
+  let capsuleTargetX = 0;
+  let capsuleTargetW = 0;
+  let capsulePosVelX = 0;
+  let capsulePosVelW = 0;
+  let capsulePosRaf = null;
+  const CAPSULE_SCALE_MAX = 1.12;
+  const CAPSULE_SPRING_K = 220;
+  const CAPSULE_SPRING_D = 16;
+  const CAPSULE_POS_K = 280;
+  const CAPSULE_POS_D = 22;
+
+  // Apple 自定义日历状态
+  let calCurrentDate = new Date();
+  let calSelectedDateStr = null;
+
+  // 博客双阶段滚动状态
   const blogPanel = document.getElementById('blog');
   const blogContent = document.querySelector('.panel-blog-content');
   const blogCover = document.getElementById('blogCover');
@@ -35,19 +64,81 @@
   let stage2Extra = 0;
   let isBlogActive = false;
 
-  // 搜索与日历 DOM 绑定
+  // DOM 绑定
   const blogSearchInput = document.getElementById('blogSearchInput');
   const calendarBtn = document.getElementById('calendarBtn');
   const calendarModal = document.getElementById('calendarModal');
   const closeCalendarBtn = document.getElementById('closeCalendarBtn');
-  const blogDatePicker = document.getElementById('blogDatePicker');
   const searchByDateBtn = document.getElementById('searchByDateBtn');
   const clearDateBtn = document.getElementById('clearDateBtn');
 
-  // 初始化日历和搜索交互
+  // ========== Apple 风格自定义日历逻辑 ==========
+  function renderAppleCalendar() {
+    const calendarEl = document.getElementById('appleCalendar');
+    if (!calendarEl) return;
+
+    const year = calCurrentDate.getFullYear();
+    const month = calCurrentDate.getMonth();
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+
+    let html = `
+      <div class="apple-cal-header">
+        <button class="apple-cal-nav" id="calPrevBtn" type="button"><i class="fas fa-chevron-left"></i></button>
+        <span>${year}年 ${monthNames[month]}</span>
+        <button class="apple-cal-nav" id="calNextBtn" type="button"><i class="fas fa-chevron-right"></i></button>
+      </div>
+      <div class="apple-cal-weekdays">
+        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </div>
+      <div class="apple-cal-days">
+    `;
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      html += `<div class="apple-cal-day empty"></div>`;
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const monthStr = String(month + 1).padStart(2, '0');
+      const dayStr = String(day).padStart(2, '0');
+      const dateVal = `${year}-${monthStr}-${dayStr}`;
+      
+      const isSelected = (calSelectedDateStr === dateVal);
+      html += `<div class="apple-cal-day ${isSelected ? 'selected' : ''}" data-date="${dateVal}">${day}</div>`;
+    }
+
+    html += `</div>`;
+    calendarEl.innerHTML = html;
+
+    document.getElementById('calPrevBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      calCurrentDate.setMonth(calCurrentDate.getMonth() - 1);
+      renderAppleCalendar();
+    });
+
+    document.getElementById('calNextBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      calCurrentDate.setMonth(calCurrentDate.getMonth() + 1);
+      renderAppleCalendar();
+    });
+
+    calendarEl.querySelectorAll('.apple-cal-day:not(.empty)').forEach(dayEl => {
+      dayEl.addEventListener('click', () => {
+        calendarEl.querySelectorAll('.apple-cal-day').forEach(d => d.classList.remove('selected'));
+        dayEl.classList.add('selected');
+        calSelectedDateStr = dayEl.dataset.date;
+      });
+    });
+  }
+
+  // 初始化博客工具栏与弹窗
   function setupBlogToolbarInteractions() {
     if (calendarBtn && calendarModal) {
       calendarBtn.addEventListener('click', () => {
+        renderAppleCalendar();
         calendarModal.classList.add('active');
       });
       closeCalendarBtn.addEventListener('click', () => {
@@ -67,19 +158,18 @@
 
     if (searchByDateBtn) {
       searchByDateBtn.addEventListener('click', () => {
-        const selectedDate = blogDatePicker.value; // 格式: YYYY-MM-DD
-        if (!selectedDate) {
+        if (!calSelectedDateStr) {
           alert('请先选择日期');
           return;
         }
-        filterAndRenderBlogs('', selectedDate);
+        filterAndRenderBlogs('', calSelectedDateStr);
         calendarModal.classList.remove('active');
       });
     }
 
     if (clearDateBtn) {
       clearDateBtn.addEventListener('click', () => {
-        if (blogDatePicker) blogDatePicker.value = '';
+        calSelectedDateStr = null;
         if (blogSearchInput) blogSearchInput.value = '';
         filterAndRenderBlogs('', null);
         calendarModal.classList.remove('active');
@@ -87,7 +177,7 @@
     }
   }
 
-  // 过滤并渲染博客列表
+  // 过滤并渲染博客
   function filterAndRenderBlogs(keyword = '', dateStr = null) {
     const list = document.getElementById('blogList');
     const countEl = document.getElementById('postCount');
@@ -100,8 +190,7 @@
 
       let matchesDate = true;
       if (dateStr) {
-        // 假设文章的 date 字段格式包含该日期或者匹配
-        const postDate = (post.date || '').split(' ')[0]; // 提取 YYYY-MM-DD
+        const postDate = (post.date || '').split(' ')[0];
         matchesDate = postDate === dateStr;
       }
       return matchesKeyword && matchesDate;
@@ -146,23 +235,150 @@
     });
   }
 
-  // 🌟 彩蛋绑定至全局悬浮头像
+  // ---------- 管理员登录（连点头像 7 次） ----------
+  async function sha256Hex(text) {
+    const data = new TextEncoder().encode(text);
+    const hashBuf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function openAdminLoginModal() {
+    const modal = document.getElementById('adminLoginModal');
+    const err = document.getElementById('adminLoginError');
+    const user = document.getElementById('adminUsername');
+    const pass = document.getElementById('adminPassword');
+    if (err) { err.hidden = true; err.textContent = '密码错误'; }
+    if (user) user.value = '';
+    if (pass) pass.value = '';
+    if (modal) modal.classList.add('active');
+    setTimeout(() => user && user.focus(), 50);
+  }
+
+  function closeAdminLoginModal() {
+    const modal = document.getElementById('adminLoginModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function bindNavLinkClick(link) {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.getElementById(link.getAttribute('href').substring(1));
+      if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+    });
+  }
+
+  function unlockAdminPanel() {
+    if (adminUnlocked) return;
+    adminUnlocked = true;
+    closeAdminLoginModal();
+
+    // 导航最前面插入「管理员」
+    const linksWrap = document.querySelector('.nav-links');
+    if (linksWrap && !document.querySelector('.nav-btn[data-section="admin"]')) {
+      const a = document.createElement('a');
+      a.href = '#admin';
+      a.className = 'nav-btn';
+      a.dataset.section = 'admin';
+      a.innerHTML = '<i class="fas fa-user-shield"></i><span>管理员</span>';
+      linksWrap.insertBefore(a, linksWrap.firstChild);
+      bindNavLinkClick(a);
+    }
+
+    // 内容区最前面插入管理员面板
+    if (scrollContainer && !document.getElementById('admin')) {
+      const section = document.createElement('section');
+      section.id = 'admin';
+      section.className = 'panel';
+      section.innerHTML = `
+        <div class="panel-content">
+          <div class="section-title"><i class="fas fa-user-shield"></i><span>管理员</span></div>
+          <div class="glass-card admin-panel-placeholder">
+            <p>管理员面板内容待定</p>
+          </div>
+        </div>
+      `;
+      scrollContainer.insertBefore(section, scrollContainer.firstChild);
+    }
+
+    // 滚到管理员页并刷新胶囊
+    requestAnimationFrame(() => {
+      const adminEl = document.getElementById('admin');
+      if (adminEl) scrollContainer.scrollTo({ left: adminEl.offsetLeft, behavior: 'smooth' });
+      updateActiveNavFromScroll();
+      updateCapsuleFromScroll();
+    });
+  }
+
+  function setupAdminLoginUI() {
+    const modal = document.getElementById('adminLoginModal');
+    const form = document.getElementById('adminLoginForm');
+    const closeBtn = document.getElementById('closeAdminLoginBtn');
+    const cancelBtn = document.getElementById('adminLoginCancel');
+    const err = document.getElementById('adminLoginError');
+
+    if (closeBtn) closeBtn.addEventListener('click', closeAdminLoginModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeAdminLoginModal);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeAdminLoginModal();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = (document.getElementById('adminUsername')?.value || '').trim();
+        const password = document.getElementById('adminPassword')?.value || '';
+        if (!username || !password) {
+          if (err) { err.hidden = false; err.textContent = '请输入用户名和密码'; }
+          return;
+        }
+
+        const submitBtn = document.getElementById('adminLoginSubmit');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '校验中…'; }
+
+        try {
+          const combined = username + password;
+          const hash = await sha256Hex(combined);
+          const res = await fetch('auth.sha256', { cache: 'no-store' });
+          if (!res.ok) throw new Error('无法读取 auth.sha256');
+          const expected = (await res.text()).trim().toLowerCase();
+          if (hash === expected) {
+            unlockAdminPanel();
+          } else {
+            if (err) { err.hidden = false; err.textContent = '密码错误'; }
+          }
+        } catch (ex) {
+          if (err) { err.hidden = false; err.textContent = '校验失败，请稍后重试'; }
+          console.error(ex);
+        } finally {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '登录'; }
+        }
+      });
+    }
+  }
+
+  // 彩蛋：连点头像 7 次 → 管理员登录窗
   function setupAvatarSecret() {
     const globalAvatar = document.getElementById('globalAvatar');
-    if (!globalAvatar) return;
+    if (!globalAvatar || globalAvatar.dataset.secretBound === '1') return;
+    globalAvatar.dataset.secretBound = '1';
     globalAvatar.addEventListener('click', () => {
+      if (adminUnlocked) return;
       avatarClickCount++;
       clearTimeout(avatarClickTimer);
-      if (avatarClickCount >= 10) {
-        window.location.href = 'https://suixiuliang.github.io/backendmgr';
+      if (avatarClickCount >= 7) {
         avatarClickCount = 0;
+        openAdminLoginModal();
       } else {
         avatarClickTimer = setTimeout(() => { avatarClickCount = 0; }, 2000);
       }
     });
   }
 
-  // ========== 🌟 全局头像平滑插值引擎 ==========
+  // 全局头像平滑过渡插值引擎
   function updateGlobalAvatarPosition() {
     const globalAvatar = document.getElementById('globalAvatar');
     const homePlaceholder = document.getElementById('homeAvatarPlaceholder');
@@ -175,8 +391,19 @@
     const vw = scrollContainer.clientWidth;
     const scrollLeft = scrollContainer.scrollLeft;
     
+    // 有管理员页时它在最前，头像插值从主页（第 2 屏）开始算
     let p = scrollLeft / vw;
-    if (p < 0) p = 0;
+    if (adminUnlocked) p = p - 1;
+    if (p < 0) {
+      // 在管理员页：头像淡出
+      globalAvatar.style.opacity = Math.max(0, 1 + p);
+      const r = homePlaceholder.getBoundingClientRect();
+      globalAvatar.style.width = r.width + 'px';
+      globalAvatar.style.height = r.height + 'px';
+      globalAvatar.style.transform =
+        `translate(calc(${r.left + r.width / 2}px - 50%), calc(${r.top + r.height / 2}px - 50%))`;
+      return;
+    }
     if (p > 3) p = 3;
 
     let targetRect, startRect;
@@ -219,12 +446,11 @@
     }
   }
 
-  window.addEventListener('scroll', () => { nav.classList.toggle('scrolled', window.scrollY > 20); });
-
   let rafId = null;
   function updateActiveNavFromScroll() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
+      const sections = getSections();
       const scrollLeft = scrollContainer.scrollLeft;
       const containerWidth = scrollContainer.clientWidth;
       const viewportCenter = scrollLeft + containerWidth / 2;
@@ -240,7 +466,7 @@
       else if (scrollLeft >= maxScroll - 5) closestIndex = sections.length - 1;
       const activeId = sections[closestIndex]?.getAttribute('id');
       
-      navLinks.forEach(link => { link.classList.toggle('active', link.dataset.section === activeId); });
+      getNavLinks().forEach(link => { link.classList.toggle('active', link.dataset.section === activeId); });
 
       const wasBlog = isBlogActive;
       isBlogActive = (activeId === 'blog');
@@ -256,25 +482,134 @@
     });
   }
 
+  // ---------- 滑动胶囊：按滚动进度连续插值，不在按钮上卡顿 ----------
+  function ensureNavCapsule() {
+    const links = document.querySelector('.nav-links');
+    if (!links) return null;
+    let el = links.querySelector('.nav-capsule');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'nav-capsule';
+      links.insertBefore(el, links.firstChild);
+    }
+    navCapsule = el;
+    return el;
+  }
+
+  function applyCapsuleTransform() {
+    if (!navCapsule) return;
+    navCapsule.style.width = Math.max(0, capsuleW) + 'px';
+    navCapsule.style.transform =
+      `translateY(-50%) translateX(${capsuleX}px) scale(${capsuleScale})`;
+  }
+
+  function tickCapsuleScaleSpring() {
+    const target = 1;
+    const disp = capsuleScale - target;
+    const accel = -CAPSULE_SPRING_K * disp - CAPSULE_SPRING_D * capsuleScaleVel;
+    const dt = 1 / 60;
+    capsuleScaleVel += accel * dt;
+    capsuleScale += capsuleScaleVel * dt;
+    if (Math.abs(disp) < 0.001 && Math.abs(capsuleScaleVel) < 0.002) {
+      capsuleScale = 1;
+      capsuleScaleVel = 0;
+      applyCapsuleTransform();
+      capsuleScaleRaf = null;
+      return;
+    }
+    applyCapsuleTransform();
+    capsuleScaleRaf = requestAnimationFrame(tickCapsuleScaleSpring);
+  }
+
+  function bumpCapsuleScaleFromVelocity(velocityPxPerSec) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!navCapsule || nav.classList.contains('blog-mode')) return;
+    const t = Math.min(1, velocityPxPerSec / 2600);
+    const next = 1 + (CAPSULE_SCALE_MAX - 1) * t;
+    if (next > capsuleScale) {
+      capsuleScale = next;
+      capsuleScaleVel = 0;
+      applyCapsuleTransform();
+    }
+    if (!capsuleScaleRaf) {
+      capsuleScaleRaf = requestAnimationFrame(tickCapsuleScaleSpring);
+    }
+  }
+
+  // 按横向滚动进度，在相邻导航按钮之间连续插值位置与宽度
+  function updateCapsuleFromScroll() {
+    ensureNavCapsule();
+    if (!navCapsule) return;
+
+    if (nav.classList.contains('blog-mode')) {
+      navCapsule.style.opacity = '0';
+      return;
+    }
+    navCapsule.style.opacity = '1';
+
+    const links = document.querySelector('.nav-links');
+    const btns = Array.from(document.querySelectorAll('.nav-btn[data-section]'));
+    if (!links || btns.length < 2) return;
+
+    const vw = scrollContainer.clientWidth || 1;
+    const maxScroll = Math.max(1, scrollContainer.scrollWidth - vw);
+    // 连续进度：0 → 0, 末尾 → btns.length - 1
+    let progress = (scrollContainer.scrollLeft / maxScroll) * (btns.length - 1);
+    progress = Math.max(0, Math.min(btns.length - 1, progress));
+
+    const i0 = Math.floor(progress);
+    const i1 = Math.min(btns.length - 1, i0 + 1);
+    const t = progress - i0;
+
+    const parentRect = links.getBoundingClientRect();
+    const r0 = btns[i0].getBoundingClientRect();
+    const r1 = btns[i1].getBoundingClientRect();
+    const x0 = r0.left - parentRect.left;
+    const x1 = r1.left - parentRect.left;
+    const w0 = r0.width;
+    const w1 = r1.width;
+
+    // 线性插值，跟手不卡在按钮上
+    capsuleX = x0 + (x1 - x0) * t;
+    capsuleW = w0 + (w1 - w0) * t;
+    applyCapsuleTransform();
+  }
+
+  function moveCapsuleToActive(immediate) {
+    // 兼容：瞬时对齐到当前滚动位置
+    updateCapsuleFromScroll();
+  }
+
+  function onHorizontalScrollForNav() {
+    const now = performance.now();
+    const left = scrollContainer.scrollLeft;
+    const dt = Math.max(8, now - lastScrollTime);
+    const velocity = Math.abs(left - lastScrollLeft) / dt * 1000;
+    lastScrollLeft = left;
+    lastScrollTime = now;
+
+    updateCapsuleFromScroll();
+
+    if (velocity > 40) {
+      bumpCapsuleScaleFromVelocity(velocity);
+    }
+  }
+
   scrollContainer.addEventListener('scroll', () => {
     updateActiveNavFromScroll();
+    onHorizontalScrollForNav();
     requestAnimationFrame(updateGlobalAvatarPosition);
-  });
+  }, { passive: true });
 
   window.addEventListener('resize', () => {
     updateActiveNavFromScroll();
+    updateCapsuleFromScroll();
     setupBlogScrollHeights();
     updateBlogScroll();
     updateGlobalAvatarPosition();
   });
 
-  navLinks.forEach(link => {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      const target = document.getElementById(link.getAttribute('href').substring(1));
-      if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
-    });
-  });
+  getNavLinks().forEach(bindNavLinkClick);
 
   function setupBlogScrollHeights() {
     if (!blogPanel || !blogContent || !blogWhiteBox) return;
@@ -314,8 +649,16 @@
     }
   }
 
+  // 博客滚动条：仅在滑动时显示
+  let blogScrollHideTimer = null;
   if (blogPanel) {
     blogPanel.addEventListener('scroll', () => {
+      blogPanel.classList.add('is-scrolling');
+      if (blogScrollHideTimer) clearTimeout(blogScrollHideTimer);
+      blogScrollHideTimer = setTimeout(() => {
+        blogPanel.classList.remove('is-scrolling');
+      }, 900);
+
       requestAnimationFrame(() => {
         updateBlogScroll();
         updateGlobalAvatarPosition();
@@ -323,31 +666,56 @@
     }, { passive: true });
   }
 
+  // ========== 主页渲染（Hero + QQ 状态 + 兴趣必应） ==========
   function renderProfile() {
     const container = document.getElementById('profileContainer');
     const avatarContainer = document.getElementById('avatarContainer');
     const globalAvatar = document.getElementById('globalAvatar');
-    const interestsStr = (profileData.interests || []).join(' · ');
+    const interests = profileData.interests || [];
     const fullAvatarUrl = 'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg';
-    
+
+    const grade = profileData.grade || '高中';
+    const age = profileData.age ? `${profileData.age} 岁` : '';
+
+    const statusText = (profileData.status && String(profileData.status).trim()) || '在线';
+    let statusType = (profileData.statusType || 'online').toLowerCase();
+    if (!['online', 'busy', 'away', 'offline', 'custom'].includes(statusType)) {
+      statusType = 'custom';
+    }
+
+    const interestBtns = interests.map(tag => {
+      const q = encodeURIComponent(tag);
+      return `<a class="home-interest-btn" href="https://www.bing.com/search?q=${q}" target="_blank" rel="noopener noreferrer">${tag}</a>`;
+    }).join('');
+
     container.innerHTML = `
-      <span class="hero-badge"><i class="fas fa-cog"></i> ${profileData.grade || '高中'} · ${profileData.age || ''}岁 · 热爱各种奇怪的东西</span>
-      <h1><span class="hero-highlight">${profileData.name || 'MaxSui'}</span><br>I Can, because I think I Can!</h1>
-      <p>${profileData.bio || ''}<br>个人爱好：${interestsStr}</p>
-      <div style="display: flex; gap: 16px; flex-wrap: wrap;">
-        <a href="#works" class="nav-btn" style="background:#2563eb; color:white; border:none; border-radius:40px; padding:0.6rem 1.2rem; text-decoration:none; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-arrow-down"></i> 查看作品</a>
-        <a href="#contact" class="nav-btn" style="background:rgba(255,255,255,0.2); color:white; border:none; border-radius:40px; padding:0.6rem 1.2rem; text-decoration:none; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-comment"></i> 联系我</a>
+      <p class="home-kicker">Personal Site</p>
+      <div class="home-name-row">
+        <h1 class="home-name">${profileData.name || 'MaxSui'}</h1>
+        <div class="home-status" title="状态（管理员可在后台修改）">
+          <span class="home-status-dot ${statusType}"></span>
+          <span class="home-status-text">${statusText}</span>
+        </div>
+      </div>
+      <p class="home-meta-row">${grade}${age ? ' · ' + age : ''}</p>
+      <p class="home-bio">${profileData.bio || ''}</p>
+      ${interestBtns ? `<div class="home-interests">${interestBtns}</div>` : ''}
+      <div class="home-actions">
+        <a href="#works" class="nav-btn apple-primary-btn" style="text-decoration:none;"><i class="fas fa-code"></i> 作品</a>
+        <a href="#contact" class="nav-btn apple-secondary-btn" style="text-decoration:none;"><i class="fas fa-paper-plane"></i> 联系</a>
       </div>
     `;
-    
-    avatarContainer.innerHTML = `<div class="avatar-circle-placeholder" id="homeAvatarPlaceholder"></div>`;
-    
+
+    if (avatarContainer) {
+      avatarContainer.innerHTML = `<div class="avatar-circle-placeholder" id="homeAvatarPlaceholder"></div>`;
+    }
+
     if (fullAvatarUrl) {
       globalAvatar.innerHTML = `<img src="${fullAvatarUrl}" alt="头像" style="width:100%; height:100%; object-fit:cover;">`;
     } else {
-      globalAvatar.innerHTML = `<i class="fas fa-user-astronaut" style="font-size: 5rem; color: #ffffff;"></i>`;
+      globalAvatar.innerHTML = `<i class="fas fa-user-astronaut" style="font-size: 4rem; color: #ffffff;"></i>`;
     }
-    
+
     container.querySelectorAll('a[href^="#"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -355,34 +723,55 @@
         if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
       });
     });
-    
+
     setupAvatarSecret();
   }
 
-  function renderBlog() {
-    filterAndRenderBlogs('', null);
-  }
-
+  // 渲染规定的三个作品卡片
   function renderWorks() {
     const grid = document.getElementById('worksGrid');
-    if (!worksData.length) { 
-      worksData = [
-        { name: "C# 综合控制台框架", description: "基于 C# 开发的轻量化终端调试管理与架构工具。", icon: "fa-terminal", link: "#" },
-        { name: "图形学算法渲染演示", description: "探索基础光栅化与几何变换原理的简易引擎。", icon: "fa-cube", link: "#" },
-        { name: "在线题解与博客系统", description: "用代码与文字记录高中阶段的技术思考。", icon: "fa-book-open", link: "#" }
-      ];
-    }
+    if (!grid) return;
+
+    const works = [
+      {
+        name: "HomeworkViewer",
+        description: "使用.NET 10.0 + WinForms实现的轻量级电子作业展板",
+        github: "https://github.com/Suixiuliang/HomeworkViewer",
+        legacyLink: "https://github.com/Suixiuliang/HomeworkViewer-Legacy",
+        legacyText: "您的系统不支持.NET 10.0?<br>请前往兼容版HomeworkViewer-Legacy"
+      },
+      {
+        name: "SimpleClock",
+        description: "使用.NET 5.0 + WPF实现的简单的时钟，成功弥补了Win7系统下没有时钟应用而无法进行计时/闹钟等操作的遗憾",
+        github: "https://github.com/Suixiuliang/SimpleClock"
+      },
+      {
+        name: "Password_Gen",
+        description: "使用.NET 10.0 + MAUI 实现，旨在加密你的密码，使用多重加密方法加密，再也不怕密码被撞库泄露了",
+        github: "https://github.com/Suixiuliang/Password_gen"
+      }
+    ];
+
     let html = '';
-    worksData.forEach(work => {
+    works.forEach(item => {
       html += `
-        <div class="glass-card work-item">
-          <div class="work-preview"><i class="fas ${work.icon || 'fa-code'}"></i></div>
-          <h3>${work.name}</h3>
-          <p>${work.description}</p>
-          <a href="${work.link}" target="_blank" class="work-link">查看项目 <i class="fas fa-external-link-alt"></i></a>
+        <div class="glass-card work-card">
+          <div class="work-card-body">
+            <h3>${item.name}</h3>
+            <p>${item.description}</p>
+          </div>
+          <div class="work-card-footer">
+            ${item.legacyLink ? `
+              <a href="${item.legacyLink}" target="_blank" class="work-legacy-link">${item.legacyText}</a>
+            ` : '<div></div>'}
+            <a href="${item.github}" target="_blank" class="work-circle-btn" title="前往 GitHub 项目">
+              <i class="fas fa-arrow-right"></i>
+            </a>
+          </div>
         </div>
       `;
     });
+
     grid.innerHTML = html;
   }
 
@@ -395,20 +784,21 @@
       const blogRes = await fetch(`${API_BASE_URL}/blog`);
       if (blogRes.ok) { const posts = await blogRes.json(); if (Array.isArray(posts)) blogPosts = posts; }
     } catch (e) {}
-    try {
-      const worksRes = await fetch(`${API_BASE_URL}/works`);
-      if (worksRes.ok) { const works = await worksRes.json(); if (Array.isArray(works) && works.length) worksData = works; }
-    } catch (e) {}
-    
-    renderProfile(); renderBlog(); renderWorks();
+
+    renderProfile(); 
+    filterAndRenderBlogs('', null); 
+    renderWorks();
   }
 
   async function init() {
     renderProfile();
-    renderBlog();
+    filterAndRenderBlogs('', null);
     renderWorks();
     setupBlogToolbarInteractions();
+    ensureNavCapsule();
+    setupAdminLoginUI();
     updateActiveNavFromScroll();
+    updateCapsuleFromScroll();
     setupBlogScrollHeights();
     updateBlogScroll();
     
@@ -420,6 +810,7 @@
       setupBlogScrollHeights();
       updateBlogScroll();
       updateGlobalAvatarPosition();
+      updateCapsuleFromScroll();
     }, 500);
   }
 

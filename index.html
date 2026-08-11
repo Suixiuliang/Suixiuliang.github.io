@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>MaxSuiの主页</title>
+  <title>MaxSui的主页</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,11 +42,39 @@
       <button class="close-calendar" id="closeCalendarBtn"><i class="fas fa-times"></i></button>
     </div>
     <div class="calendar-body">
-      <input type="date" id="blogDatePicker" class="blog-date-picker">
+      <!-- Apple 风格液态玻璃自定义日历容器 -->
+      <div id="appleCalendar" class="apple-calendar"></div>
       <div class="calendar-actions">
-        <button id="searchByDateBtn" class="nav-btn" style="background:#2563eb; color:white; border:none; padding: 0.5rem 1rem; border-radius: 20px;">确定查找</button>
-        <button id="clearDateBtn" class="nav-btn" style="background:rgba(255,255,255,0.2); color:white; border:none; padding: 0.5rem 1rem; border-radius: 20px;">显示全部</button>
+        <button id="searchByDateBtn" class="nav-btn apple-primary-btn">确定查找</button>
+        <button id="clearDateBtn" class="nav-btn apple-secondary-btn">显示全部</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理员登录弹窗（与日历同风格） -->
+<div class="calendar-modal" id="adminLoginModal">
+  <div class="calendar-modal-content glass-card admin-login-content">
+    <div class="calendar-header">
+      <h3><i class="fas fa-shield-alt"></i> 管理员登录</h3>
+      <button class="close-calendar" id="closeAdminLoginBtn" type="button"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="calendar-body">
+      <form id="adminLoginForm" class="admin-login-form" autocomplete="off">
+        <label class="admin-field">
+          <span>用户名</span>
+          <input type="text" id="adminUsername" name="username" required placeholder="请输入用户名" autocomplete="username">
+        </label>
+        <label class="admin-field">
+          <span>密码</span>
+          <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
+        </label>
+        <p class="admin-login-error" id="adminLoginError" hidden>密码错误</p>
+        <div class="calendar-actions">
+          <button type="submit" class="nav-btn apple-primary-btn" id="adminLoginSubmit">登录</button>
+          <button type="button" class="nav-btn apple-secondary-btn" id="adminLoginCancel">取消</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -54,12 +82,14 @@
 <!-- 水平滚动容器 -->
 <div class="horizontal-scroll-container" id="scrollContainer">
 
-  <!-- ===== 主页 (第1页) ===== -->
-  <section id="home" class="panel">
-    <div class="panel-content">
-      <div class="hero">
-        <div class="hero-content" id="profileContainer"><div class="loading-placeholder">加载中...</div></div>
-        <div class="hero-avatar" id="avatarContainer"></div>
+  <!-- ===== 主页 (第1页) — Hero 布局 ===== -->
+  <section id="home" class="panel panel-home">
+    <div class="panel-content home-content">
+      <div class="home-layout">
+        <div class="home-text" id="profileContainer">
+          <div class="loading-placeholder">加载中...</div>
+        </div>
+        <div class="home-avatar-side" id="avatarContainer"></div>
       </div>
     </div>
   </section>
@@ -89,7 +119,7 @@
             <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>
           </div>
           <div class="blog-footer">
-            <i class="fas fa-heart"></i> 用文字记录代码间的的点滴
+            <i class="fas fa-heart"></i> 用文字记录代码间的点滴
           </div>
         </div>
       </div>
@@ -115,7 +145,7 @@
       <div class="section-title"><i class="fas fa-address-card"></i><span>联系我</span></div>
       
       <div class="win7-contact-container">
-        <!-- Win7镜像亚克力名片 -->
+        <!-- 亚力克玻璃名片 -->
         <div class="glass-card win7-business-card">
           <div class="win7-card-info">
             <div class="win7-card-header">
