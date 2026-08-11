@@ -4,111 +4,171 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
   <title>隋修梁 MaxSui 个人主页</title>
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <!-- 自定义样式（包含液态玻璃与背景图） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- 顶部导航（液态玻璃） -->
+<!-- 全局悬浮头像 -->
+<div id="globalAvatar" class="global-avatar"></div>
+
+<!-- 导航栏 -->
 <nav class="glass-nav" id="mainNav">
-  <div class="logo">
-    <i class="fas fa-terminal"></i>
-    <span>MaxSui</span>
-  </div>
+  <div class="logo"><i class="fas fa-terminal"></i><span>MaxSui</span></div>
   <div class="nav-links">
-    <a href="#home" class="nav-btn" data-section="home"><i class="fas fa-home"></i><span>主页</span></a>
-    <a href="#blog" class="nav-btn" data-section="blog"><i class="fas fa-pen-fade"></i><span>博客</span></a>
+    <a href="#home" class="nav-btn active" data-section="home"><i class="fas fa-home"></i><span>主页</span></a>
+    <a href="#blog" class="nav-btn" data-section="blog"><i class="fas fa-feather-alt"></i><span>博客</span></a>
     <a href="#works" class="nav-btn" data-section="works"><i class="fas fa-laptop-code"></i><span>我的作品</span></a>
     <a href="#contact" class="nav-btn" data-section="contact"><i class="fas fa-envelope"></i><span>联系我</span></a>
   </div>
+  <!-- 博客模式下展开的头部工具栏：左搜索框 + 右日历图标 -->
+  <div class="blog-toolbar" id="blogToolbar">
+    <div class="blog-search-box">
+      <i class="fas fa-search"></i>
+      <input type="text" id="blogSearchInput" placeholder="搜索文章...">
+    </div>
+    <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
+  </div>
 </nav>
+
+<!-- 日历弹出面板 -->
+<div class="calendar-modal" id="calendarModal">
+  <div class="calendar-modal-content glass-card">
+    <div class="calendar-header">
+      <h3><i class="fas fa-calendar-alt"></i> 选择日期查找文章</h3>
+      <button class="close-calendar" id="closeCalendarBtn"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="calendar-body">
+      <input type="date" id="blogDatePicker" class="blog-date-picker">
+      <div class="calendar-actions">
+        <button id="searchByDateBtn" class="nav-btn" style="background:#2563eb; color:white; border:none; padding: 0.5rem 1rem; border-radius: 20px;">确定查找</button>
+        <button id="clearDateBtn" class="nav-btn" style="background:rgba(255,255,255,0.2); color:white; border:none; padding: 0.5rem 1rem; border-radius: 20px;">显示全部</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- 水平滚动容器 -->
 <div class="horizontal-scroll-container" id="scrollContainer">
-  <!-- 主页 -->
+
+  <!-- ===== 主页 (第1页) ===== -->
   <section id="home" class="panel">
     <div class="panel-content">
       <div class="hero">
-        <div class="hero-content" id="profileContainer">
-          <div class="loading-placeholder">加载中...</div>
-        </div>
+        <div class="hero-content" id="profileContainer"><div class="loading-placeholder">加载中...</div></div>
         <div class="hero-avatar" id="avatarContainer"></div>
       </div>
     </div>
   </section>
 
-  <!-- 博客 -->
-  <section id="blog" class="panel">
-    <div class="panel-content">
-      <div class="section-title">
-        <i class="fas fa-blog"></i>
-        <span>技术随笔</span>
-      </div>
-      <div class="blog-grid" id="blogGrid">
-        <div class="loading-placeholder">正在加载博客文章...</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 作品 -->
-  <section id="works" class="panel">
-    <div class="panel-content">
-      <div class="section-title">
-        <i class="fas fa-flask"></i>
-        <span>我的作品</span>
-      </div>
-      <div class="works-grid" id="worksGrid">
-        <div class="loading-placeholder">加载作品...</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 联系 -->
-  <section id="contact" class="panel">
-    <div class="panel-content">
-      <div class="section-title">
-        <i class="fas fa-address-card"></i>
-        <span>联系我</span>
-      </div>
-      <div class="contact-wrapper">
-        <div class="contact-info glass-card" id="contactInfoCard">
-          <h3><i class="fas fa-message"></i> 联系方式</h3>
-          <div id="contactDisplayArea">
-            <div class="locked-contact">
-              <p><i class="fas fa-lock"></i> 联系方式已隐藏，请输入口令查看</p>
-              <div class="password-area">
-                <input type="password" id="contactPasswordInput" placeholder="输入口令" />
-                <button id="unlockContactBtn" class="unlock-btn"><i class="fas fa-key"></i> 验证</button>
-              </div>
-              <p class="hint">(演示口令: 1234)</p>
-            </div>
+  <!-- ===== 博客面板 (第2页) ===== -->
+  <section id="blog" class="panel panel-blog" data-blog-panel>
+    <div class="panel-content panel-blog-content">
+      <div class="blog-cover" id="blogCover">
+        <div class="cover-inner">
+          <div class="cover-avatar-placeholder" id="coverAvatarPlaceholder"></div>
+          <h1 class="slogan" id="sloganText">I Can,<br>Because I Think I Can</h1>
+          <p class="slogan-sub">— 隋修梁 · 技术随笔 —</p>
+          <div class="scroll-down-hint">
+            <span>下滑查看所有博客</span>
+            <i class="fas fa-chevron-down"></i>
           </div>
         </div>
-        <div class="contact-form glass-card">
-          <h3><i class="fas fa-paper-plane"></i> 快速留言</h3>
-          <form id="messageForm">
-            <div class="input-group">
-              <input type="text" placeholder="你的名字" required>
-            </div>
-            <div class="input-group">
-              <input type="email" placeholder="电子邮箱" required>
-            </div>
-            <div class="input-group">
-              <textarea rows="3" placeholder="想说点什么..."></textarea>
-            </div>
-            <button type="submit" class="send-btn"><i class="fas fa-paper-plane"></i> 发送讯息</button>
-          </form>
-          <p class="form-note"><i class="fas fa-shield"></i> 留言会通过后端通知我</p>
+      </div>
+
+      <div class="blog-white-box" id="blogWhiteBox">
+        <div class="white-box-inner">
+          <div class="white-box-header">
+            <h2><i class="fas fa-feather-alt"></i> MaxSui 个人博客</h2>
+            <div class="sub-count" id="postCount">加载文章...</div>
+          </div>
+          <div class="blog-list" id="blogList">
+            <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>
+          </div>
+          <div class="blog-footer">
+            <i class="fas fa-heart"></i> 用代码思考 · 用文字记录
+          </div>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- ===== 作品 (第3页) ===== -->
+  <section id="works" class="panel">
+    <div class="panel-content">
+      <div class="works-header-area">
+        <div class="works-avatar-placeholder" id="worksAvatarPlaceholder"></div>
+        <div class="section-title-wrap">
+          <div class="section-title"><i class="fas fa-flask"></i><span>我的作品</span></div>
+        </div>
+      </div>
+      <div class="works-grid" id="worksGrid"><div class="loading-placeholder">加载作品...</div></div>
+    </div>
+  </section>
+
+  <!-- ===== 联系我 (第4页) ===== -->
+  <section id="contact" class="panel">
+    <div class="panel-content">
+      <div class="section-title"><i class="fas fa-address-card"></i><span>联系我</span></div>
+      
+      <div class="win7-contact-container">
+        <!-- Win7镜像亚克力名片 -->
+        <div class="glass-card win7-business-card">
+          <div class="win7-card-info">
+            <div class="win7-card-header">
+              <h3>隋修梁 (MaxSui)</h3>
+              <p class="win7-subtitle">学生 / 开发者 / 探索者</p>
+            </div>
+            
+            <div class="win7-info-list">
+              <div class="win7-info-item">
+                <i class="fas fa-user-tag"></i>
+                <span class="label">姓名：</span>
+                <span class="value">隋修梁</span>
+              </div>
+              <div class="win7-info-item">
+                <i class="fas fa-envelope"></i>
+                <span class="label">邮箱：</span>
+                <span class="value">suixiuliang@example.com</span>
+              </div>
+              <div class="win7-info-item">
+                <i class="fab fa-weixin"></i>
+                <span class="label">微信：</span>
+                <span class="value">MaxSui_Official</span>
+              </div>
+              <div class="win7-info-item">
+                <i class="fab fa-qq"></i>
+                <span class="label">QQ：</span>
+                <span class="value">123456789</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="win7-card-avatar-side">
+            <div class="contact-avatar-placeholder" id="contactAvatarPlaceholder"></div>
+          </div>
+        </div>
+
+        <!-- 社交媒体导航 -->
+        <div class="social-circles-bar">
+          <a href="https://twitter.com" target="_blank" class="social-circle-btn" title="X (Twitter)"><i class="fab fa-twitter"></i></a>
+          <a href="https://youtube.com" target="_blank" class="social-circle-btn" title="Youtube"><i class="fab fa-youtube"></i></a>
+          <a href="https://facebook.com" target="_blank" class="social-circle-btn" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+          <a href="https://instagram.com" target="_blank" class="social-circle-btn" title="Instagram"><i class="fab fa-instagram"></i></a>
+          <a href="https://bilibili.com" target="_blank" class="social-circle-btn" title="Bilibili"><i class="fab fa-bilibili"></i></a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
 </div>
 
 <div class="footer">
-  <p>© 2026 隋修梁 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
+  <p>© 2025-2026 隋修梁 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
 <script src="script.js"></script>
