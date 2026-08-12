@@ -38,14 +38,56 @@
     for (const base of API_CANDIDATES) {
       if (await tryOne(base)) {
         API_BASE_URL = base;
-        console.info('[MaxSui] API base:', API_BASE_URL);
         return API_BASE_URL;
       }
     }
-    // 全部失败时仍用第一个，后续请求会暴露错误
+    // 全部失败时仍用第一个；不在控制台打印具体地址，避免泄露
     API_BASE_URL = API_CANDIDATES[0];
-    console.warn('[MaxSui] API health check failed, using', API_BASE_URL);
     return API_BASE_URL;
+  }
+
+  /** 发布时间统一为 UTC+08:00（Asia/Shanghai）显示 */
+  function formatDateUTC8(input) {
+    if (!input) return '';
+    let d;
+    if (input instanceof Date) {
+      d = input;
+    } else {
+      const s = String(input).trim();
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+        d = new Date(s + 'Z');
+      } else if (/^\d{4}-\d{2}-\d{2} /.test(s) && !/[zZ]|[+-]\d{2}/.test(s)) {
+        d = new Date(s.replace(' ', 'T') + 'Z');
+      } else {
+        d = new Date(s);
+      }
+    }
+    if (Number.isNaN(d.getTime())) {
+      return String(input).replace('T', ' ').slice(0, 16);
+    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(d);
+      const get = (t) => (parts.find(p => p.type === t) || {}).value || '';
+      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+    } catch (_) {
+      const offset = 8 * 60;
+      const utc = d.getTime() + d.getTimezoneOffset() * 60000;
+      const cn = new Date(utc + offset * 60000);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${cn.getFullYear()}-${pad(cn.getMonth() + 1)}-${pad(cn.getDate())} ${pad(cn.getHours())}:${pad(cn.getMinutes())}`;
+    }
+  }
+
+  function dateOnlyUTC8(input) {
+    return (formatDateUTC8(input) || '').slice(0, 10);
   }
 
   const nav = document.getElementById('mainNav');
@@ -267,7 +309,7 @@
 
       let matchesDate = true;
       if (dateStr) {
-        const postDate = (post.date || '').split(' ')[0];
+        const postDate = dateOnlyUTC8(post.rawDate || post.date) || (post.date || '').split(' ')[0];
         matchesDate = postDate === dateStr;
       }
 
@@ -284,16 +326,17 @@
 
     let html = '';
     filtered.forEach(post => {
+      const displayDate = post.date || formatDateUTC8(post.rawDate) || '';
       html += `
         <article class="blog-card">
           <div class="blog-icon"><i class="fas ${post.icon || 'fa-pen'}"></i></div>
-          <h3>${post.title || '无标题'}</h3>
-          <p>${post.summary || post.content || ''}</p>
+          <h3>${escapeHtml(post.title || '无标题')}</h3>
+          <p>${escapeHtml(post.summary || '')}</p>
           <div class="blog-meta">
-            <span><i class="far fa-calendar"></i> ${post.date || ''}</span>
-            <span><i class="far fa-clock"></i> ${post.readTime || '3 min'}</span>
+            <span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} <small style="opacity:.7">UTC+8</small></span>
+            <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
-          <a href="#" class="read-more" data-id="${post.slug || post.id}">阅读全文 <i class="fas fa-arrow-right"></i></a>
+          <a href="#" class="read-more" data-id="${escapeHtml(post.slug || post.id)}">阅读 <i class="fas fa-arrow-right"></i></a>
         </article>
       `;
     });
@@ -303,8 +346,7 @@
     list.querySelectorAll('.read-more').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        const idOrSlug = btn.dataset.id;
-        window.location.href = `https://suixiuliang.github.io/blog.html?id=${encodeURIComponent(idOrSlug)}`;
+        openArticleReader(btn.dataset.id);
       });
     });
 
@@ -312,6 +354,106 @@
       setupBlogScrollHeights();
       updateBlogScroll();
       updateGlobalAvatarPosition();
+    });
+  }
+
+  // ---------- 站内文章阅读（整合到 index，不外跳） ----------
+  function simpleMarkdownToHtml(md) {
+    if (!md) return '';
+    let s = String(md);
+    s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // fenced code
+    s = s.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
+    // inline code
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // headings
+    s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    // bold / italic
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // links
+    s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    // blockquote
+    s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    // lists
+    s = s.replace(/^(?:- |\* )(.+)$/gm, '<li>$1</li>');
+    s = s.replace(/(<li>[\s\S]*?<\/li>)(?!(?:\s*<li>))/g, '<ul>$1</ul>');
+    // paragraphs
+    s = s.split(/\n{2,}/).map(block => {
+      if (/^\s*<(h[1-3]|ul|pre|blockquote)/.test(block.trim())) return block;
+      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+    }).join('\n');
+    return s;
+  }
+
+  async function openArticleReader(idOrSlug) {
+    const modal = document.getElementById('articleReaderModal');
+    const titleEl = document.getElementById('articleReaderTitle');
+    const metaEl = document.getElementById('articleReaderMeta');
+    const bodyEl = document.getElementById('articleReaderBody');
+    if (!modal || !titleEl || !bodyEl) return;
+
+    const local = blogPosts.find(p => String(p.slug) === String(idOrSlug) || String(p.id) === String(idOrSlug));
+    titleEl.textContent = (local && local.title) || '加载中…';
+    if (metaEl) {
+      metaEl.innerHTML = local
+        ? `<span><i class="far fa-calendar"></i> ${escapeHtml(local.date || '')} UTC+8</span>` +
+          (local.category ? `<span><i class="fas fa-tag"></i> ${escapeHtml(local.category)}</span>` : '') +
+          `<span><i class="far fa-clock"></i> ${escapeHtml(local.readTime || '')}</span>`
+        : '';
+    }
+    bodyEl.innerHTML = '<p class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载正文…</p>';
+    modal.classList.add('active');
+
+    let article = local;
+    try {
+      const res = await fetch(`${API_BASE_URL}/articles/${encodeURIComponent(idOrSlug)}`, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && (data.article || data.content || data.title)) {
+        article = data.article || data;
+      }
+    } catch (_) {}
+
+    if (!article) {
+      bodyEl.innerHTML = '<p>无法加载文章内容</p>';
+      return;
+    }
+
+    titleEl.textContent = article.title || (local && local.title) || '无标题';
+    const rawDate = article.published_at || article.created_at || article.date || (local && local.rawDate) || '';
+    const displayDate = formatDateUTC8(rawDate) || (local && local.date) || '';
+    if (metaEl) {
+      metaEl.innerHTML =
+        `<span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} UTC+8</span>` +
+        (article.category || (local && local.category)
+          ? `<span><i class="fas fa-tag"></i> ${escapeHtml(article.category || local.category)}</span>`
+          : '') +
+        (article.reading_time || (local && local.readTime)
+          ? `<span><i class="far fa-clock"></i> ${escapeHtml(article.reading_time ? article.reading_time + ' min' : local.readTime)}</span>`
+          : '');
+    }
+    const content = article.content || article.body || (local && local.content) || article.summary || article.excerpt || '';
+    bodyEl.innerHTML = simpleMarkdownToHtml(content) || '<p>（无正文）</p>';
+  }
+
+  function closeArticleReader() {
+    const modal = document.getElementById('articleReaderModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function setupArticleReaderUI() {
+    const modal = document.getElementById('articleReaderModal');
+    const closeBtn = document.getElementById('articleReaderClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeArticleReader);
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeArticleReader();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeArticleReader();
     });
   }
 
@@ -578,7 +720,7 @@
           <td>${escapeHtml(a.title)}</td>
           <td><code>${escapeHtml(a.slug)}</code></td>
           <td>${escapeHtml(a.category || '—')}</td>
-          <td>${escapeHtml((a.published_at || a.created_at || '').slice(0, 10))}</td>
+          <td>${escapeHtml(dateOnlyUTC8(a.published_at || a.created_at || '') || (a.published_at || a.created_at || '').slice(0, 10))}</td>
           <td class="admin-article-actions">
             <button type="button" class="admin-mini-btn" data-edit-id="${a.id}" data-slug="${escapeHtml(a.slug)}">编辑</button>
             <button type="button" class="admin-mini-btn danger" data-del-id="${a.id}">删除</button>
@@ -1070,7 +1212,9 @@
     stage2Height = Math.round(vh * STAGE2_RATIO);
     const inner = blogWhiteBox.querySelector('.white-box-inner');
     const contentH = inner ? Math.max(inner.offsetHeight || inner.scrollHeight, 500) : 600;
-    const topMargin = 18;
+    // 与主题栏↔内容栏、内容栏↔搜索栏统一的间距
+    const gapPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--blog-gap')) || 16;
+    const topMargin = gapPx;
     // stage3：内容超出视口后继续滚动
     stage3Extra = Math.max(0, contentH + topMargin * 2 - vh + 80);
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
@@ -1080,7 +1224,8 @@
     if (!blogPanel || !blogContent || !blogStageDuo) return;
     const scrollTop = blogPanel.scrollTop;
     const vh = blogPanel.clientHeight || window.innerHeight;
-    const topMargin = 18;
+    const gapPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--blog-gap')) || 16;
+    const topMargin = gapPx;
 
     // 三段进度
     let p1 = Math.min(1, Math.max(0, scrollTop / (stage1Height || 1)));
@@ -1116,7 +1261,8 @@
     const railW = window.matchMedia('(max-width: 480px)').matches
       ? 84
       : (window.matchMedia('(max-width: 720px)').matches ? 96 : 132);
-    const gap = window.matchMedia('(max-width: 720px)').matches ? 10 : 14;
+    // 主题栏↔内容栏 间距 = 内容栏↔搜索栏（--blog-gap）
+    const gap = gapPx;
     const t = easeOutCubic(p2);
     if (blogThemeRail) {
       blogThemeRail.style.flex = `0 0 ${railW}px`;
@@ -1124,16 +1270,17 @@
       blogThemeRail.style.maxWidth = `${railW}px`;
       // 仅在滑入前 30% 做淡入，之后与文章框同为不透明玻璃
       blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
-      const slide = (1 - t) * (railW + 20);
+      const slide = (1 - t) * (railW + gap);
       blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
       blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
       blogThemeRail.classList.toggle('is-visible', t > 0.12);
 
-      // 高度与文章框对齐（上下更长）
+      // 高度与文章框对齐（约可装 3 条紧凑博文）
       const inner = blogThemeRail.querySelector('.theme-rail-inner');
       if (inner && blogWhiteBox) {
-        const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.88));
+        const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.72));
         inner.style.minHeight = targetH + 'px';
+        inner.style.height = targetH + 'px';
       }
     }
     if (blogWhiteBox) {
@@ -1355,17 +1502,21 @@
         const data = await blogRes.json();
         const list = Array.isArray(data) ? data : (data.articles || data.posts || []);
         if (Array.isArray(list) && list.length) {
-          blogPosts = list.map(post => ({
-            id: post.id ?? post.slug,
-            title: post.title || '无标题',
-            summary: post.excerpt || post.summary || '',
-            content: post.content || '',
-            date: (post.published_at || post.created_at || post.date || '').replace('T', ' ').slice(0, 16),
-            readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
-            icon: post.icon || 'fa-pen',
-            slug: post.slug,
-            category: post.category || ''
-          }));
+          blogPosts = list.map(post => {
+            const raw = post.published_at || post.created_at || post.date || '';
+            return {
+              id: post.id ?? post.slug,
+              title: post.title || '无标题',
+              summary: post.excerpt || post.summary || '',
+              content: post.content || '',
+              rawDate: raw,
+              date: formatDateUTC8(raw),
+              readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
+              icon: post.icon || 'fa-pen',
+              slug: post.slug,
+              category: post.category || ''
+            };
+          });
           renderThemeRail(blogPosts.map(p => p.category).filter(Boolean));
         }
       }
@@ -1385,11 +1536,139 @@
     renderWorks();
   }
 
+  // ---------- 资源加载门禁（蓝调时刻 + 动态光晕圆） ----------
+  const CRITICAL_IMAGE_URLS = [
+    'https://free.picui.cn/free/2026/08/11/6a7a7bd8363ce.jpg',
+    'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg'
+  ];
+
+  function startBootCircleAnim(canvas) {
+    if (!canvas) return () => {};
+    const ctx = canvas.getContext('2d');
+    let raf = null;
+    let last = 0;
+    const num = 7;
+    const minHue = 195;
+    const maxHue = 230; // 蓝调时刻
+    const circles = [];
+    for (let i = 0; i < num; i++) {
+      circles.push({
+        x: Math.random(),
+        y: Math.random(),
+        r: i / num,
+        colorRand: Math.random()
+      });
+    }
+    const draw = (ts) => {
+      const w = canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
+      const h = canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      // 底层：纯黑 + 轻蓝调
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w, h);
+      const g = ctx.createRadialGradient(w * 0.5, h * 0.55, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
+      g.addColorStop(0, 'rgba(20, 48, 88, 0.55)');
+      g.addColorStop(0.55, 'rgba(8, 20, 40, 0.35)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+
+      let dt = ts - last;
+      last = ts;
+      if (dt > 500) dt = 16;
+      for (let i = 0; i < circles.length; i++) {
+        const c = circles[i];
+        c.r += 0.045 * (dt / 1000);
+        if (c.r >= 1) {
+          c.r = c.r % 1;
+          c.x = Math.random();
+          c.y = Math.random();
+          c.colorRand = Math.random();
+        }
+        const cx = c.x * w;
+        const cy = c.y * h;
+        const radius = (0.12 + Math.sin(c.r * Math.PI) * 0.28) * Math.min(w, h);
+        const hue = minHue + Math.round(c.colorRand * (maxHue - minHue));
+        const alpha = Math.min(1, (1 - Math.abs(1 - c.r * 2)) * 1.2) * 0.55;
+        const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        rg.addColorStop(0, `hsla(${hue}, 85%, 42%, ${alpha})`);
+        rg.addColorStop(0.45, `hsla(${hue}, 80%, 28%, ${alpha * 0.35})`);
+        rg.addColorStop(1, `hsla(${hue}, 70%, 18%, 0)`);
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }
+
+  function setBootProgress(pct) {
+    const bar = document.getElementById('bootProgressBar');
+    const label = document.getElementById('bootProgressLabel');
+    const track = document.getElementById('bootProgressTrack');
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    if (bar) bar.style.width = p + '%';
+    if (label) label.textContent = p + '%';
+    if (track) track.setAttribute('aria-valuenow', String(p));
+  }
+
+  function loadImageWithProgress(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => resolve({ ok: true, url });
+      img.onerror = () => resolve({ ok: false, url });
+      img.src = url;
+    });
+  }
+
+  async function runBootLoader() {
+    const loader = document.getElementById('bootLoader');
+    const canvas = document.getElementById('bootLoaderCanvas');
+    const stopAnim = startBootCircleAnim(canvas);
+    setBootProgress(0);
+
+    // 在资源就绪前禁止横向滚到博客等面板
+    if (scrollContainer) scrollContainer.style.overflow = 'hidden';
+
+    const urls = CRITICAL_IMAGE_URLS.slice();
+    let done = 0;
+    const total = urls.length;
+    await Promise.all(urls.map(async (url) => {
+      await loadImageWithProgress(url);
+      done += 1;
+      setBootProgress((done / total) * 100);
+    }));
+
+    // 短暂停顿让进度条读满
+    await new Promise(r => setTimeout(r, 180));
+    setBootProgress(100);
+
+    if (loader) {
+      loader.classList.add('is-done');
+      loader.setAttribute('aria-busy', 'false');
+      setTimeout(() => {
+        stopAnim();
+        if (loader.parentNode) loader.parentNode.removeChild(loader);
+      }, 500);
+    } else {
+      stopAnim();
+    }
+    if (scrollContainer) scrollContainer.style.overflow = '';
+  }
+
   async function init() {
+    // 图片资源未加载完整前不开放主界面交互（尤其是博客）
+    const bootPromise = runBootLoader();
+
     renderProfile();
     filterAndRenderBlogs('', null);
     renderWorks();
     setupBlogToolbarInteractions();
+    setupArticleReaderUI();
     ensureNavCapsule();
     setupAdminLoginUI();
     updateActiveNavFromScroll();
@@ -1421,6 +1700,8 @@
         if (Array.isArray(catData.categories)) renderThemeRail(catData.categories);
       }
     } catch (_) {}
+
+    await bootPromise;
     
     setTimeout(() => {
       setupBlogScrollHeights();

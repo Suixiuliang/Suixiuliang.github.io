@@ -4,16 +4,21 @@
   box-sizing: border-box;
 }
 
-/* ---------- 全局圆角 token（视觉统一） ---------- */
+/* ---------- 全局圆角 token（Apple 同心圆角） ----------
+   原则：内层 R = 外层 R − 内边距，曲线共圆心，嵌套才「对齐」
+   例：外卡 28、内边距 16 → 内卡 12；再内一层再减间距 */
 :root {
   --radius-btn: 999px;      /* 按钮 / 胶囊 / 输入框：两端圆头 */
-  --radius-card: 28px;      /* 大卡片、面板、弹窗 */
-  --radius-md: 20px;        /* 中块：搜索框、小卡片 */
-  --radius-sm: 14px;        /* 表单控件（非胶囊类） */
+  --radius-card: 28px;      /* 外层大卡：文章框、主题栏、弹窗 */
+  --radius-pad: 16px;       /* 外层 → 内层统一内边距（与同心计算绑定） */
+  --radius-md: calc(var(--radius-card) - var(--radius-pad)); /* 12：内层博文卡 / 中块 */
+  --radius-sm: 10px;        /* 再内一层：表单、代码块 */
   --radius-chip: 999px;     /* 标签 chip */
   --radius-circle: 50%;     /* 头像、日历日、圆形按钮 */
   --radius-nav: 999px;      /* 导航外壳 */
   --radius-scroll: 6px;     /* 滚动条滑块 */
+  /* 博客：主题栏↔内容栏 与 内容栏↔搜索栏（导航下方）统一间距 */
+  --blog-gap: 16px;
 }
 
 
@@ -293,7 +298,8 @@ body {
 .calendar-modal-content {
   width: 90%;
   max-width: 340px;
-  padding: 1.5rem;
+  /* 内边距与 --radius-pad 一致，使内部 .apple-calendar 圆角同心 */
+  padding: var(--radius-pad);
   border-radius: var(--radius-card);
 }
 .calendar-header {
@@ -811,7 +817,7 @@ body {
   z-index: 2;
   pointer-events: none;
   will-change: top, transform;
-  padding: 0 16px;
+  padding: 0 var(--blog-gap);
   box-sizing: border-box;
   /* 未滚动时默认完全在视口下方，避免首屏露出上半截 */
   top: 110vh;
@@ -825,7 +831,7 @@ body {
   opacity: 0;
   overflow: visible;
   pointer-events: none;
-  transform: translate3d(calc(-100% - 20px), 0, 0);
+  transform: translate3d(calc(-100% - var(--blog-gap)), 0, 0);
   margin-right: -132px; /* 收合 flex 占位，让文章框单独居中 */
   transition: none;
   align-self: stretch;
@@ -842,7 +848,8 @@ body {
   /* 更高：尽量贴近视口全高，由 JS 再与文章框对齐 */
   min-height: min(96vh, 1100px);
   height: 100%;
-  padding: 1.35rem 0.85rem 1.5rem;
+  /* 与文章框同级外圆角；内边距水平略紧，chip 为胶囊不参与同心 */
+  padding: var(--radius-pad) 0.75rem;
   border-radius: var(--radius-card);
   /* 与 .blog-white-box 同级液态玻璃，避免更透 */
   background: rgba(255, 255, 255, 0.12);
@@ -926,8 +933,14 @@ body {
 }
 
 @media (max-width: 720px) {
+  /* 窄屏：间距与同心圆角同步收紧（内层 md = card − pad 自动跟上） */
+  :root {
+    --blog-gap: 12px;
+    --radius-card: 24px;
+    --radius-pad: 14px;
+  }
   .blog-stage-duo {
-    padding: 0 10px;
+    padding: 0 var(--blog-gap);
     max-width: 100%;
   }
   .blog-theme-rail {
@@ -948,7 +961,7 @@ body {
     max-width: 100%;
   }
   .white-box-inner {
-    padding: 1.6rem 1.1rem 2rem;
+    padding: var(--radius-pad);
   }
   .white-box-header h2 { font-size: 1.15rem; }
 }
@@ -972,15 +985,314 @@ body {
 .panel-blog {
   touch-action: pan-y;
 }
-.white-box-inner { max-width: 950px; margin: 0 auto; padding: 3rem 2rem 3.5rem; }
-.white-box-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.15); }
-.white-box-header h2 { font-size: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
-.sub-count { font-size: 0.88rem; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.3rem 0.8rem; border-radius: var(--radius-md); }
+/* 内边距 = --radius-pad，使 .blog-card 的 R 与外框同心对齐 */
+.white-box-inner {
+  max-width: 950px;
+  margin: 0 auto;
+  padding: var(--radius-pad);
+}
+.white-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+.white-box-header h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sub-count {
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.22rem 0.65rem;
+  border-radius: var(--radius-btn);
+}
 
-.blog-list { display: flex; flex-direction: column; gap: 1.2rem; }
-.blog-list .blog-card { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: var(--radius-md); padding: 1.6rem; transition: all 0.25s ease; display: flex; flex-direction: column; }
-.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-2px); }
-.blog-list .read-more { color: #60a5fa; font-weight: 500; text-decoration: none; align-self: flex-start; margin-top: 0.8rem; font-size: 0.92rem; }
+/* 紧凑博文条目：R = card − pad，与外框同心 */
+.blog-list { display: flex; flex-direction: column; gap: 0.65rem; }
+.blog-list .blog-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.95rem;
+  transition: all 0.25s ease;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 0.7rem;
+  row-gap: 0.25rem;
+  align-items: start;
+}
+.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-1px); }
+.blog-list .blog-icon {
+  grid-row: 1 / span 2;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-circle);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  margin-top: 0.1rem;
+}
+.blog-list .blog-card h3 {
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.blog-list .blog-card > p {
+  grid-column: 2;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.blog-list .blog-meta {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.9rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 0.15rem;
+}
+.blog-list .read-more {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #60a5fa;
+  font-weight: 500;
+  text-decoration: none;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius-btn);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.blog-list .read-more:hover {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+}
+.blog-footer {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* 站内文章阅读层 */
+.article-reader-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+  padding: 1.2rem;
+}
+.article-reader-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.article-reader-sheet {
+  width: min(720px, 100%);
+  max-height: min(88vh, 900px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-card);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+.article-reader-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.4rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+.article-reader-head h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.article-reader-meta {
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.article-reader-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-circle);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.article-reader-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.article-reader-body {
+  padding: 1.2rem 1.4rem 1.6rem;
+  overflow-y: auto;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.88);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.article-reader-body h1,
+.article-reader-body h2,
+.article-reader-body h3 {
+  margin: 1.1em 0 0.45em;
+  line-height: 1.3;
+}
+.article-reader-body p { margin: 0.65em 0; }
+.article-reader-body pre,
+.article-reader-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86em;
+}
+.article-reader-body pre {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* 正文区内再嵌一层：略小于 md，保持层级递减 */
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+}
+.article-reader-body code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+}
+.article-reader-body pre code {
+  background: transparent;
+  padding: 0;
+}
+.article-reader-body a { color: #7eb6ff; }
+.article-reader-body ul,
+.article-reader-body ol { padding-left: 1.3rem; margin: 0.5em 0; }
+.article-reader-body blockquote {
+  margin: 0.8em 0;
+  padding: 0.4em 0.9em;
+  border-left: 3px solid rgba(0, 113, 227, 0.7);
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ---------- 资源加载门禁（蓝调时刻 + Win11 风格光晕圆） ---------- */
+.boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+.boot-loader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.boot-loader-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.boot-loader-card {
+  position: relative;
+  z-index: 1;
+  width: min(340px, 88vw);
+  padding: 1.6rem 1.5rem 1.45rem;
+  border-radius: var(--radius-card);
+  background: rgba(28, 52, 84, 0.42);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(140, 180, 230, 0.28);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(180, 210, 255, 0.35),
+    inset 0 -1px 1px rgba(0, 20, 40, 0.25);
+  text-align: center;
+  color: #e8f1ff;
+}
+.boot-loader-card h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.35rem;
+}
+.boot-loader-card p {
+  font-size: 0.82rem;
+  color: rgba(200, 220, 245, 0.72);
+  margin: 0 0 1.15rem;
+}
+.boot-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.boot-progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: #0071e3;
+  box-shadow: 0 0 12px rgba(0, 113, 227, 0.45);
+  transition: width 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.boot-progress-label {
+  margin-top: 0.7rem;
+  font-size: 0.75rem;
+  color: rgba(180, 210, 240, 0.65);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- 我的作品卡片布局 ---------- */
 .works-grid {

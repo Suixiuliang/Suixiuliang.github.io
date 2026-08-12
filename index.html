@@ -12,6 +12,19 @@
 </head>
 <body>
 
+<!-- 资源加载门禁：图片未就绪不可进入主内容 / 博客 -->
+<div class="boot-loader" id="bootLoader" aria-live="polite" aria-busy="true">
+  <canvas class="boot-loader-canvas" id="bootLoaderCanvas"></canvas>
+  <div class="boot-loader-card">
+    <h2>正在准备桌面</h2>
+    <p>加载图片与界面资源…</p>
+    <div class="boot-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bootProgressTrack">
+      <div class="boot-progress-bar" id="bootProgressBar"></div>
+    </div>
+    <div class="boot-progress-label" id="bootProgressLabel">0%</div>
+  </div>
+</div>
+
 <!-- 全局悬浮头像 -->
 <div id="globalAvatar" class="global-avatar"></div>
 
@@ -49,6 +62,22 @@
         <button id="clearDateBtn" class="nav-btn apple-secondary-btn">显示全部</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 站内文章阅读（整合到 index，不跳转外链） -->
+<div class="article-reader-modal" id="articleReaderModal" role="dialog" aria-modal="true" aria-labelledby="articleReaderTitle">
+  <div class="article-reader-sheet glass-card">
+    <div class="article-reader-head">
+      <div>
+        <h2 id="articleReaderTitle">文章标题</h2>
+        <div class="article-reader-meta" id="articleReaderMeta"></div>
+      </div>
+      <button type="button" class="article-reader-close" id="articleReaderClose" title="关闭" aria-label="关闭">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="article-reader-body" id="articleReaderBody"></div>
   </div>
 </div>
 
