@@ -109,17 +109,28 @@
         </div>
       </div>
 
-      <div class="blog-white-box" id="blogWhiteBox">
-        <div class="white-box-inner">
-          <div class="white-box-header">
-            <h2><i class="fas fa-feather-alt"></i> MaxSui 个人博客</h2>
-            <div class="sub-count" id="postCount">加载文章...</div>
+      <!-- 三阶段视差：主题栏 + 文章框 组合 -->
+      <div class="blog-stage-duo" id="blogStageDuo">
+        <aside class="blog-theme-rail" id="blogThemeRail" aria-label="博客主题">
+          <div class="theme-rail-inner">
+            <div class="theme-rail-title"><i class="fas fa-tags"></i><span>主题</span></div>
+            <nav class="theme-rail-list" id="themeRailList">
+              <button type="button" class="theme-chip active" data-category="">全部</button>
+            </nav>
           </div>
-          <div class="blog-list" id="blogList">
-            <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>
-          </div>
-          <div class="blog-footer">
-            <i class="fas fa-heart"></i> 用文字记录代码间的点滴
+        </aside>
+        <div class="blog-white-box" id="blogWhiteBox">
+          <div class="white-box-inner">
+            <div class="white-box-header">
+              <h2><i class="fas fa-feather-alt"></i> MaxSui 个人博客</h2>
+              <div class="sub-count" id="postCount">加载文章...</div>
+            </div>
+            <div class="blog-list" id="blogList">
+              <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>
+            </div>
+            <div class="blog-footer">
+              <i class="fas fa-heart"></i> 用文字记录代码间的点滴
+            </div>
           </div>
         </div>
       </div>

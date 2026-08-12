@@ -1,7 +1,52 @@
 (function() {
   "use strict";
 
-  const API_BASE_URL = 'https://maxsui-api.maxsui.workers.dev/api';
+  // API 基址：Cloudflare Workers 在中国大陆常不可达，支持镜像回退
+  // 1) 优先使用你配置的国内镜像（推荐：自有域名反代到 Worker）
+  // 2) 再试官方 Worker
+  // 可在页面加载前设置：window.MAXSUI_API_BASE = 'https://你的国内域名/api'
+  const API_CANDIDATES = [
+    (typeof window !== 'undefined' && window.MAXSUI_API_BASE) ? String(window.MAXSUI_API_BASE).replace(/\/+$/, '') : null,
+    // 国内可访问镜像：部署反代后取消下一行注释并改成你的地址
+    // 'https://api.example.com/api',
+    'https://maxsui-api.maxsui.workers.dev/api'
+  ].filter(Boolean);
+
+  let API_BASE_URL = API_CANDIDATES[0];
+
+  async function resolveApiBase() {
+    const tryOne = async (base) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4500);
+      try {
+        const res = await fetch(`${base}/health`, {
+          method: 'GET',
+          signal: ctrl.signal,
+          cache: 'no-store',
+          credentials: 'omit'
+        });
+        clearTimeout(timer);
+        if (!res.ok) return false;
+        const data = await res.json().catch(() => null);
+        return !!(data && (data.success || data.status === 'ok'));
+      } catch {
+        clearTimeout(timer);
+        return false;
+      }
+    };
+
+    for (const base of API_CANDIDATES) {
+      if (await tryOne(base)) {
+        API_BASE_URL = base;
+        console.info('[MaxSui] API base:', API_BASE_URL);
+        return API_BASE_URL;
+      }
+    }
+    // 全部失败时仍用第一个，后续请求会暴露错误
+    API_BASE_URL = API_CANDIDATES[0];
+    console.warn('[MaxSui] API health check failed, using', API_BASE_URL);
+    return API_BASE_URL;
+  }
 
   const nav = document.getElementById('mainNav');
   const scrollContainer = document.getElementById('scrollContainer');
@@ -58,11 +103,20 @@
   const blogContent = document.querySelector('.panel-blog-content');
   const blogCover = document.getElementById('blogCover');
   const blogWhiteBox = document.getElementById('blogWhiteBox');
+  const blogStageDuo = document.getElementById('blogStageDuo');
+  const blogThemeRail = document.getElementById('blogThemeRail');
 
-  const STAGE1_RATIO = 1.0;
+  // 三阶段视差：
+  // stage1: 封面淡出 + 组合体从底部升到中部
+  // stage2: 主题栏从左滑入 + 文章框右移，组合体居中贴顶
+  // stage3: 内容区继续上滚（组合体固定在顶附近）
+  const STAGE1_RATIO = 0.72;
+  const STAGE2_RATIO = 0.45;
   let stage1Height = 0;
-  let stage2Extra = 0;
+  let stage2Height = 0;
+  let stage3Extra = 0;
   let isBlogActive = false;
+  let activeCategory = '';
 
   // DOM 绑定
   const blogSearchInput = document.getElementById('blogSearchInput');
@@ -178,6 +232,29 @@
   }
 
   // 过滤并渲染博客
+  function renderThemeRail(categories) {
+    const rail = document.getElementById('themeRailList');
+    if (!rail) return;
+    const cats = categories && categories.length
+      ? categories
+      : Array.from(new Set(blogPosts.map(p => p.category).filter(Boolean)));
+    let html = `<button type="button" class="theme-chip ${!activeCategory ? 'active' : ''}" data-category="">全部</button>`;
+    cats.forEach(c => {
+      const name = typeof c === 'string' ? c : (c.name || c.slug || '');
+      if (!name) return;
+      html += `<button type="button" class="theme-chip ${activeCategory === name ? 'active' : ''}" data-category="${name.replace(/"/g, '&quot;')}">${name}</button>`;
+    });
+    rail.innerHTML = html;
+    rail.querySelectorAll('.theme-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeCategory = btn.dataset.category || '';
+        rail.querySelectorAll('.theme-chip').forEach(b => b.classList.toggle('active', b === btn));
+        const kw = (blogSearchInput && blogSearchInput.value.trim().toLowerCase()) || '';
+        filterAndRenderBlogs(kw, null);
+      });
+    });
+  }
+
   function filterAndRenderBlogs(keyword = '', dateStr = null) {
     const list = document.getElementById('blogList');
     const countEl = document.getElementById('postCount');
@@ -193,7 +270,9 @@
         const postDate = (post.date || '').split(' ')[0];
         matchesDate = postDate === dateStr;
       }
-      return matchesKeyword && matchesDate;
+
+      const matchesCat = !activeCategory || (post.category || '') === activeCategory;
+      return matchesKeyword && matchesDate && matchesCat;
     });
 
     if (!filtered.length) {
@@ -291,6 +370,340 @@
     });
   }
 
+
+  function buildAdminPanelHTML() {
+    const st = profileData.status || '在线';
+    const stType = profileData.statusType || 'online';
+    return `
+      <div class="panel-content">
+        <div class="section-title"><i class="fas fa-user-shield"></i><span>管理员</span></div>
+        <div class="admin-panel-wrap">
+          <div class="admin-tabs" role="tablist">
+            <button type="button" class="admin-tab-btn active" data-tab="status"><i class="fas fa-circle"></i> 状态</button>
+            <button type="button" class="admin-tab-btn" data-tab="articles"><i class="fas fa-newspaper"></i> 文章</button>
+            <button type="button" class="admin-tab-btn" data-tab="editor"><i class="fas fa-pen"></i> 写文章</button>
+            <button type="button" class="admin-tab-btn" data-tab="session"><i class="fas fa-sign-out-alt"></i> 会话</button>
+          </div>
+
+          <div class="admin-tab-panel active" data-panel="status">
+            <div class="glass-card admin-card">
+              <h3><i class="fas fa-user"></i> 主页状态（QQ 风格）</h3>
+              <div class="admin-form-grid">
+                <div class="admin-form-row">
+                  <label>状态文案</label>
+                  <input type="text" id="adminStatusText" value="${escapeHtml(st)}" maxlength="32" placeholder="例如：在线 / 写代码中">
+                </div>
+                <div class="admin-form-row">
+                  <label>状态类型</label>
+                  <select id="adminStatusType">
+                    <option value="online"${stType==='online'?' selected':''}>在线 (绿)</option>
+                    <option value="busy"${stType==='busy'?' selected':''}>忙碌 (红)</option>
+                    <option value="away"${stType==='away'?' selected':''}>离开 (黄)</option>
+                    <option value="offline"${stType==='offline'?' selected':''}>离线 (灰)</option>
+                    <option value="custom"${stType==='custom'?' selected':''}>自定义 (蓝)</option>
+                  </select>
+                </div>
+                <div class="admin-form-row">
+                  <label>预览</label>
+                  <div class="admin-status-preview">
+                    <span class="home-status-dot ${stType}" id="adminStatusDot"></span>
+                    <span id="adminStatusPreviewText">${escapeHtml(st)}</span>
+                  </div>
+                </div>
+                <div class="admin-form-actions">
+                  <button type="button" class="nav-btn apple-primary-btn" id="adminSaveStatusBtn">保存状态</button>
+                </div>
+                <p class="admin-msg" id="adminStatusMsg"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-panel="articles">
+            <div class="glass-card admin-card">
+              <div class="admin-toolbar">
+                <h3 style="margin:0"><i class="fas fa-list"></i> 文章管理</h3>
+                <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshArticlesBtn"><i class="fas fa-sync"></i> 刷新</button>
+              </div>
+              <div id="adminArticlesList"><p class="admin-msg">加载中…</p></div>
+              <p class="admin-msg" id="adminArticlesMsg"></p>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-panel="editor">
+            <div class="glass-card admin-card">
+              <h3><i class="fas fa-pen-nib"></i> <span id="adminEditorTitle">新建文章</span></h3>
+              <input type="hidden" id="adminEditArticleId" value="">
+              <div class="admin-form-grid">
+                <div class="admin-form-row">
+                  <label>标题</label>
+                  <input type="text" id="adminArticleTitle" maxlength="200" placeholder="文章标题">
+                </div>
+                <div class="admin-form-row">
+                  <label>Slug（URL 标识，英文/数字/-_）</label>
+                  <input type="text" id="adminArticleSlug" maxlength="200" placeholder="hello-world">
+                </div>
+                <div class="admin-form-row">
+                  <label>分类</label>
+                  <input type="text" id="adminArticleCategory" maxlength="80" placeholder="随笔">
+                </div>
+                <div class="admin-form-row">
+                  <label>摘要</label>
+                  <input type="text" id="adminArticleExcerpt" maxlength="1000" placeholder="一句话简介">
+                </div>
+                <div class="admin-form-row">
+                  <label>正文（Markdown）</label>
+                  <textarea id="adminArticleContent" placeholder="# 标题&#10;&#10;正文…"></textarea>
+                </div>
+                <div class="admin-form-row">
+                  <label>状态</label>
+                  <select id="adminArticleStatus">
+                    <option value="published">发布</option>
+                    <option value="draft">草稿</option>
+                    <option value="archived">归档</option>
+                  </select>
+                </div>
+                <div class="admin-form-actions">
+                  <button type="button" class="nav-btn apple-primary-btn" id="adminSaveArticleBtn">保存</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminResetEditorBtn">清空 / 新建</button>
+                </div>
+                <p class="admin-msg" id="adminEditorMsg"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-tab-panel" data-panel="session">
+            <div class="glass-card admin-card">
+              <h3><i class="fas fa-shield-alt"></i> 会话</h3>
+              <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">已通过 API Session Cookie 登录。退出后需重新验证。</p>
+              <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
+                <i class="fas fa-sign-out-alt"></i> 退出登录
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function bindAdminPanelEvents(section) {
+    section.querySelectorAll('.admin-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        section.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+        section.querySelectorAll('.admin-tab-panel').forEach(p => {
+          p.classList.toggle('active', p.dataset.panel === tab);
+        });
+        if (tab === 'articles') loadAdminArticles();
+      });
+    });
+
+    const statusText = section.querySelector('#adminStatusText');
+    const statusType = section.querySelector('#adminStatusType');
+    const previewText = section.querySelector('#adminStatusPreviewText');
+    const previewDot = section.querySelector('#adminStatusDot');
+    const syncPreview = () => {
+      if (previewText) previewText.textContent = statusText?.value || '在线';
+      if (previewDot) {
+        previewDot.className = 'home-status-dot ' + (statusType?.value || 'online');
+      }
+    };
+    statusText?.addEventListener('input', syncPreview);
+    statusType?.addEventListener('change', syncPreview);
+
+    section.querySelector('#adminSaveStatusBtn')?.addEventListener('click', () => {
+      const text = (statusText?.value || '').trim() || '在线';
+      const type = statusType?.value || 'online';
+      profileData.status = text;
+      profileData.statusType = type;
+      try {
+        localStorage.setItem('maxsui_profile_status', JSON.stringify({ status: text, statusType: type }));
+      } catch (_) {}
+      renderProfile();
+      const msg = section.querySelector('#adminStatusMsg');
+      if (msg) {
+        msg.textContent = '状态已更新并显示在主页（本地保存；后端暂无 profile 接口）';
+        msg.className = 'admin-msg ok';
+      }
+    });
+
+    section.querySelector('#adminLogoutBtn')?.addEventListener('click', adminLogout);
+    section.querySelector('#adminRefreshArticlesBtn')?.addEventListener('click', loadAdminArticles);
+    section.querySelector('#adminSaveArticleBtn')?.addEventListener('click', saveAdminArticle);
+    section.querySelector('#adminResetEditorBtn')?.addEventListener('click', resetAdminEditor);
+
+    // slug 自动从标题生成（仅新建时）
+    section.querySelector('#adminArticleTitle')?.addEventListener('input', (e) => {
+      const id = section.querySelector('#adminEditArticleId')?.value;
+      if (id) return;
+      const slugEl = section.querySelector('#adminArticleSlug');
+      if (!slugEl || slugEl.dataset.touched === '1') return;
+      slugEl.value = String(e.target.value || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 80);
+    });
+    section.querySelector('#adminArticleSlug')?.addEventListener('input', (e) => {
+      e.target.dataset.touched = '1';
+    });
+
+    loadAdminArticles();
+  }
+
+  async function loadAdminArticles() {
+    const box = document.getElementById('adminArticlesList');
+    const msg = document.getElementById('adminArticlesMsg');
+    if (!box) return;
+    box.innerHTML = '<p class="admin-msg">加载中…</p>';
+    try {
+      // 公开列表只有 published；管理端若无专用列表则用公开 + 提示
+      const res = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      const list = data?.articles || [];
+      if (!list.length) {
+        box.innerHTML = '<p class="admin-msg">暂无已发布文章（草稿需后端管理列表接口）</p>';
+        return;
+      }
+      let rows = list.map(a => `
+        <tr>
+          <td>${escapeHtml(a.title)}</td>
+          <td><code>${escapeHtml(a.slug)}</code></td>
+          <td>${escapeHtml(a.category || '—')}</td>
+          <td>${escapeHtml((a.published_at || a.created_at || '').slice(0, 10))}</td>
+          <td class="admin-article-actions">
+            <button type="button" class="admin-mini-btn" data-edit-id="${a.id}" data-slug="${escapeHtml(a.slug)}">编辑</button>
+            <button type="button" class="admin-mini-btn danger" data-del-id="${a.id}">删除</button>
+          </td>
+        </tr>
+      `).join('');
+      box.innerHTML = `
+        <table class="admin-article-table">
+          <thead><tr><th>标题</th><th>Slug</th><th>分类</th><th>日期</th><th>操作</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      box.querySelectorAll('[data-edit-id]').forEach(btn => {
+        btn.addEventListener('click', () => editAdminArticle(btn.dataset.editId, btn.dataset.slug));
+      });
+      box.querySelectorAll('[data-del-id]').forEach(btn => {
+        btn.addEventListener('click', () => deleteAdminArticle(btn.dataset.delId));
+      });
+      if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
+    } catch (e) {
+      box.innerHTML = '<p class="admin-msg err">加载失败</p>';
+      console.error(e);
+    }
+  }
+
+  async function editAdminArticle(id, slug) {
+    const msg = document.getElementById('adminEditorMsg');
+    try {
+      const res = await fetch(`${API_BASE_URL}/articles/${encodeURIComponent(slug)}`, { credentials: 'include' });
+      const data = await res.json().catch(() => null);
+      const a = data?.article;
+      if (!res.ok || !a) throw new Error(data?.error || '读取失败');
+
+      document.getElementById('adminEditArticleId').value = id;
+      document.getElementById('adminArticleTitle').value = a.title || '';
+      const slugEl = document.getElementById('adminArticleSlug');
+      slugEl.value = a.slug || '';
+      slugEl.dataset.touched = '1';
+      document.getElementById('adminArticleCategory').value = a.category || '';
+      document.getElementById('adminArticleExcerpt').value = a.excerpt || '';
+      document.getElementById('adminArticleContent').value = a.content || '';
+      document.getElementById('adminArticleStatus').value = 'published';
+      document.getElementById('adminEditorTitle').textContent = '编辑文章 #' + id;
+
+      // 切到编辑器 tab
+      document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'editor'));
+      document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'editor'));
+      if (msg) { msg.textContent = '已载入文章'; msg.className = 'admin-msg ok'; }
+    } catch (e) {
+      if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+    }
+  }
+
+  function resetAdminEditor() {
+    document.getElementById('adminEditArticleId').value = '';
+    document.getElementById('adminArticleTitle').value = '';
+    const slugEl = document.getElementById('adminArticleSlug');
+    if (slugEl) { slugEl.value = ''; delete slugEl.dataset.touched; }
+    document.getElementById('adminArticleCategory').value = '';
+    document.getElementById('adminArticleExcerpt').value = '';
+    document.getElementById('adminArticleContent').value = '';
+    document.getElementById('adminArticleStatus').value = 'published';
+    document.getElementById('adminEditorTitle').textContent = '新建文章';
+    const msg = document.getElementById('adminEditorMsg');
+    if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
+  }
+
+  async function saveAdminArticle() {
+    const msg = document.getElementById('adminEditorMsg');
+    const id = document.getElementById('adminEditArticleId')?.value;
+    const body = {
+      title: (document.getElementById('adminArticleTitle')?.value || '').trim(),
+      slug: (document.getElementById('adminArticleSlug')?.value || '').trim(),
+      category: (document.getElementById('adminArticleCategory')?.value || '').trim() || null,
+      excerpt: (document.getElementById('adminArticleExcerpt')?.value || '').trim(),
+      content: document.getElementById('adminArticleContent')?.value || '',
+      status: document.getElementById('adminArticleStatus')?.value || 'draft'
+    };
+    if (!body.title || !body.slug || !body.content) {
+      if (msg) { msg.textContent = '请填写标题、Slug 与正文'; msg.className = 'admin-msg err'; }
+      return;
+    }
+    try {
+      const url = id
+        ? `${API_BASE_URL}/admin/articles/${id}`
+        : `${API_BASE_URL}/admin/articles`;
+      const res = await fetch(url, {
+        method: id ? 'PUT' : 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.error || `保存失败 (${res.status})`);
+      }
+      if (msg) { msg.textContent = id ? '已更新' : '已创建'; msg.className = 'admin-msg ok'; }
+      await fetchAllData();
+      loadAdminArticles();
+      if (!id && data?.article_id) {
+        document.getElementById('adminEditArticleId').value = data.article_id;
+        document.getElementById('adminEditorTitle').textContent = '编辑文章 #' + data.article_id;
+      }
+    } catch (e) {
+      if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+    }
+  }
+
+  async function deleteAdminArticle(id) {
+    if (!id || !confirm('确定删除文章 #' + id + '？此操作不可恢复。')) return;
+    const msg = document.getElementById('adminArticlesMsg');
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/articles/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.success === false) throw new Error(data?.error || '删除失败');
+      if (msg) { msg.textContent = '已删除'; msg.className = 'admin-msg ok'; }
+      await fetchAllData();
+      loadAdminArticles();
+    } catch (e) {
+      if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+    }
+  }
+
   function unlockAdminPanel(options = {}) {
     const { scrollToAdmin = true } = options;
     if (adminUnlocked) return;
@@ -314,23 +727,9 @@
       const section = document.createElement('section');
       section.id = 'admin';
       section.className = 'panel';
-      section.innerHTML = `
-        <div class="panel-content">
-          <div class="section-title"><i class="fas fa-user-shield"></i><span>管理员</span></div>
-          <div class="glass-card admin-panel-placeholder">
-            <p>已登录管理员会话</p>
-            <p style="margin-top:0.75rem;font-size:0.9rem;opacity:0.75;">后台功能可在此扩展（文章 / 文件管理等）</p>
-            <div style="margin-top:1.5rem;">
-              <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
-                <i class="fas fa-sign-out-alt"></i> 退出登录
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
+      section.innerHTML = buildAdminPanelHTML();
       scrollContainer.insertBefore(section, scrollContainer.firstChild);
-      const logoutBtn = section.querySelector('#adminLogoutBtn');
-      if (logoutBtn) logoutBtn.addEventListener('click', adminLogout);
+      bindAdminPanelEvents(section);
     }
 
     requestAnimationFrame(() => {
@@ -668,38 +1067,95 @@
     if (!blogPanel || !blogContent || !blogWhiteBox) return;
     const vh = blogPanel.clientHeight || window.innerHeight;
     stage1Height = Math.round(vh * STAGE1_RATIO);
+    stage2Height = Math.round(vh * STAGE2_RATIO);
     const inner = blogWhiteBox.querySelector('.white-box-inner');
     const contentH = inner ? Math.max(inner.offsetHeight || inner.scrollHeight, 500) : 600;
-    const topMargin = 20;
-    stage2Extra = Math.max(0, contentH + topMargin * 2 - vh + 60);
-    blogContent.style.height = (vh + stage1Height + stage2Extra) + 'px';
+    const topMargin = 18;
+    // stage3：内容超出视口后继续滚动
+    stage3Extra = Math.max(0, contentH + topMargin * 2 - vh + 80);
+    blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
 
   function updateBlogScroll() {
-    if (!blogPanel || !blogContent) return;
+    if (!blogPanel || !blogContent || !blogStageDuo) return;
     const scrollTop = blogPanel.scrollTop;
     const vh = blogPanel.clientHeight || window.innerHeight;
+    const topMargin = 18;
 
+    // 三段进度
     let p1 = Math.min(1, Math.max(0, scrollTop / (stage1Height || 1)));
-    let p2 = scrollTop > stage1Height ? Math.min(1, (scrollTop - stage1Height) / (stage2Extra || 1)) : 0;
+    let p2 = 0;
+    let p3 = 0;
+    if (scrollTop > stage1Height) {
+      p2 = Math.min(1, (scrollTop - stage1Height) / (stage2Height || 1));
+    }
+    if (scrollTop > stage1Height + stage2Height) {
+      p3 = Math.min(1, (scrollTop - stage1Height - stage2Height) / (stage3Extra || 1));
+    }
 
-    const topMargin = 20;
-    let desiredY = p1 < 1 ? (vh - topMargin) * (1 - p1) + topMargin : topMargin - (p2 * stage2Extra);
-    blogWhiteBox.style.top = (scrollTop + desiredY) + 'px';
+    // 垂直：
+    // stage1 p1=0 时完全在视口下方（不露上半截），再升到中部
+    // stage2 升到顶边；stage3 贴顶并随内容上移
+    const startY = vh + 28;          // 完全藏在下方
+    const midY = vh * 0.48;
+    let desiredY;
+    if (p1 < 1) {
+      desiredY = startY * (1 - p1) + midY * p1;
+    } else if (p2 < 1) {
+      desiredY = midY * (1 - p2) + topMargin * p2;
+    } else {
+      desiredY = topMargin - p3 * stage3Extra;
+    }
 
+    blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
+    blogStageDuo.style.pointerEvents = 'none';
+    if (blogWhiteBox) blogWhiteBox.style.pointerEvents = 'auto';
+    if (blogThemeRail) blogThemeRail.style.pointerEvents = p2 > 0.2 ? 'auto' : 'none';
+
+    // 水平：主题栏完整圆角卡片，transform 滑入；透明度与文章框一致（不额外压低）
+    const railW = window.matchMedia('(max-width: 480px)').matches
+      ? 84
+      : (window.matchMedia('(max-width: 720px)').matches ? 96 : 132);
+    const gap = window.matchMedia('(max-width: 720px)').matches ? 10 : 14;
+    const t = easeOutCubic(p2);
+    if (blogThemeRail) {
+      blogThemeRail.style.flex = `0 0 ${railW}px`;
+      blogThemeRail.style.width = `${railW}px`;
+      blogThemeRail.style.maxWidth = `${railW}px`;
+      // 仅在滑入前 30% 做淡入，之后与文章框同为不透明玻璃
+      blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
+      const slide = (1 - t) * (railW + 20);
+      blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
+      blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
+      blogThemeRail.classList.toggle('is-visible', t > 0.12);
+
+      // 高度与文章框对齐（上下更长）
+      const inner = blogThemeRail.querySelector('.theme-rail-inner');
+      if (inner && blogWhiteBox) {
+        const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.88));
+        inner.style.minHeight = targetH + 'px';
+      }
+    }
+    if (blogWhiteBox) {
+      blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
+    }
+
+    // 封面视差
     const coverMove = p1 * (vh * 0.45);
     if (blogCover) {
       blogCover.style.top = (scrollTop - coverMove) + 'px';
-      blogCover.style.opacity = Math.max(0, 1 - p1 * 1.1);
+      blogCover.style.opacity = Math.max(0, 1 - p1 * 1.15);
     }
 
     if (isBlogActive) {
-      if (p1 > 0.08) {
-        nav.classList.add('blog-mode');
-      } else {
-        nav.classList.remove('blog-mode');
-      }
+      if (p1 > 0.08) nav.classList.add('blog-mode');
+      else nav.classList.remove('blog-mode');
     }
+  }
+
+  function easeOutCubic(x) {
+    const t = Math.min(1, Math.max(0, x));
+    return 1 - Math.pow(1 - t, 3);
   }
 
   // 博客滚动条：仅在滑动时显示
@@ -718,6 +1174,57 @@
       });
     }, { passive: true });
   }
+
+  // 博客纵向滚动后仍可左右切换面板（把横向手势转发给水平容器）
+  function setupBlogHorizontalPassthrough() {
+    if (!blogPanel || !scrollContainer || blogPanel.dataset.hzPass === '1') return;
+    blogPanel.dataset.hzPass = '1';
+
+    blogPanel.addEventListener('wheel', (e) => {
+      const absX = Math.abs(e.deltaX);
+      const absY = Math.abs(e.deltaY);
+      // 触控板 / 鼠标横向为主时，滚动水平容器
+      if (absX > absY && absX > 1.5) {
+        scrollContainer.scrollLeft += e.deltaX;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let axis = null; // 'x' | 'y' | null
+
+    blogPanel.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      axis = null;
+    }, { passive: true });
+
+    blogPanel.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 1) return;
+      const x = e.touches[0].clientX;
+      const y = e.touches[0].clientY;
+      const dx = x - touchStartX;
+      const dy = y - touchStartY;
+
+      if (!axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+
+      if (axis === 'x') {
+        scrollContainer.scrollLeft -= dx;
+        touchStartX = x;
+        touchStartY = y;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    blogPanel.addEventListener('touchend', () => { axis = null; }, { passive: true });
+    blogPanel.addEventListener('touchcancel', () => { axis = null; }, { passive: true });
+  }
+  setupBlogHorizontalPassthrough();
 
   // ========== 主页渲染（Hero + QQ 状态 + 兴趣必应） ==========
   function renderProfile() {
@@ -856,8 +1363,10 @@
             date: (post.published_at || post.created_at || post.date || '').replace('T', ' ').slice(0, 16),
             readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
             icon: post.icon || 'fa-pen',
-            slug: post.slug
+            slug: post.slug,
+            category: post.category || ''
           }));
+          renderThemeRail(blogPosts.map(p => p.category).filter(Boolean));
         }
       }
     } catch (e) {
@@ -890,9 +1399,28 @@
     
     updateGlobalAvatarPosition();
     
+    // 本地状态恢复
+    try {
+      const saved = JSON.parse(localStorage.getItem('maxsui_profile_status') || 'null');
+      if (saved && typeof saved === 'object') {
+        if (saved.status) profileData.status = saved.status;
+        if (saved.statusType) profileData.statusType = saved.statusType;
+      }
+    } catch (_) {}
+
+    // 解析可用 API（国内镜像优先）
+    await resolveApiBase();
+
     // 恢复已有 Session（Cookie），再拉业务数据
     await checkAdminSession();
     await fetchAllData();
+    try {
+      const catRes = await fetch(`${API_BASE_URL}/categories`, { credentials: 'include' });
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        if (Array.isArray(catData.categories)) renderThemeRail(catData.categories);
+      }
+    } catch (_) {}
     
     setTimeout(() => {
       setupBlogScrollHeights();
