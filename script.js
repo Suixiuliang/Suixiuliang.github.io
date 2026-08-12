@@ -1,7 +1,7 @@
 (function() {
   "use strict";
 
-  const API_BASE_URL = 'https://maxsui-backbend-production.up.railway.app/api';
+  const API_BASE_URL = 'https://maxsui-api.maxsui.workers.dev/api';
 
   const nav = document.getElementById('mainNav');
   const scrollContainer = document.getElementById('scrollContainer');
@@ -214,7 +214,7 @@
             <span><i class="far fa-calendar"></i> ${post.date || ''}</span>
             <span><i class="far fa-clock"></i> ${post.readTime || '3 min'}</span>
           </div>
-          <a href="#" class="read-more" data-id="${post.id}">阅读全文 <i class="fas fa-arrow-right"></i></a>
+          <a href="#" class="read-more" data-id="${post.slug || post.id}">阅读全文 <i class="fas fa-arrow-right"></i></a>
         </article>
       `;
     });
@@ -224,7 +224,8 @@
     list.querySelectorAll('.read-more').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
-        window.location.href = `https://suixiuliang.github.io/blog.html?id=${btn.dataset.id}`;
+        const idOrSlug = btn.dataset.id;
+        window.location.href = `https://suixiuliang.github.io/blog.html?id=${encodeURIComponent(idOrSlug)}`;
       });
     });
 
@@ -235,15 +236,7 @@
     });
   }
 
-  // ---------- 管理员登录（连点头像 7 次） ----------
-  async function sha256Hex(text) {
-    const data = new TextEncoder().encode(text);
-    const hashBuf = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hashBuf))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-  }
-
+  // ---------- 管理员登录（连点头像 7 次 → API Session 认证） ----------
   function openAdminLoginModal() {
     const modal = document.getElementById('adminLoginModal');
     const err = document.getElementById('adminLoginError');
@@ -269,7 +262,37 @@
     });
   }
 
-  function unlockAdminPanel() {
+  async function adminLogout() {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (e) {
+      console.warn('logout request failed', e);
+    }
+    lockAdminPanel();
+  }
+
+  function lockAdminPanel() {
+    if (!adminUnlocked) return;
+    adminUnlocked = false;
+
+    const adminNav = document.querySelector('.nav-btn[data-section="admin"]');
+    if (adminNav) adminNav.remove();
+
+    const adminSection = document.getElementById('admin');
+    if (adminSection) adminSection.remove();
+
+    requestAnimationFrame(() => {
+      updateActiveNavFromScroll();
+      updateCapsuleFromScroll();
+      updateGlobalAvatarPosition();
+    });
+  }
+
+  function unlockAdminPanel(options = {}) {
+    const { scrollToAdmin = true } = options;
     if (adminUnlocked) return;
     adminUnlocked = true;
     closeAdminLoginModal();
@@ -295,20 +318,46 @@
         <div class="panel-content">
           <div class="section-title"><i class="fas fa-user-shield"></i><span>管理员</span></div>
           <div class="glass-card admin-panel-placeholder">
-            <p>管理员面板内容待定</p>
+            <p>已登录管理员会话</p>
+            <p style="margin-top:0.75rem;font-size:0.9rem;opacity:0.75;">后台功能可在此扩展（文章 / 文件管理等）</p>
+            <div style="margin-top:1.5rem;">
+              <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
+                <i class="fas fa-sign-out-alt"></i> 退出登录
+              </button>
+            </div>
           </div>
         </div>
       `;
       scrollContainer.insertBefore(section, scrollContainer.firstChild);
+      const logoutBtn = section.querySelector('#adminLogoutBtn');
+      if (logoutBtn) logoutBtn.addEventListener('click', adminLogout);
     }
 
-    // 滚到管理员页并刷新胶囊
     requestAnimationFrame(() => {
-      const adminEl = document.getElementById('admin');
-      if (adminEl) scrollContainer.scrollTo({ left: adminEl.offsetLeft, behavior: 'smooth' });
+      if (scrollToAdmin) {
+        const adminEl = document.getElementById('admin');
+        if (adminEl) scrollContainer.scrollTo({ left: adminEl.offsetLeft, behavior: 'smooth' });
+      }
       updateActiveNavFromScroll();
       updateCapsuleFromScroll();
     });
+  }
+
+  async function checkAdminSession() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/me`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && (data.authenticated === true || (data.success === true && data.admin))) {
+        unlockAdminPanel({ scrollToAdmin: false });
+        return true;
+      }
+    } catch (e) {
+      console.warn('auth/me check failed', e);
+    }
+    return false;
   }
 
   function setupAdminLoginUI() {
@@ -340,18 +389,22 @@
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '校验中…'; }
 
         try {
-          const combined = username + password;
-          const hash = await sha256Hex(combined);
-          const res = await fetch('auth.sha256', { cache: 'no-store' });
-          if (!res.ok) throw new Error('无法读取 auth.sha256');
-          const expected = (await res.text()).trim().toLowerCase();
-          if (hash === expected) {
-            unlockAdminPanel();
+          const res = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json().catch(() => null);
+
+          if (res.ok && data && data.success !== false) {
+            unlockAdminPanel({ scrollToAdmin: true });
           } else {
-            if (err) { err.hidden = false; err.textContent = '密码错误'; }
+            const msg = (data && data.error) ? data.error : (res.status === 401 ? '用户名或密码错误' : '登录失败');
+            if (err) { err.hidden = false; err.textContent = msg; }
           }
         } catch (ex) {
-          if (err) { err.hidden = false; err.textContent = '校验失败，请稍后重试'; }
+          if (err) { err.hidden = false; err.textContent = '网络错误，请稍后重试'; }
           console.error(ex);
         } finally {
           if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '登录'; }
@@ -776,17 +829,50 @@
   }
 
   async function fetchAllData() {
+    // 个人资料：新 API 暂无 /profile，保留默认 + 静默兼容旧接口
     try {
-      const profileRes = await fetch(`${API_BASE_URL}/profile`);
-      if (profileRes.ok) { const data = await profileRes.json(); if (Object.keys(data).length) profileData = { ...defaultProfile, ...data }; }
-    } catch (e) {}
-    try {
-      const blogRes = await fetch(`${API_BASE_URL}/blog`);
-      if (blogRes.ok) { const posts = await blogRes.json(); if (Array.isArray(posts)) blogPosts = posts; }
+      const profileRes = await fetch(`${API_BASE_URL}/profile`, { credentials: 'include' });
+      if (profileRes.ok) {
+        const data = await profileRes.json();
+        const payload = data.profile || data;
+        if (payload && typeof payload === 'object' && Object.keys(payload).length) {
+          profileData = { ...defaultProfile, ...payload };
+        }
+      }
     } catch (e) {}
 
-    renderProfile(); 
-    filterAndRenderBlogs('', null); 
+    // 文章列表：优先新 API GET /articles
+    try {
+      const blogRes = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
+      if (blogRes.ok) {
+        const data = await blogRes.json();
+        const list = Array.isArray(data) ? data : (data.articles || data.posts || []);
+        if (Array.isArray(list) && list.length) {
+          blogPosts = list.map(post => ({
+            id: post.id ?? post.slug,
+            title: post.title || '无标题',
+            summary: post.excerpt || post.summary || '',
+            content: post.content || '',
+            date: (post.published_at || post.created_at || post.date || '').replace('T', ' ').slice(0, 16),
+            readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
+            icon: post.icon || 'fa-pen',
+            slug: post.slug
+          }));
+        }
+      }
+    } catch (e) {
+      // 兼容旧 /blog
+      try {
+        const legacy = await fetch(`${API_BASE_URL}/blog`);
+        if (legacy.ok) {
+          const posts = await legacy.json();
+          if (Array.isArray(posts)) blogPosts = posts;
+        }
+      } catch (_) {}
+    }
+
+    renderProfile();
+    filterAndRenderBlogs('', null);
     renderWorks();
   }
 
@@ -804,6 +890,8 @@
     
     updateGlobalAvatarPosition();
     
+    // 恢复已有 Session（Cookie），再拉业务数据
+    await checkAdminSession();
     await fetchAllData();
     
     setTimeout(() => {
