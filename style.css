@@ -4,23 +4,18 @@
   box-sizing: border-box;
 }
 
-/* ---------- 全局圆角 token（Apple 同心圆角） ----------
-   原则：内层 R = 外层 R − 内边距，曲线共圆心，嵌套才「对齐」
-   例：外卡 28、内边距 16 → 内卡 12；再内一层再减间距 */
 :root {
-  --radius-btn: 999px;      /* 按钮 / 胶囊 / 输入框：两端圆头 */
-  --radius-card: 28px;      /* 外层大卡：文章框、主题栏、弹窗 */
-  --radius-pad: 16px;       /* 外层 → 内层统一内边距（与同心计算绑定） */
-  --radius-md: calc(var(--radius-card) - var(--radius-pad)); /* 12：内层博文卡 / 中块 */
-  --radius-sm: 10px;        /* 再内一层：表单、代码块 */
-  --radius-chip: 999px;     /* 标签 chip */
-  --radius-circle: 50%;     /* 头像、日历日、圆形按钮 */
-  --radius-nav: 999px;      /* 导航外壳 */
-  --radius-scroll: 6px;     /* 滚动条滑块 */
-  /* 博客：主题栏↔内容栏 与 内容栏↔搜索栏（导航下方）统一间距 */
+  --radius-btn: 999px;
+  --radius-card: 28px;
+  --radius-pad: 16px;
+  --radius-md: calc(var(--radius-card) - var(--radius-pad));
+  --radius-sm: 10px;
+  --radius-chip: 999px;
+  --radius-circle: 50%;
+  --radius-nav: 999px;
+  --radius-scroll: 6px;
   --blog-gap: 16px;
 }
-
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
@@ -35,7 +30,6 @@ body {
   flex-direction: column;
 }
 
-/* ---------- 导航栏 (极简 Apple 液态玻璃) ---------- */
 .glass-nav {
   position: sticky;
   top: 16px;
@@ -63,7 +57,6 @@ body {
     background 0.3s ease,
     box-shadow 0.3s ease;
 }
-
 .glass-nav.scrolled {
   background: rgba(255, 255, 255, 0.18);
   box-shadow:
@@ -93,7 +86,6 @@ body {
   padding: 2px 0;
 }
 
-/* 滑动胶囊：只动这个，导航栏外壳尺寸不变 */
 .nav-capsule {
   position: absolute;
   top: 50%;
@@ -108,7 +100,6 @@ body {
   z-index: 0;
   transform-origin: center center;
   will-change: transform, width;
-  /* 位置由 JS 用 transform 控制，不设 transition 以免和弹簧冲突 */
 }
 
 .nav-btn {
@@ -142,7 +133,6 @@ body {
 }
 .nav-btn.active i { color: #ffffff; }
 
-/* ---------- 博客工具栏 ---------- */
 .blog-toolbar {
   position: absolute;
   left: 50%;
@@ -158,7 +148,6 @@ body {
   z-index: 2;
   justify-content: space-between;
 }
-
 .blog-search-box {
   display: flex;
   align-items: center;
@@ -218,7 +207,6 @@ body {
     inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
 }
 
-/* 导航栏 ↔ 博客工具栏：带过冲的弹簧弹跳（只动内部，外壳宽度用 CSS 弹簧） */
 .glass-nav .logo,
 .glass-nav .nav-links {
   transition:
@@ -229,7 +217,6 @@ body {
     margin 0.35s ease;
   transform-origin: center center;
 }
-
 .glass-nav .blog-toolbar {
   transition:
     opacity 0.4s cubic-bezier(0.34, 1.45, 0.64, 1),
@@ -237,7 +224,6 @@ body {
   transform: translate(-50%, -50%) scale(0.86);
   transform-origin: center center;
 }
-
 .glass-nav.blog-mode {
   width: min(650px, 90vw);
   max-width: 800px;
@@ -279,7 +265,6 @@ body {
   }
 }
 
-/* ---------- 日历弹窗与 Apple 自定义日历控件 ---------- */
 .calendar-modal {
   position: fixed;
   top: 0; left: 0; width: 100vw; height: 100vh;
@@ -298,7 +283,6 @@ body {
 .calendar-modal-content {
   width: 90%;
   max-width: 340px;
-  /* 内边距与 --radius-pad 一致，使内部 .apple-calendar 圆角同心 */
   padding: var(--radius-pad);
   border-radius: var(--radius-card);
 }
@@ -311,10 +295,8 @@ body {
 .calendar-header h3 { font-size: 1.05rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .close-calendar { background: transparent; border: none; color: rgba(255, 255, 255, 0.7); font-size: 1.1rem; cursor: pointer; }
 .close-calendar:hover { color: #ffffff; }
-
 .calendar-body { display: flex; flex-direction: column; gap: 1rem; }
 
-/* Apple 风格日历本体 */
 .apple-calendar {
   width: 100%;
   background: rgba(255, 255, 255, 0.08);
@@ -325,7 +307,6 @@ body {
   padding: 1rem;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
 }
-
 .apple-cal-header {
   display: flex;
   align-items: center;
@@ -334,7 +315,6 @@ body {
   font-weight: 600;
   font-size: 0.95rem;
 }
-
 .apple-cal-nav {
   background: transparent;
   border: none;
@@ -349,7 +329,6 @@ body {
   transition: background 0.2s ease;
 }
 .apple-cal-nav:hover { background: rgba(0, 113, 227, 0.15); }
-
 .apple-cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -359,13 +338,11 @@ body {
   margin-bottom: 0.5rem;
   font-weight: 500;
 }
-
 .apple-cal-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
 }
-
 .apple-cal-day {
   aspect-ratio: 1;
   display: flex;
@@ -379,8 +356,6 @@ body {
 }
 .apple-cal-day:hover:not(.empty):not(.selected) { background: rgba(255, 255, 255, 0.15); }
 .apple-cal-day.empty { cursor: default; }
-
-/* 选中日期强调色 #0071e3 + 液态玻璃 */
 .apple-cal-day.selected {
   background: rgba(0, 113, 227, 0.88) !important;
   backdrop-filter: blur(10px) saturate(200%);
@@ -390,7 +365,6 @@ body {
   color: #ffffff;
   font-weight: 600;
 }
-
 .calendar-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 .apple-primary-btn {
@@ -440,7 +414,6 @@ body {
     inset 0 -0.5px 1px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* ---------- 水平滚动容器 ---------- */
 .horizontal-scroll-container {
   display: flex;
   overflow-x: auto;
@@ -470,7 +443,6 @@ body {
   color: #ffffff; border-left: 5px solid rgba(255, 255, 255, 0.8); padding-left: 1.2rem; letter-spacing: -0.02em;
 }
 
-/* ---------- 通用玻璃卡片 ---------- */
 .glass-card {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(24px) saturate(180%);
@@ -488,22 +460,17 @@ body {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22), inset 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
-/* =====================================================
-   主页 (Home) — Hero 布局 + QQ 风格状态
-   ===================================================== */
 .panel-home {
   align-items: center;
   padding: 0.9rem 1.8rem 1.3rem;
   overflow-y: hidden;
 }
-
 .home-content {
   display: flex;
   align-items: center;
   min-height: 0;
   height: 100%;
 }
-
 .home-layout {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
@@ -513,14 +480,12 @@ body {
   max-width: 980px;
   margin: 0 auto;
 }
-
 .home-text {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
 }
-
 .home-kicker {
   font-size: 0.78rem;
   font-weight: 500;
@@ -529,7 +494,6 @@ body {
   text-transform: uppercase;
   margin-bottom: 0.45rem;
 }
-
 .home-name-row {
   display: flex;
   flex-wrap: wrap;
@@ -537,7 +501,6 @@ body {
   gap: 0.65rem 0.85rem;
   margin-bottom: 0.45rem;
 }
-
 .home-name {
   font-size: clamp(2.1rem, 4.5vw, 2.85rem);
   font-weight: 700;
@@ -546,8 +509,6 @@ body {
   margin: 0;
   color: #ffffff;
 }
-
-/* QQ 风格状态胶囊 */
 .home-status {
   display: inline-flex;
   align-items: center;
@@ -564,7 +525,6 @@ body {
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28);
   max-width: 100%;
 }
-
 .home-status-dot {
   width: 8px;
   height: 8px;
@@ -572,26 +532,22 @@ body {
   flex-shrink: 0;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
 }
-
 .home-status-dot.online { background: #34c759; }
 .home-status-dot.busy { background: #ff3b30; }
 .home-status-dot.away { background: #ffcc00; }
 .home-status-dot.offline { background: #8e8e93; }
 .home-status-dot.custom { background: #64d2ff; }
-
 .home-status-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 12rem;
 }
-
 .home-meta-row {
   font-size: 0.88rem;
   color: rgba(255, 255, 255, 0.55);
   margin: 0 0 0.85rem;
 }
-
 .home-bio {
   font-size: 0.94rem;
   color: rgba(255, 255, 255, 0.72);
@@ -599,14 +555,12 @@ body {
   margin: 0 0 1.1rem;
   max-width: 30rem;
 }
-
 .home-interests {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
   margin: 0 0 1.2rem;
 }
-
 .home-interest-btn {
   display: inline-flex;
   align-items: center;
@@ -631,36 +585,30 @@ body {
     box-shadow 200ms ease;
   will-change: transform;
 }
-
 .home-interest-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.42);
   transform: translateY(-1px) scale(1.03);
 }
-
 .home-interest-btn:active {
   transform: scale(0.96);
   transition: transform 90ms ease-out;
 }
-
 .home-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
 }
-
 .home-actions .nav-btn {
   padding: 0.55rem 1.2rem;
   font-size: 0.9rem;
 }
-
 .home-avatar-side {
   display: flex;
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
 }
-
 .avatar-circle-placeholder {
   width: 200px;
   height: 200px;
@@ -699,7 +647,6 @@ body {
     height: 150px;
   }
 }
-
 @media (max-width: 520px) {
   .panel-home {
     padding: 0.55rem 1rem 0.9rem;
@@ -718,7 +665,6 @@ body {
     max-width: 9rem;
   }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .home-interest-btn {
     transition: background 150ms ease, border-color 150ms ease !important;
@@ -729,7 +675,6 @@ body {
   }
 }
 
-/* ---------- 全局悬浮头像 ---------- */
 .global-avatar {
   position: fixed;
   top: 0; left: 0; z-index: 9999;
@@ -754,18 +699,14 @@ body {
 .section-title-wrap .section-title { margin-bottom: 0; }
 .contact-avatar-placeholder { width: 110px; height: 110px; border-radius: var(--radius-circle); visibility: hidden; pointer-events: none; }
 
-/* ---------- 博客面板 ---------- */
 .panel-blog {
   padding: 0 !important;
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
-  /* 默认隐藏滚动条（Firefox） */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-
-/* WebKit：默认透明；滚动时由 .is-scrolling 显示 */
 .panel-blog::-webkit-scrollbar {
   width: 6px;
 }
@@ -781,8 +722,6 @@ body {
 .panel-blog::-webkit-scrollbar-corner {
   background: transparent;
 }
-
-/* 正在滚动时显示半透明灰滑块 */
 .panel-blog.is-scrolling {
   scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
 }
@@ -792,17 +731,14 @@ body {
 .panel-blog.is-scrolling::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
 }
-
 .panel-blog-content { position: relative; width: 100%; min-height: 100%; }
 .blog-cover { position: absolute; top: 0; left: 0; width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; z-index: 1; pointer-events: none; will-change: transform, opacity; }
 .cover-inner { text-align: center; padding: 1rem 2rem; max-width: 900px; transform: translateY(-30px); }
 .slogan { font-family: 'Dancing Script', cursive; font-size: clamp(2.8rem, 7vw, 4.8rem); font-weight: 700; line-height: 1.15; margin-bottom: 0.6rem; }
 .slogan-sub { font-size: 1.05rem; color: rgba(255, 255, 255, 0.8); letter-spacing: 0.15em; }
-
 .scroll-down-hint { margin-top: 2rem; display: inline-flex; flex-direction: column; align-items: center; gap: 6px; font-size: 0.9rem; animation: bounceHint 2s infinite ease-in-out; pointer-events: auto; }
 @keyframes bounceHint { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } 60% { transform: translateY(-3px); } }
 
-/* ---------- 博客三阶段：主题栏 + 文章框 ---------- */
 .blog-stage-duo {
   position: absolute;
   left: 0;
@@ -819,12 +755,9 @@ body {
   will-change: top, transform;
   padding: 0 var(--blog-gap);
   box-sizing: border-box;
-  /* 未滚动时默认完全在视口下方，避免首屏露出上半截 */
   top: 110vh;
 }
-
 .blog-theme-rail {
-  /* 始终保持完整宽度与圆角，只用 transform / 负 margin 收合占位 */
   flex: 0 0 132px;
   width: 132px;
   max-width: 132px;
@@ -832,26 +765,20 @@ body {
   overflow: visible;
   pointer-events: none;
   transform: translate3d(calc(-100% - var(--blog-gap)), 0, 0);
-  margin-right: -132px; /* 收合 flex 占位，让文章框单独居中 */
+  margin-right: -132px;
   transition: none;
   align-self: stretch;
   will-change: transform, opacity, margin-right;
-  /* 与文章框同级不透明度，不在此额外压低 */
 }
-
 .blog-theme-rail.is-visible {
   pointer-events: auto;
 }
-
 .theme-rail-inner {
   width: 132px;
-  /* 更高：尽量贴近视口全高，由 JS 再与文章框对齐 */
   min-height: min(96vh, 1100px);
   height: 100%;
-  /* 与文章框同级外圆角；内边距水平略紧，chip 为胶囊不参与同心 */
   padding: var(--radius-pad) 0.75rem;
   border-radius: var(--radius-card);
-  /* 与 .blog-white-box 同级液态玻璃，避免更透 */
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
@@ -865,7 +792,6 @@ body {
   overflow: visible;
   opacity: 1;
 }
-
 .theme-rail-title {
   display: flex;
   align-items: center;
@@ -877,7 +803,6 @@ body {
   color: rgba(255, 255, 255, 0.85);
   writing-mode: horizontal-tb;
 }
-
 .theme-rail-list {
   display: flex;
   flex-direction: column;
@@ -886,7 +811,6 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.2) transparent;
 }
-
 .theme-chip {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -900,12 +824,10 @@ body {
   text-align: center;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
-
 .theme-chip:hover {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
-
 .theme-chip.active {
   background: rgba(0, 113, 227, 0.82);
   border-color: rgba(255, 255, 255, 0.42);
@@ -914,7 +836,6 @@ body {
     0 4px 12px rgba(0, 113, 227, 0.35),
     inset 0 1px 1px rgba(255, 255, 255, 0.45);
 }
-
 .blog-white-box {
   position: relative;
   flex: 1 1 auto;
@@ -931,9 +852,7 @@ body {
   pointer-events: auto;
   will-change: transform, max-width;
 }
-
 @media (max-width: 720px) {
-  /* 窄屏：间距与同心圆角同步收紧（内层 md = card − pad 自动跟上） */
   :root {
     --blog-gap: 12px;
     --radius-card: 24px;
@@ -965,9 +884,7 @@ body {
   }
   .white-box-header h2 { font-size: 1.15rem; }
 }
-
 @media (max-width: 480px) {
-  /* 窄屏：主题栏更窄，仍侧滑；触控横向由 JS 转发 */
   .blog-theme-rail {
     flex-basis: 84px;
     width: 84px;
@@ -980,12 +897,9 @@ body {
   }
   .slogan { font-size: clamp(2.2rem, 10vw, 3.2rem); }
 }
-
-/* 博客面板以纵向为主；横向手势由 JS 转发给水平容器 */
 .panel-blog {
   touch-action: pan-y;
 }
-/* 内边距 = --radius-pad，使 .blog-card 的 R 与外框同心对齐 */
 .white-box-inner {
   max-width: 950px;
   margin: 0 auto;
@@ -1014,8 +928,6 @@ body {
   padding: 0.22rem 0.65rem;
   border-radius: var(--radius-btn);
 }
-
-/* 紧凑博文条目：R = card − pad，与外框同心 */
 .blog-list { display: flex; flex-direction: column; gap: 0.65rem; }
 .blog-list .blog-card {
   background: rgba(255, 255, 255, 0.08);
@@ -1029,8 +941,13 @@ body {
   column-gap: 0.7rem;
   row-gap: 0.25rem;
   align-items: start;
+  cursor: pointer;
 }
 .blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-1px); }
+.blog-list .blog-card:focus-visible {
+  outline: 2px solid rgba(0, 113, 227, 0.7);
+  outline-offset: 2px;
+}
 .blog-list .blog-icon {
   grid-row: 1 / span 2;
   width: 2rem;
@@ -1097,7 +1014,6 @@ body {
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* 站内文章阅读层 */
 .article-reader-modal {
   position: fixed;
   inset: 0;
@@ -1191,22 +1107,42 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.86em;
 }
-.article-reader-body pre {
-  background: rgba(0, 0, 0, 0.28);
+.article-reader-body pre,
+.article-reader-body pre.md-code {
+  background: rgba(0, 0, 0, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  /* 正文区内再嵌一层：略小于 md，保持层级递减 */
   border-radius: var(--radius-sm);
   padding: 0.85rem 1rem;
   overflow-x: auto;
+  margin: 0.85em 0;
+  line-height: 1.55;
 }
 .article-reader-body code {
   background: rgba(255, 255, 255, 0.1);
   padding: 0.1em 0.35em;
   border-radius: 6px;
+  font-size: 0.88em;
 }
 .article-reader-body pre code {
   background: transparent;
   padding: 0;
+  font-size: 0.86em;
+  color: rgba(230, 240, 255, 0.95);
+}
+.article-reader-body .md-math-display {
+  overflow-x: auto;
+  margin: 1em 0;
+  padding: 0.4em 0;
+  text-align: center;
+}
+.article-reader-body .katex-display {
+  margin: 0.85em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.article-reader-body .katex {
+  font-size: 1.05em;
+  color: #e8f1ff;
 }
 .article-reader-body a { color: #7eb6ff; }
 .article-reader-body ul,
@@ -1220,7 +1156,6 @@ body {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
-/* ---------- 资源加载门禁（蓝调时刻 + Win11 风格光晕圆） ---------- */
 .boot-loader {
   position: fixed;
   inset: 0;
@@ -1294,13 +1229,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- 我的作品卡片布局 ---------- */
 .works-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.8rem;
 }
-
 .work-card {
   position: relative;
   display: flex;
@@ -1309,7 +1242,6 @@ body {
   padding: 2rem;
   min-height: 220px;
   border-radius: var(--radius-card);
-  /* 更明显的液态玻璃高光 */
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.32);
   box-shadow:
@@ -1325,20 +1257,17 @@ body {
     inset 0 2px 2px rgba(255, 255, 255, 0.6),
     inset 0 -1px 1.5px rgba(0, 0, 0, 0.1);
 }
-
 .work-card-body h3 {
   font-size: 1.3rem;
   font-weight: 600;
   margin-bottom: 0.7rem;
   letter-spacing: -0.01em;
 }
-
 .work-card-body p {
   font-size: 0.92rem;
   color: rgba(255, 255, 255, 0.8);
   line-height: 1.5;
 }
-
 .work-card-footer {
   margin-top: 1.8rem;
   display: flex;
@@ -1346,7 +1275,6 @@ body {
   justify-content: space-between;
   width: 100%;
 }
-
 .work-legacy-link {
   font-size: 0.78rem;
   color: rgba(255, 255, 255, 0.75);
@@ -1355,8 +1283,6 @@ body {
   transition: color 0.2s ease;
 }
 .work-legacy-link:hover { color: #ffffff; }
-
-/* 右下角蓝色液态玻璃圆形按钮 (#0071e3) */
 .work-circle-btn {
   width: 44px;
   height: 44px;
@@ -1388,7 +1314,6 @@ body {
     inset 0 -1px 1.2px rgba(0, 50, 120, 0.2);
 }
 
-/* ---------- 联系我 ---------- */
 .win7-contact-container {
   display: flex;
   flex-direction: column;
@@ -1397,7 +1322,6 @@ body {
   max-width: 750px;
   margin: 1rem auto 3rem;
 }
-
 .win7-business-card {
   width: 100%;
   display: flex;
@@ -1408,22 +1332,18 @@ body {
   gap: 2rem;
   border-radius: var(--radius-card);
 }
-
 .win7-card-avatar-side { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
 .win7-card-info { flex: 1; display: flex; flex-direction: column; gap: 1rem; }
 .win7-card-header h3 { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; }
 .win7-subtitle { font-size: 0.95rem; opacity: 0.8; margin-top: 0.2rem; }
-
 .win7-info-list {
   display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.5rem;
   border-top: 1px solid rgba(255,255,255,0.15); padding-top: 1rem;
 }
-
 .win7-info-item { display: flex; align-items: center; gap: 10px; font-size: 0.98rem; }
 .win7-info-item i { width: 22px; color: #60a5fa; text-align: center; }
 .win7-info-item .label { opacity: 0.75; }
 .win7-info-item .value { font-weight: 500; color: #ffffff; }
-
 .social-circles-bar { display: flex; justify-content: center; gap: 1.2rem; flex-wrap: wrap; }
 .social-circle-btn {
   width: 52px; height: 52px; border-radius: var(--radius-circle);
@@ -1449,7 +1369,6 @@ body {
     inset 0 -1px 1px rgba(0, 0, 0, 0.1);
 }
 
-/* ---------- 管理员登录表单 ---------- */
 .admin-login-content {
   max-width: 360px;
 }
@@ -1499,8 +1418,6 @@ body {
   font-size: 1rem;
 }
 
-
-/* ---------- 管理员面板 ---------- */
 .admin-panel-wrap {
   display: flex;
   flex-direction: column;
@@ -1508,7 +1425,6 @@ body {
   max-width: 980px;
   margin: 0 auto 2rem;
 }
-
 .admin-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1521,7 +1437,6 @@ body {
   width: fit-content;
   max-width: 100%;
 }
-
 .admin-tab-btn {
   appearance: none;
   border: none;
@@ -1537,20 +1452,16 @@ body {
   gap: 6px;
   transition: color 0.2s ease, background 0.2s ease;
 }
-
 .admin-tab-btn.active {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28);
 }
-
 .admin-tab-panel { display: none; }
 .admin-tab-panel.active { display: block; }
-
 .admin-card {
   padding: 1.5rem 1.6rem;
 }
-
 .admin-card h3 {
   font-size: 1.05rem;
   font-weight: 600;
@@ -1559,23 +1470,19 @@ body {
   align-items: center;
   gap: 8px;
 }
-
 .admin-form-grid {
   display: grid;
   gap: 0.9rem;
 }
-
 .admin-form-row {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-
 .admin-form-row label {
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.65);
 }
-
 .admin-form-row input,
 .admin-form-row select,
 .admin-form-row textarea {
@@ -1588,28 +1495,24 @@ body {
   outline: none;
   font-family: inherit;
 }
-
 .admin-form-row textarea {
   min-height: 160px;
   resize: vertical;
   line-height: 1.5;
   border-radius: var(--radius-sm);
 }
-
 .admin-form-row input:focus,
 .admin-form-row select:focus,
 .admin-form-row textarea:focus {
   border-color: rgba(0, 113, 227, 0.7);
   background: rgba(255, 255, 255, 0.14);
 }
-
 .admin-form-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 0.4rem;
 }
-
 .admin-status-preview {
   display: inline-flex;
   align-items: center;
@@ -1620,13 +1523,11 @@ body {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.22);
 }
-
 .admin-article-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
 }
-
 .admin-article-table th,
 .admin-article-table td {
   text-align: left;
@@ -1634,19 +1535,16 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   vertical-align: middle;
 }
-
 .admin-article-table th {
   color: rgba(255, 255, 255, 0.55);
   font-weight: 500;
   font-size: 0.78rem;
 }
-
 .admin-article-actions {
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
 }
-
 .admin-mini-btn {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -1657,21 +1555,17 @@ body {
   font-size: 0.75rem;
   cursor: pointer;
 }
-
 .admin-mini-btn.danger {
   border-color: rgba(255, 80, 80, 0.45);
   color: #ff8a8a;
 }
-
 .admin-msg {
   font-size: 0.85rem;
   margin-top: 0.6rem;
   color: rgba(255, 255, 255, 0.7);
 }
-
 .admin-msg.ok { color: #34c759; }
 .admin-msg.err { color: #ff6b6b; }
-
 .admin-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1680,14 +1574,11 @@ body {
   justify-content: space-between;
   margin-bottom: 1rem;
 }
-
 @media (max-width: 700px) {
   .admin-article-table { display: block; overflow-x: auto; }
 }
-
 .footer { text-align: center; padding: 1rem 0; font-size: 0.85rem; opacity: 0.8; width: 100%; }
-
-@media (max-width: 800px) { 
+@media (max-width: 800px) {
   .glass-nav { max-width: 95vw; }
   .win7-business-card { flex-direction: column; text-align: center; padding: 2rem 1.5rem; }
   .win7-info-list { align-items: center; }
@@ -1695,12 +1586,6 @@ body {
   .works-header-area { flex-direction: column; align-items: flex-start; gap: 1rem; }
 }
 
-/* =====================================================
-   按钮动效 (Apple Design：按下即时反馈，悬停轻微抬起)
-   仅作用于按钮，不给面板加动画
-   ===================================================== */
-
-/* 统一过渡：悬停用稍慢的曲线，按下用极短 ease-out */
 .apple-primary-btn,
 .apple-secondary-btn,
 .work-circle-btn,
@@ -1716,26 +1601,19 @@ body {
     color 180ms ease;
   will-change: transform;
 }
-
-/* 悬停：轻微放大 / 上移，给“可点”的预示 */
 .apple-primary-btn:hover,
 .apple-secondary-btn:hover {
   transform: translateY(-1px) scale(1.02);
 }
-
 .work-circle-btn:hover {
   transform: scale(1.08) translateY(-2px);
 }
-
 .social-circle-btn:hover {
   transform: translateY(-3px) scale(1.04);
 }
-
 .calendar-btn:hover {
   transform: scale(1.06);
 }
-
-/* 按下：立即缩小（pointer-down 反馈，约 100ms） */
 .apple-primary-btn:active,
 .apple-secondary-btn:active,
 .work-circle-btn:active,
@@ -1744,14 +1622,10 @@ body {
   transform: scale(0.96);
   transition: transform 90ms ease-out;
 }
-
-/* 导航文字按钮：active 时轻微按压 */
 .nav-btn:active {
   transform: scale(0.97);
   transition: transform 90ms ease-out;
 }
-
-/* 减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   .apple-primary-btn,
   .apple-secondary-btn,
@@ -1776,8 +1650,6 @@ body {
   }
 }
 
-
-/* 强制：所有可点击按钮类两端圆头；日历日为圆 */
 .nav-btn,
 .apple-primary-btn,
 .apple-secondary-btn,

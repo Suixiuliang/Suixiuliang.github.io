@@ -1,14 +1,397 @@
 (function() {
   "use strict";
 
-  // API 基址：Cloudflare Workers 在中国大陆常不可达，支持镜像回退
-  // 1) 优先使用你配置的国内镜像（推荐：自有域名反代到 Worker）
-  // 2) 再试官方 Worker
-  // 可在页面加载前设置：window.MAXSUI_API_BASE = 'https://你的国内域名/api'
+  // ============================================================
+  //  图床门禁：关键图片资源（主图床 + 备用图床）
+  // ============================================================
+  const CRITICAL_IMAGE_URLS = [
+    'https://free.picui.cn/free/2026/08/11/6a7a7bd8363ce.jpg',
+    'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
+    'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
+    'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
+    'https://pic.imgdd.cc/i/0345tgWcwr2l5scSYRh7Ch.jpg',
+    'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png'
+  ];
+
+  // ============================================================
+  //  精灵图点击特效配置（与独立演示版一致）
+  // ============================================================
+  const SPRITE_CONFIG = {
+    imageUrl: 'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
+    fallbackUrl: 'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png',
+    frameWidth: 256,
+    frameHeight: 256,
+    totalFrames: 30,
+    fps: 60,
+    scale: 0.5,
+    offset: [0, 0],
+    autoRemove: true,
+    allowMultiple: true,
+    whiteThreshold: 160,
+    paleFactors: {
+      yellow: 0.7,
+      red: 0.7,
+      blue: 0.4,
+    }
+  };
+
+  const BASE_COLORS = {
+    YELLOW: { r: 240, g: 237, b: 105 },
+    BLUE:   { r: 10,  g: 195, b: 255 },
+    RED:    { r: 254, g: 67,  b: 101 },
+  };
+
+  function applyPale(baseColor, factor) {
+    const white = 255;
+    return {
+      r: Math.round(baseColor.r * factor + white * (1 - factor)),
+      g: Math.round(baseColor.g * factor + white * (1 - factor)),
+      b: Math.round(baseColor.b * factor + white * (1 - factor)),
+    };
+  }
+
+  const COLORS = {
+    LEFT:     applyPale(BASE_COLORS.YELLOW, SPRITE_CONFIG.paleFactors.yellow),
+    RIGHT:    applyPale(BASE_COLORS.BLUE,   SPRITE_CONFIG.paleFactors.blue),
+    FORBIDDEN: applyPale(BASE_COLORS.RED,    SPRITE_CONFIG.paleFactors.red),
+  };
+
+  let spriteImg = new Image();
+  let isSpriteReady = false;
+  let activeSpriteAnimations = [];
+  const frameCache = new Map();
+
+  function getFrameCacheKey(color) {
+    return `${color.r},${color.g},${color.b}`;
+  }
+
+  function createColoredFrame(img, frameIndex, frameWidth, frameHeight, targetColor, threshold) {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = frameWidth;
+    offscreen.height = frameHeight;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.imageSmoothingEnabled = true;
+    const sy = frameIndex * frameHeight;
+    offCtx.drawImage(img, 0, sy, frameWidth, frameHeight, 0, 0, frameWidth, frameHeight);
+    const imageData = offCtx.getImageData(0, 0, frameWidth, frameHeight);
+    const data = imageData.data;
+    const { r, g, b } = targetColor;
+    for (let i = 0; i < data.length; i += 4) {
+      const cr = data[i];
+      const cg = data[i + 1];
+      const cb = data[i + 2];
+      if (cr > threshold && cg > threshold && cb > threshold && data[i + 3] > 0) {
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+      }
+    }
+    offCtx.putImageData(imageData, 0, 0);
+    return offscreen;
+  }
+
+  function preprocessFrames(img, color, frameWidth, frameHeight, totalFrames, threshold) {
+    const key = getFrameCacheKey(color);
+    if (frameCache.has(key)) {
+      return frameCache.get(key);
+    }
+    const frames = [];
+    for (let i = 0; i < totalFrames; i++) {
+      const canvas = createColoredFrame(img, i, frameWidth, frameHeight, color, threshold);
+      const imgData = canvas.getContext('2d').getImageData(0, 0, frameWidth, frameHeight);
+      frames.push(imgData);
+    }
+    frameCache.set(key, frames);
+    return frames;
+  }
+
+  function createSpriteAnimation(clientX, clientY, color, colorName) {
+    if (!isSpriteReady) {
+      console.warn('精灵图尚未加载完成');
+      return;
+    }
+
+    const { frameWidth, frameHeight, totalFrames, fps, offset, autoRemove, allowMultiple, scale, whiteThreshold } = SPRITE_CONFIG;
+
+    const displayWidth = frameWidth * scale;
+    const displayHeight = frameHeight * scale;
+    const posX = clientX + offset[0] - displayWidth / 2;
+    const posY = clientY + offset[1] - displayHeight / 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'effect-canvas';
+    canvas.width = frameWidth;
+    canvas.height = frameHeight;
+    canvas.style.width = displayWidth + 'px';
+    canvas.style.height = displayHeight + 'px';
+    canvas.style.left = posX + 'px';
+    canvas.style.top = posY + 'px';
+    canvas.style.position = 'fixed';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '9999';
+    canvas.style.imageSmoothingEnabled = 'true';
+    document.body.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    if (ctx.imageSmoothingQuality !== undefined) {
+      ctx.imageSmoothingQuality = 'high';
+    }
+
+    let frames = null;
+    let useColor = true;
+
+    try {
+      frames = preprocessFrames(spriteImg, color, frameWidth, frameHeight, totalFrames, whiteThreshold);
+    } catch (e) {
+      console.warn('颜色替换处理失败，降级为原图', e);
+      useColor = false;
+      frames = null;
+    }
+
+    let currentFrame = 0;
+    let startTime = performance.now();
+    let animationId = null;
+    let isFinished = false;
+
+    const instance = {
+      canvas,
+      ctx,
+      currentFrame,
+      startTime,
+      isFinished,
+      destroy
+    };
+
+    if (!allowMultiple) {
+      activeSpriteAnimations.forEach(a => a.destroy());
+      activeSpriteAnimations = [];
+    }
+    activeSpriteAnimations.push(instance);
+
+    function drawFrame(frameIndex) {
+      const idx = Math.min(frameIndex, totalFrames - 1);
+      if (useColor && frames && frames[idx]) {
+        ctx.putImageData(frames[idx], 0, 0);
+      } else {
+        const sy = idx * frameHeight;
+        ctx.clearRect(0, 0, frameWidth, frameHeight);
+        ctx.drawImage(spriteImg, 0, sy, frameWidth, frameHeight, 0, 0, frameWidth, frameHeight);
+      }
+    }
+
+    function animate(timestamp) {
+      if (isFinished) return;
+      const elapsed = timestamp - startTime;
+      const frameDuration = 1000 / fps;
+      const frameIndex = Math.floor(elapsed / frameDuration);
+
+      if (frameIndex >= totalFrames) {
+        drawFrame(totalFrames - 1);
+        finishAnimation();
+        return;
+      }
+      drawFrame(frameIndex);
+      currentFrame = frameIndex;
+      animationId = requestAnimationFrame(animate);
+    }
+
+    function finishAnimation() {
+      if (isFinished) return;
+      isFinished = true;
+      if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+      const idx = activeSpriteAnimations.indexOf(instance);
+      if (idx !== -1) activeSpriteAnimations.splice(idx, 1);
+      if (autoRemove) {
+        setTimeout(() => { destroy(); }, 80);
+      }
+    }
+
+    function destroy() {
+      if (canvas.parentNode) canvas.remove();
+      if (animationId) cancelAnimationFrame(animationId);
+      isFinished = true;
+      const idx = activeSpriteAnimations.indexOf(instance);
+      if (idx !== -1) activeSpriteAnimations.splice(idx, 1);
+    }
+
+    drawFrame(0);
+    animationId = requestAnimationFrame(animate);
+  }
+
+  // ============================================================
+  //  粒子系统（与独立演示版参数一致：30~50px起始，190~210速度，0.3~0.6s寿命，12~32px大小，互异角度）
+  // ============================================================
+  let particles = [];
+  let particleAnimId = null;
+  let lastParticleTime = 0;
+
+  function generateDistinctAngles(count, minDiffDeg) {
+    const minDiff = minDiffDeg * Math.PI / 180;
+    let angles = [];
+    let attempts = 0;
+    while (angles.length < count && attempts < 200) {
+      const angle = Math.random() * 2 * Math.PI;
+      let ok = true;
+      for (let a of angles) {
+        let diff = Math.abs(angle - a);
+        diff = Math.min(diff, 2 * Math.PI - diff);
+        if (diff < minDiff) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) {
+        angles.push(angle);
+      }
+      attempts++;
+    }
+    while (angles.length < count) {
+      angles.push(Math.random() * 2 * Math.PI);
+    }
+    return angles;
+  }
+
+  function createParticles(x, y, color) {
+    const count = 2 + Math.floor(Math.random() * 3); // 2,3,4
+    const angles = generateDistinctAngles(count, 50);
+
+    for (let i = 0; i < count; i++) {
+      const size = 12 + Math.random() * 20; // 12~32px
+      const angle = angles[i];
+      const baseSpeed = 190 + Math.random() * 20; // 190~210
+      const life = 0.3 + Math.random() * 0.3; // 0.3~0.6s
+
+      const startRadius = 30 + Math.random() * 20; // 30~50px
+      const startX = x + Math.cos(angle) * startRadius;
+      const startY = y + Math.sin(angle) * startRadius;
+
+      const variation = 0.8 + Math.random() * 0.4;
+      const r = Math.min(255, Math.round(color.r * variation));
+      const g = Math.min(255, Math.round(color.g * variation));
+      const b = Math.min(255, Math.round(color.b * variation));
+      const colorStr = `rgb(${r},${g},${b})`;
+
+      const el = document.createElement('div');
+      el.className = 'particle';
+      el.style.cssText = `
+        position: fixed;
+        pointer-events: none;
+        z-index: 10000;
+        border-radius: 2px;
+        width: ${size}px;
+        height: ${size}px;
+        background: ${colorStr};
+        left: ${startX - size/2}px;
+        top: ${startY - size/2}px;
+        opacity: 1;
+        transform: rotate(0deg);
+        will-change: transform, opacity;
+      `;
+      document.body.appendChild(el);
+
+      particles.push({
+        el,
+        x: startX,
+        y: startY,
+        angle,
+        speed: baseSpeed,
+        size,
+        life,
+        age: 0,
+        alpha: 1,
+      });
+    }
+
+    if (!particleAnimId) {
+      particleAnimId = requestAnimationFrame(updateParticles);
+    }
+  }
+
+  function updateParticles(timestamp) {
+    if (!lastParticleTime) lastParticleTime = timestamp;
+    const dt = Math.min((timestamp - lastParticleTime) / 1000, 0.05);
+    lastParticleTime = timestamp;
+
+    let anyAlive = false;
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.age += dt;
+
+      const progress = p.age / p.life;
+      let speedMult;
+      if (progress < 0.33) {
+        speedMult = 1.0;
+      } else {
+        const t2 = (progress - 0.33) / 0.67;
+        speedMult = 1.0 - t2 * 0.95;
+      }
+      const currentSpeed = p.speed * speedMult;
+
+      p.x += Math.cos(p.angle) * currentSpeed * dt;
+      p.y += Math.sin(p.angle) * currentSpeed * dt;
+
+      p.alpha = Math.max(0, 1 - progress * progress);
+
+      const el = p.el;
+      const half = p.size / 2;
+      el.style.left = (p.x - half) + 'px';
+      el.style.top = (p.y - half) + 'px';
+      el.style.opacity = p.alpha;
+
+      if (p.age >= p.life || p.alpha <= 0.01) {
+        if (el.parentNode) el.remove();
+        particles.splice(i, 1);
+      } else {
+        anyAlive = true;
+      }
+    }
+
+    if (anyAlive) {
+      particleAnimId = requestAnimationFrame(updateParticles);
+    } else {
+      particleAnimId = null;
+      lastParticleTime = 0;
+      particles = [];
+    }
+  }
+
+  // ---------- 触发完整动画 ----------
+  function triggerClickEffect(clientX, clientY, color, colorName) {
+    createSpriteAnimation(clientX, clientY, color, colorName);
+    createParticles(clientX, clientY, color);
+  }
+
+  // ---------- 加载精灵图 ----------
+  function loadSpriteImage() {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+      spriteImg = img;
+      isSpriteReady = true;
+      console.log('[精灵图] 加载成功');
+    };
+    img.onerror = function() {
+      console.warn('[精灵图] 主图床加载失败，尝试备用图床');
+      const fallbackImg = new Image();
+      fallbackImg.crossOrigin = 'anonymous';
+      fallbackImg.onload = function() {
+        spriteImg = fallbackImg;
+        isSpriteReady = true;
+        console.log('[精灵图] 备用图床加载成功');
+      };
+      fallbackImg.onerror = function() {
+        console.error('[精灵图] 所有图床加载失败');
+      };
+      fallbackImg.src = SPRITE_CONFIG.fallbackUrl;
+    };
+    img.src = SPRITE_CONFIG.imageUrl;
+  }
+
+  // ---------- API 基址 ----------
   const API_CANDIDATES = [
     (typeof window !== 'undefined' && window.MAXSUI_API_BASE) ? String(window.MAXSUI_API_BASE).replace(/\/+$/, '') : null,
-    // 国内可访问镜像：部署反代后取消下一行注释并改成你的地址
-    // 'https://api.example.com/api',
     'https://maxsui-api.maxsui.workers.dev/api'
   ].filter(Boolean);
 
@@ -41,12 +424,10 @@
         return API_BASE_URL;
       }
     }
-    // 全部失败时仍用第一个；不在控制台打印具体地址，避免泄露
     API_BASE_URL = API_CANDIDATES[0];
     return API_BASE_URL;
   }
 
-  /** 发布时间统一为 UTC+08:00（Asia/Shanghai）显示 */
   function formatDateUTC8(input) {
     if (!input) return '';
     let d;
@@ -90,6 +471,14 @@
     return (formatDateUTC8(input) || '').slice(0, 10);
   }
 
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   const nav = document.getElementById('mainNav');
   const scrollContainer = document.getElementById('scrollContainer');
   function getSections() { return document.querySelectorAll('.panel'); }
@@ -104,8 +493,6 @@
     bio: "热爱计算机底层与系统编程，熟悉 C / C# / C++，喜欢探索新的算法。",
     interests: ["C", "C#", "C++", "OIer", "Minecraft", "CR-中国铁路", "Airbus"],
     avatar: null,
-    // QQ 风格状态：管理员在后台改 profile.status / profile.statusType
-    // statusType: online | busy | away | offline | custom
     status: "在线",
     statusType: "online"
   };
@@ -116,7 +503,6 @@
   let avatarClickCount = 0;
   let avatarClickTimer = null;
 
-  // 滑动胶囊：只动胶囊，导航栏外壳尺寸不变
   let navCapsule = null;
   let lastScrollLeft = 0;
   let lastScrollTime = performance.now();
@@ -125,22 +511,13 @@
   let capsuleScaleRaf = null;
   let capsuleX = 0;
   let capsuleW = 0;
-  let capsuleTargetX = 0;
-  let capsuleTargetW = 0;
-  let capsulePosVelX = 0;
-  let capsulePosVelW = 0;
-  let capsulePosRaf = null;
   const CAPSULE_SCALE_MAX = 1.12;
   const CAPSULE_SPRING_K = 220;
   const CAPSULE_SPRING_D = 16;
-  const CAPSULE_POS_K = 280;
-  const CAPSULE_POS_D = 22;
 
-  // Apple 自定义日历状态
   let calCurrentDate = new Date();
   let calSelectedDateStr = null;
 
-  // 博客双阶段滚动状态
   const blogPanel = document.getElementById('blog');
   const blogContent = document.querySelector('.panel-blog-content');
   const blogCover = document.getElementById('blogCover');
@@ -148,10 +525,6 @@
   const blogStageDuo = document.getElementById('blogStageDuo');
   const blogThemeRail = document.getElementById('blogThemeRail');
 
-  // 三阶段视差：
-  // stage1: 封面淡出 + 组合体从底部升到中部
-  // stage2: 主题栏从左滑入 + 文章框右移，组合体居中贴顶
-  // stage3: 内容区继续上滚（组合体固定在顶附近）
   const STAGE1_RATIO = 0.72;
   const STAGE2_RATIO = 0.45;
   let stage1Height = 0;
@@ -160,7 +533,6 @@
   let isBlogActive = false;
   let activeCategory = '';
 
-  // DOM 绑定
   const blogSearchInput = document.getElementById('blogSearchInput');
   const calendarBtn = document.getElementById('calendarBtn');
   const calendarModal = document.getElementById('calendarModal');
@@ -168,17 +540,13 @@
   const searchByDateBtn = document.getElementById('searchByDateBtn');
   const clearDateBtn = document.getElementById('clearDateBtn');
 
-  // ========== Apple 风格自定义日历逻辑 ==========
   function renderAppleCalendar() {
     const calendarEl = document.getElementById('appleCalendar');
     if (!calendarEl) return;
-
     const year = calCurrentDate.getFullYear();
     const month = calCurrentDate.getMonth();
-
     const firstDayIndex = new Date(year, month, 1).getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
-
     const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
 
     let html = `
@@ -192,20 +560,16 @@
       </div>
       <div class="apple-cal-days">
     `;
-
     for (let i = 0; i < firstDayIndex; i++) {
       html += `<div class="apple-cal-day empty"></div>`;
     }
-
     for (let day = 1; day <= totalDays; day++) {
       const monthStr = String(month + 1).padStart(2, '0');
       const dayStr = String(day).padStart(2, '0');
       const dateVal = `${year}-${monthStr}-${dayStr}`;
-      
       const isSelected = (calSelectedDateStr === dateVal);
       html += `<div class="apple-cal-day ${isSelected ? 'selected' : ''}" data-date="${dateVal}">${day}</div>`;
     }
-
     html += `</div>`;
     calendarEl.innerHTML = html;
 
@@ -214,13 +578,11 @@
       calCurrentDate.setMonth(calCurrentDate.getMonth() - 1);
       renderAppleCalendar();
     });
-
     document.getElementById('calNextBtn').addEventListener('click', (e) => {
       e.stopPropagation();
       calCurrentDate.setMonth(calCurrentDate.getMonth() + 1);
       renderAppleCalendar();
     });
-
     calendarEl.querySelectorAll('.apple-cal-day:not(.empty)').forEach(dayEl => {
       dayEl.addEventListener('click', () => {
         calendarEl.querySelectorAll('.apple-cal-day').forEach(d => d.classList.remove('selected'));
@@ -230,7 +592,6 @@
     });
   }
 
-  // 初始化博客工具栏与弹窗
   function setupBlogToolbarInteractions() {
     if (calendarBtn && calendarModal) {
       calendarBtn.addEventListener('click', () => {
@@ -244,14 +605,12 @@
         if (e.target === calendarModal) calendarModal.classList.remove('active');
       });
     }
-
     if (blogSearchInput) {
       blogSearchInput.addEventListener('input', (e) => {
         const keyword = e.target.value.trim().toLowerCase();
         filterAndRenderBlogs(keyword, null);
       });
     }
-
     if (searchByDateBtn) {
       searchByDateBtn.addEventListener('click', () => {
         if (!calSelectedDateStr) {
@@ -262,7 +621,6 @@
         calendarModal.classList.remove('active');
       });
     }
-
     if (clearDateBtn) {
       clearDateBtn.addEventListener('click', () => {
         calSelectedDateStr = null;
@@ -273,7 +631,6 @@
     }
   }
 
-  // 过滤并渲染博客
   function renderThemeRail(categories) {
     const rail = document.getElementById('themeRailList');
     if (!rail) return;
@@ -306,13 +663,11 @@
       const titleMatch = (post.title || '').toLowerCase().includes(keyword);
       const summaryMatch = (post.summary || post.content || '').toLowerCase().includes(keyword);
       const matchesKeyword = !keyword || titleMatch || summaryMatch;
-
       let matchesDate = true;
       if (dateStr) {
         const postDate = dateOnlyUTC8(post.rawDate || post.date) || (post.date || '').split(' ')[0];
         matchesDate = postDate === dateStr;
       }
-
       const matchesCat = !activeCategory || (post.category || '') === activeCategory;
       return matchesKeyword && matchesDate && matchesCat;
     });
@@ -327,8 +682,9 @@
     let html = '';
     filtered.forEach(post => {
       const displayDate = post.date || formatDateUTC8(post.rawDate) || '';
+      const id = escapeHtml(post.slug || post.id);
       html += `
-        <article class="blog-card">
+        <article class="blog-card" role="button" tabindex="0" data-id="${id}">
           <div class="blog-icon"><i class="fas ${post.icon || 'fa-pen'}"></i></div>
           <h3>${escapeHtml(post.title || '无标题')}</h3>
           <p>${escapeHtml(post.summary || '')}</p>
@@ -336,17 +692,21 @@
             <span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} <small style="opacity:.7">UTC+8</small></span>
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
-          <a href="#" class="read-more" data-id="${escapeHtml(post.slug || post.id)}">阅读 <i class="fas fa-arrow-right"></i></a>
+          <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
         </article>
       `;
     });
     list.innerHTML = html;
     if (countEl) countEl.textContent = `${filtered.length} 篇文章`;
 
-    list.querySelectorAll('.read-more').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        openArticleReader(btn.dataset.id);
+    list.querySelectorAll('.blog-card[data-id]').forEach(card => {
+      const open = () => openArticleReader(card.dataset.id);
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
       });
     });
 
@@ -357,35 +717,80 @@
     });
   }
 
-  // ---------- 站内文章阅读（整合到 index，不外跳） ----------
   function simpleMarkdownToHtml(md) {
     if (!md) return '';
-    let s = String(md);
-    s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    // fenced code
-    s = s.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`);
-    // inline code
-    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // headings
+    const slots = [];
+    const hold = (html) => {
+      const i = slots.length;
+      slots.push(html);
+      return `\uE000${i}\uE001`;
+    };
+    const esc = (t) => String(t)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    let s = String(md).replace(/\r\n/g, '\n');
+    s = s.replace(/```([a-zA-Z0-9_+-]*)[ \t]*\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const cls = lang ? `language-${esc(lang)}` : '';
+      return hold(`<pre class="md-code"><code class="${cls}">${esc(code.replace(/^\n|\n$/g, ''))}</code></pre>`);
+    });
+    s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) =>
+      hold(`<div class="md-math-display">$$${m.trim()}$$</div>`));
+    s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) =>
+      hold(`<div class="md-math-display">\\[${m.trim()}\\]</div>`));
+    s = s.replace(/\\\((.+?)\\\)/g, (_, m) =>
+      hold(`<span class="md-math-inline">\\(${m}\\)</span>`));
+    s = s.replace(/(^|[^\\$])\$([^\s$][^$\n]*?[^\s$])\$(?!\d)/g, (_, pre, m) =>
+      pre + hold(`<span class="md-math-inline">$${m}$</span>`));
+    s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
+    s = esc(s);
     s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    // bold / italic
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // links
-    s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    // blockquote
+    s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-    // lists
     s = s.replace(/^(?:- |\* )(.+)$/gm, '<li>$1</li>');
-    s = s.replace(/(<li>[\s\S]*?<\/li>)(?!(?:\s*<li>))/g, '<ul>$1</ul>');
-    // paragraphs
+    s = s.replace(/(?:<li>[\s\S]*?<\/li>\s*)+/g, (m) => `<ul>${m}</ul>`);
     s = s.split(/\n{2,}/).map(block => {
-      if (/^\s*<(h[1-3]|ul|pre|blockquote)/.test(block.trim())) return block;
+      const t = block.trim();
+      if (!t) return '';
+      if (/^<(h[1-3]|ul|pre|blockquote|div)/.test(t)) return t;
+      if (/^\uE000\d+\uE001$/.test(t)) return t;
       return `<p>${block.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
+    s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
     return s;
+  }
+
+  function renderArticleMath(root) {
+    if (!root) return;
+    const tryRender = () => {
+      if (typeof window.renderMathInElement === 'function') {
+        window.renderMathInElement(root, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\[', right: '\\]', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false }
+          ],
+          throwOnError: false,
+          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+        });
+        return true;
+      }
+      return false;
+    };
+    if (!tryRender()) {
+      let n = 0;
+      const timer = setInterval(() => {
+        n += 1;
+        if (tryRender() || n > 40) clearInterval(timer);
+      }, 50);
+    }
   }
 
   async function openArticleReader(idOrSlug) {
@@ -436,6 +841,7 @@
     }
     const content = article.content || article.body || (local && local.content) || article.summary || article.excerpt || '';
     bodyEl.innerHTML = simpleMarkdownToHtml(content) || '<p>（无正文）</p>';
+    renderArticleMath(bodyEl);
   }
 
   function closeArticleReader() {
@@ -457,7 +863,6 @@
     });
   }
 
-  // ---------- 管理员登录（连点头像 7 次 → API Session 认证） ----------
   function openAdminLoginModal() {
     const modal = document.getElementById('adminLoginModal');
     const err = document.getElementById('adminLoginError');
@@ -489,29 +894,23 @@
         method: 'POST',
         credentials: 'include'
       });
-    } catch (e) {
-      console.warn('logout request failed', e);
-    }
+    } catch (e) { /* silent */ }
     lockAdminPanel();
   }
 
   function lockAdminPanel() {
     if (!adminUnlocked) return;
     adminUnlocked = false;
-
     const adminNav = document.querySelector('.nav-btn[data-section="admin"]');
     if (adminNav) adminNav.remove();
-
     const adminSection = document.getElementById('admin');
     if (adminSection) adminSection.remove();
-
     requestAnimationFrame(() => {
       updateActiveNavFromScroll();
       updateCapsuleFromScroll();
       updateGlobalAvatarPosition();
     });
   }
-
 
   function buildAdminPanelHTML() {
     const st = profileData.status || '在线';
@@ -526,7 +925,6 @@
             <button type="button" class="admin-tab-btn" data-tab="editor"><i class="fas fa-pen"></i> 写文章</button>
             <button type="button" class="admin-tab-btn" data-tab="session"><i class="fas fa-sign-out-alt"></i> 会话</button>
           </div>
-
           <div class="admin-tab-panel active" data-panel="status">
             <div class="glass-card admin-card">
               <h3><i class="fas fa-user"></i> 主页状态（QQ 风格）</h3>
@@ -559,7 +957,6 @@
               </div>
             </div>
           </div>
-
           <div class="admin-tab-panel" data-panel="articles">
             <div class="glass-card admin-card">
               <div class="admin-toolbar">
@@ -570,7 +967,6 @@
               <p class="admin-msg" id="adminArticlesMsg"></p>
             </div>
           </div>
-
           <div class="admin-tab-panel" data-panel="editor">
             <div class="glass-card admin-card">
               <h3><i class="fas fa-pen-nib"></i> <span id="adminEditorTitle">新建文章</span></h3>
@@ -612,7 +1008,6 @@
               </div>
             </div>
           </div>
-
           <div class="admin-tab-panel" data-panel="session">
             <div class="glass-card admin-card">
               <h3><i class="fas fa-shield-alt"></i> 会话</h3>
@@ -625,14 +1020,6 @@
         </div>
       </div>
     `;
-  }
-
-  function escapeHtml(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 
   function bindAdminPanelEvents(section) {
@@ -681,7 +1068,6 @@
     section.querySelector('#adminSaveArticleBtn')?.addEventListener('click', saveAdminArticle);
     section.querySelector('#adminResetEditorBtn')?.addEventListener('click', resetAdminEditor);
 
-    // slug 自动从标题生成（仅新建时）
     section.querySelector('#adminArticleTitle')?.addEventListener('input', (e) => {
       const id = section.querySelector('#adminEditArticleId')?.value;
       if (id) return;
@@ -707,7 +1093,6 @@
     if (!box) return;
     box.innerHTML = '<p class="admin-msg">加载中…</p>';
     try {
-      // 公开列表只有 published；管理端若无专用列表则用公开 + 提示
       const res = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
       const data = await res.json().catch(() => null);
       const list = data?.articles || [];
@@ -741,7 +1126,6 @@
       if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
     } catch (e) {
       box.innerHTML = '<p class="admin-msg err">加载失败</p>';
-      console.error(e);
     }
   }
 
@@ -752,7 +1136,6 @@
       const data = await res.json().catch(() => null);
       const a = data?.article;
       if (!res.ok || !a) throw new Error(data?.error || '读取失败');
-
       document.getElementById('adminEditArticleId').value = id;
       document.getElementById('adminArticleTitle').value = a.title || '';
       const slugEl = document.getElementById('adminArticleSlug');
@@ -763,8 +1146,6 @@
       document.getElementById('adminArticleContent').value = a.content || '';
       document.getElementById('adminArticleStatus').value = 'published';
       document.getElementById('adminEditorTitle').textContent = '编辑文章 #' + id;
-
-      // 切到编辑器 tab
       document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'editor'));
       document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'editor'));
       if (msg) { msg.textContent = '已载入文章'; msg.className = 'admin-msg ok'; }
@@ -852,7 +1233,6 @@
     adminUnlocked = true;
     closeAdminLoginModal();
 
-    // 导航最前面插入「管理员」
     const linksWrap = document.querySelector('.nav-links');
     if (linksWrap && !document.querySelector('.nav-btn[data-section="admin"]')) {
       const a = document.createElement('a');
@@ -864,7 +1244,6 @@
       bindNavLinkClick(a);
     }
 
-    // 内容区最前面插入管理员面板
     if (scrollContainer && !document.getElementById('admin')) {
       const section = document.createElement('section');
       section.id = 'admin';
@@ -895,9 +1274,7 @@
         unlockAdminPanel({ scrollToAdmin: false });
         return true;
       }
-    } catch (e) {
-      console.warn('auth/me check failed', e);
-    }
+    } catch (e) { /* silent */ }
     return false;
   }
 
@@ -946,7 +1323,6 @@
           }
         } catch (ex) {
           if (err) { err.hidden = false; err.textContent = '网络错误，请稍后重试'; }
-          console.error(ex);
         } finally {
           if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '登录'; }
         }
@@ -954,7 +1330,6 @@
     }
   }
 
-  // 彩蛋：连点头像 7 次 → 管理员登录窗
   function setupAvatarSecret() {
     const globalAvatar = document.getElementById('globalAvatar');
     if (!globalAvatar || globalAvatar.dataset.secretBound === '1') return;
@@ -972,24 +1347,19 @@
     });
   }
 
-  // 全局头像平滑过渡插值引擎
   function updateGlobalAvatarPosition() {
     const globalAvatar = document.getElementById('globalAvatar');
     const homePlaceholder = document.getElementById('homeAvatarPlaceholder');
     const blogPlaceholder = document.getElementById('coverAvatarPlaceholder');
     const worksPlaceholder = document.getElementById('worksAvatarPlaceholder');
     const contactPlaceholder = document.getElementById('contactAvatarPlaceholder');
-    
     if (!globalAvatar || !homePlaceholder || !blogPlaceholder || !worksPlaceholder || !contactPlaceholder) return;
-    
+
     const vw = scrollContainer.clientWidth;
     const scrollLeft = scrollContainer.scrollLeft;
-    
-    // 有管理员页时它在最前，头像插值从主页（第 2 屏）开始算
     let p = scrollLeft / vw;
     if (adminUnlocked) p = p - 1;
     if (p < 0) {
-      // 在管理员页：头像淡出
       globalAvatar.style.opacity = Math.max(0, 1 + p);
       const r = homePlaceholder.getBoundingClientRect();
       globalAvatar.style.width = r.width + 'px';
@@ -1002,7 +1372,6 @@
 
     let targetRect, startRect;
     let localP = 0;
-
     if (p <= 1) {
       startRect = homePlaceholder.getBoundingClientRect();
       targetRect = blogPlaceholder.getBoundingClientRect();
@@ -1021,7 +1390,6 @@
     const startCY = startRect.top + startRect.height / 2;
     const targetCX = targetRect.left + targetRect.width / 2;
     const targetCY = targetRect.top + targetRect.height / 2;
-
     const cx = startCX * (1 - localP) + targetCX * localP;
     const cy = startCY * (1 - localP) + targetCY * localP;
     const size = startRect.width * (1 - localP) + targetRect.width * localP;
@@ -1041,6 +1409,7 @@
   }
 
   let rafId = null;
+
   function updateActiveNavFromScroll() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
@@ -1059,7 +1428,7 @@
       if (scrollLeft <= 5) closestIndex = 0;
       else if (scrollLeft >= maxScroll - 5) closestIndex = sections.length - 1;
       const activeId = sections[closestIndex]?.getAttribute('id');
-      
+
       getNavLinks().forEach(link => { link.classList.toggle('active', link.dataset.section === activeId); });
 
       const wasBlog = isBlogActive;
@@ -1076,7 +1445,6 @@
     });
   }
 
-  // ---------- 滑动胶囊：按滚动进度连续插值，不在按钮上卡顿 ----------
   function ensureNavCapsule() {
     const links = document.querySelector('.nav-links');
     if (!links) return null;
@@ -1130,11 +1498,9 @@
     }
   }
 
-  // 按横向滚动进度，在相邻导航按钮之间连续插值位置与宽度
   function updateCapsuleFromScroll() {
     ensureNavCapsule();
     if (!navCapsule) return;
-
     if (nav.classList.contains('blog-mode')) {
       navCapsule.style.opacity = '0';
       return;
@@ -1147,7 +1513,6 @@
 
     const vw = scrollContainer.clientWidth || 1;
     const maxScroll = Math.max(1, scrollContainer.scrollWidth - vw);
-    // 连续进度：0 → 0, 末尾 → btns.length - 1
     let progress = (scrollContainer.scrollLeft / maxScroll) * (btns.length - 1);
     progress = Math.max(0, Math.min(btns.length - 1, progress));
 
@@ -1163,30 +1528,9 @@
     const w0 = r0.width;
     const w1 = r1.width;
 
-    // 线性插值，跟手不卡在按钮上
     capsuleX = x0 + (x1 - x0) * t;
     capsuleW = w0 + (w1 - w0) * t;
     applyCapsuleTransform();
-  }
-
-  function moveCapsuleToActive(immediate) {
-    // 兼容：瞬时对齐到当前滚动位置
-    updateCapsuleFromScroll();
-  }
-
-  function onHorizontalScrollForNav() {
-    const now = performance.now();
-    const left = scrollContainer.scrollLeft;
-    const dt = Math.max(8, now - lastScrollTime);
-    const velocity = Math.abs(left - lastScrollLeft) / dt * 1000;
-    lastScrollLeft = left;
-    lastScrollTime = now;
-
-    updateCapsuleFromScroll();
-
-    if (velocity > 40) {
-      bumpCapsuleScaleFromVelocity(velocity);
-    }
   }
 
   scrollContainer.addEventListener('scroll', () => {
@@ -1212,22 +1556,34 @@
     stage2Height = Math.round(vh * STAGE2_RATIO);
     const inner = blogWhiteBox.querySelector('.white-box-inner');
     const contentH = inner ? Math.max(inner.offsetHeight || inner.scrollHeight, 500) : 600;
-    // 与主题栏↔内容栏、内容栏↔搜索栏统一的间距
-    const gapPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--blog-gap')) || 16;
-    const topMargin = gapPx;
-    // stage3：内容超出视口后继续滚动
+    const gapPx = getBlogGapPx();
+    const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : (gapPx + 56);
     stage3Extra = Math.max(0, contentH + topMargin * 2 - vh + 80);
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
+
+  function getBlogGapPx() {
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--blog-gap')) || 16;
+  }
+
+  function getBlogTopMargin() {
+    const gapPx = getBlogGapPx();
+    const navEl = document.getElementById('mainNav');
+    if (!navEl || !blogPanel) return gapPx + 56;
+    const navRect = navEl.getBoundingClientRect();
+    const panelRect = blogPanel.getBoundingClientRect();
+    return Math.max(gapPx, (navRect.bottom - panelRect.top) + gapPx);
+  }
+
+  let railGapLocked = false;
 
   function updateBlogScroll() {
     if (!blogPanel || !blogContent || !blogStageDuo) return;
     const scrollTop = blogPanel.scrollTop;
     const vh = blogPanel.clientHeight || window.innerHeight;
-    const gapPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--blog-gap')) || 16;
-    const topMargin = gapPx;
+    const gapPx = getBlogGapPx();
+    const topMargin = getBlogTopMargin();
 
-    // 三段进度
     let p1 = Math.min(1, Math.max(0, scrollTop / (stage1Height || 1)));
     let p2 = 0;
     let p3 = 0;
@@ -1238,10 +1594,10 @@
       p3 = Math.min(1, (scrollTop - stage1Height - stage2Height) / (stage3Extra || 1));
     }
 
-    // 垂直：
-    // stage1 p1=0 时完全在视口下方（不露上半截），再升到中部
-    // stage2 升到顶边；stage3 贴顶并随内容上移
-    const startY = vh + 28;          // 完全藏在下方
+    if (p2 >= 0.98) railGapLocked = true;
+    if (p1 < 0.55) railGapLocked = false;
+
+    const startY = vh + 28;
     const midY = vh * 0.48;
     let desiredY;
     if (p1 < 1) {
@@ -1255,27 +1611,33 @@
     blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
     blogStageDuo.style.pointerEvents = 'none';
     if (blogWhiteBox) blogWhiteBox.style.pointerEvents = 'auto';
-    if (blogThemeRail) blogThemeRail.style.pointerEvents = p2 > 0.2 ? 'auto' : 'none';
+    if (blogThemeRail) blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
 
-    // 水平：主题栏完整圆角卡片，transform 滑入；透明度与文章框一致（不额外压低）
     const railW = window.matchMedia('(max-width: 480px)').matches
       ? 84
       : (window.matchMedia('(max-width: 720px)').matches ? 96 : 132);
-    // 主题栏↔内容栏 间距 = 内容栏↔搜索栏（--blog-gap）
     const gap = gapPx;
-    const t = easeOutCubic(p2);
+    let t = easeOutCubic(p2);
+    if (railGapLocked) t = 1;
+
     if (blogThemeRail) {
       blogThemeRail.style.flex = `0 0 ${railW}px`;
       blogThemeRail.style.width = `${railW}px`;
       blogThemeRail.style.maxWidth = `${railW}px`;
-      // 仅在滑入前 30% 做淡入，之后与文章框同为不透明玻璃
       blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
-      const slide = (1 - t) * (railW + gap);
-      blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
-      blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
       blogThemeRail.classList.toggle('is-visible', t > 0.12);
 
-      // 高度与文章框对齐（约可装 3 条紧凑博文）
+      if (t >= 1) {
+        blogThemeRail.style.transform = 'translate3d(0,0,0)';
+        blogThemeRail.style.marginRight = '0';
+        blogStageDuo.style.gap = gap + 'px';
+      } else {
+        blogStageDuo.style.gap = '0px';
+        const slide = (1 - t) * (railW + gap);
+        blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
+        blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
+      }
+
       const inner = blogThemeRail.querySelector('.theme-rail-inner');
       if (inner && blogWhiteBox) {
         const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.72));
@@ -1287,7 +1649,6 @@
       blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
     }
 
-    // 封面视差
     const coverMove = p1 * (vh * 0.45);
     if (blogCover) {
       blogCover.style.top = (scrollTop - coverMove) + 'px';
@@ -1305,7 +1666,6 @@
     return 1 - Math.pow(1 - t, 3);
   }
 
-  // 博客滚动条：仅在滑动时显示
   let blogScrollHideTimer = null;
   if (blogPanel) {
     blogPanel.addEventListener('scroll', () => {
@@ -1322,7 +1682,6 @@
     }, { passive: true });
   }
 
-  // 博客纵向滚动后仍可左右切换面板（把横向手势转发给水平容器）
   function setupBlogHorizontalPassthrough() {
     if (!blogPanel || !scrollContainer || blogPanel.dataset.hzPass === '1') return;
     blogPanel.dataset.hzPass = '1';
@@ -1330,7 +1689,6 @@
     blogPanel.addEventListener('wheel', (e) => {
       const absX = Math.abs(e.deltaX);
       const absY = Math.abs(e.deltaY);
-      // 触控板 / 鼠标横向为主时，滚动水平容器
       if (absX > absY && absX > 1.5) {
         scrollContainer.scrollLeft += e.deltaX;
         e.preventDefault();
@@ -1339,7 +1697,7 @@
 
     let touchStartX = 0;
     let touchStartY = 0;
-    let axis = null; // 'x' | 'y' | null
+    let axis = null;
 
     blogPanel.addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1) return;
@@ -1373,7 +1731,6 @@
   }
   setupBlogHorizontalPassthrough();
 
-  // ========== 主页渲染（Hero + QQ 状态 + 兴趣必应） ==========
   function renderProfile() {
     const container = document.getElementById('profileContainer');
     const avatarContainer = document.getElementById('avatarContainer');
@@ -1434,7 +1791,6 @@
     setupAvatarSecret();
   }
 
-  // 渲染规定的三个作品卡片
   function renderWorks() {
     const grid = document.getElementById('worksGrid');
     if (!grid) return;
@@ -1483,7 +1839,6 @@
   }
 
   async function fetchAllData() {
-    // 个人资料：新 API 暂无 /profile，保留默认 + 静默兼容旧接口
     try {
       const profileRes = await fetch(`${API_BASE_URL}/profile`, { credentials: 'include' });
       if (profileRes.ok) {
@@ -1495,7 +1850,6 @@
       }
     } catch (e) {}
 
-    // 文章列表：优先新 API GET /articles
     try {
       const blogRes = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
       if (blogRes.ok) {
@@ -1521,7 +1875,6 @@
         }
       }
     } catch (e) {
-      // 兼容旧 /blog
       try {
         const legacy = await fetch(`${API_BASE_URL}/blog`);
         if (legacy.ok) {
@@ -1536,11 +1889,31 @@
     renderWorks();
   }
 
-  // ---------- 资源加载门禁（蓝调时刻 + 动态光晕圆） ----------
-  const CRITICAL_IMAGE_URLS = [
-    'https://free.picui.cn/free/2026/08/11/6a7a7bd8363ce.jpg',
-    'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg'
-  ];
+  function onHorizontalScrollForNav() {
+    const now = performance.now();
+    const left = scrollContainer.scrollLeft;
+    const dt = Math.max(8, now - lastScrollTime);
+    const velocity = Math.abs(left - lastScrollLeft) / dt * 1000;
+    lastScrollLeft = left;
+    lastScrollTime = now;
+
+    updateCapsuleFromScroll();
+
+    if (velocity > 40) {
+      bumpCapsuleScaleFromVelocity(velocity);
+    }
+  }
+
+  function loadImageWithProgress(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+      img.onload = () => resolve({ ok: true, url });
+      img.onerror = () => resolve({ ok: false, url });
+      img.src = url;
+    });
+  }
 
   function startBootCircleAnim(canvas) {
     if (!canvas) return () => {};
@@ -1549,7 +1922,7 @@
     let last = 0;
     const num = 7;
     const minHue = 195;
-    const maxHue = 230; // 蓝调时刻
+    const maxHue = 230;
     const circles = [];
     for (let i = 0; i < num; i++) {
       circles.push({
@@ -1563,7 +1936,6 @@
       const w = canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
       const h = canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      // 底层：纯黑 + 轻蓝调
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, w, h);
       const g = ctx.createRadialGradient(w * 0.5, h * 0.55, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
@@ -1615,35 +1987,24 @@
     if (track) track.setAttribute('aria-valuenow', String(p));
   }
 
-  function loadImageWithProgress(url) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.onload = () => resolve({ ok: true, url });
-      img.onerror = () => resolve({ ok: false, url });
-      img.src = url;
-    });
-  }
-
   async function runBootLoader() {
     const loader = document.getElementById('bootLoader');
     const canvas = document.getElementById('bootLoaderCanvas');
     const stopAnim = startBootCircleAnim(canvas);
     setBootProgress(0);
 
-    // 在资源就绪前禁止横向滚到博客等面板
     if (scrollContainer) scrollContainer.style.overflow = 'hidden';
 
     const urls = CRITICAL_IMAGE_URLS.slice();
     let done = 0;
     const total = urls.length;
+
     await Promise.all(urls.map(async (url) => {
       await loadImageWithProgress(url);
       done += 1;
       setBootProgress((done / total) * 100);
     }));
 
-    // 短暂停顿让进度条读满
     await new Promise(r => setTimeout(r, 180));
     setBootProgress(100);
 
@@ -1660,8 +2021,138 @@
     if (scrollContainer) scrollContainer.style.overflow = '';
   }
 
+  // ============================================================
+  //  点击特效事件绑定
+  // ============================================================
+  function getClickColor(target, isRight) {
+    const forbiddenZone = document.getElementById('forbiddenZone');
+    if (forbiddenZone && forbiddenZone.contains(target)) {
+      return { color: COLORS.FORBIDDEN, name: '淡红' };
+    }
+    return isRight ? { color: COLORS.RIGHT, name: '淡蓝' } : { color: COLORS.LEFT, name: '淡黄' };
+  }
+
+  function triggerAnimation(clientX, clientY, isRight) {
+    const target = document.elementFromPoint(clientX, clientY);
+    if (!target) return;
+    const { color, name } = getClickColor(target, isRight);
+    triggerClickEffect(clientX, clientY, color, name);
+  }
+
+  let isPointerDown = false;
+  let pointerTimer = null;
+  let lastPointerX = 0, lastPointerY = 0;
+  let pointerIsRight = false;
+
+  function startPointerTimer(e) {
+    const isRight = (e.button === 2);
+    pointerIsRight = isRight;
+    const x = e.clientX, y = e.clientY;
+    lastPointerX = x;
+    lastPointerY = y;
+    triggerAnimation(x, y, isRight);
+    if (pointerTimer) clearInterval(pointerTimer);
+    pointerTimer = setInterval(() => {
+      triggerAnimation(lastPointerX, lastPointerY, pointerIsRight);
+    }, 150);
+    isPointerDown = true;
+  }
+
+  function updatePointerPosition(e) {
+    if (!isPointerDown) return;
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
+  }
+
+  function stopPointerTimer() {
+    if (pointerTimer) {
+      clearInterval(pointerTimer);
+      pointerTimer = null;
+    }
+    isPointerDown = false;
+  }
+
+  document.addEventListener('mousedown', function(e) {
+    if (e.button === 0 || e.button === 2) {
+      startPointerTimer(e);
+      if (e.button === 2) e.preventDefault();
+    }
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    updatePointerPosition(e);
+  });
+
+  document.addEventListener('mouseup', function(e) {
+    if (isPointerDown) stopPointerTimer();
+  });
+
+  document.addEventListener('mouseleave', function() {
+    if (isPointerDown) stopPointerTimer();
+  });
+
+  document.addEventListener('touchstart', function(e) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    pointerIsRight = false;
+    const x = touch.clientX, y = touch.clientY;
+    lastPointerX = x;
+    lastPointerY = y;
+    triggerAnimation(x, y, false);
+    if (pointerTimer) clearInterval(pointerTimer);
+    pointerTimer = setInterval(() => {
+      triggerAnimation(lastPointerX, lastPointerY, false);
+    }, 150);
+    isPointerDown = true;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!isPointerDown) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    lastPointerX = touch.clientX;
+    lastPointerY = touch.clientY;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchend', function(e) {
+    if (isPointerDown) stopPointerTimer();
+  });
+
+  document.addEventListener('touchcancel', function() {
+    if (isPointerDown) stopPointerTimer();
+  });
+
+  document.addEventListener('click', function(e) {
+    if (e.button === 0) {
+      if (!isPointerDown) {
+        triggerAnimation(e.clientX, e.clientY, false);
+      }
+    }
+  });
+
+  document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    if (!isPointerDown) {
+      triggerAnimation(e.clientX, e.clientY, true);
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === ' ' || e.key === 'Space') {
+      e.preventDefault();
+      const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+      const target = document.elementFromPoint(cx, cy);
+      const { color, name } = getClickColor(target, false);
+      triggerClickEffect(cx, cy, color, name);
+    }
+  });
+
+  // ---------- 初始化 ----------
   async function init() {
-    // 图片资源未加载完整前不开放主界面交互（尤其是博客）
+    loadSpriteImage();
+
     const bootPromise = runBootLoader();
 
     renderProfile();
@@ -1675,10 +2166,8 @@
     updateCapsuleFromScroll();
     setupBlogScrollHeights();
     updateBlogScroll();
-    
     updateGlobalAvatarPosition();
-    
-    // 本地状态恢复
+
     try {
       const saved = JSON.parse(localStorage.getItem('maxsui_profile_status') || 'null');
       if (saved && typeof saved === 'object') {
@@ -1687,12 +2176,10 @@
       }
     } catch (_) {}
 
-    // 解析可用 API（国内镜像优先）
     await resolveApiBase();
-
-    // 恢复已有 Session（Cookie），再拉业务数据
     await checkAdminSession();
     await fetchAllData();
+
     try {
       const catRes = await fetch(`${API_BASE_URL}/categories`, { credentials: 'include' });
       if (catRes.ok) {
@@ -1702,7 +2189,7 @@
     } catch (_) {}
 
     await bootPromise;
-    
+
     setTimeout(() => {
       setupBlogScrollHeights();
       updateBlogScroll();
