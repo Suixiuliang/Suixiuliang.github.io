@@ -743,6 +743,21 @@
     // 行内代码
     s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
 
+    // 图片：![alt](url) / ![alt](url "title") —— 须在链接规则之前保护
+    s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
+      const tAttr = title ? ` title="${esc(title)}"` : '';
+      return hold(
+        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="lazy" decoding="async">`
+      );
+    });
+    // 相对路径 / 同站图片
+    s = s.replace(/!\[([^\]]*)\]\((\/[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
+      const tAttr = title ? ` title="${esc(title)}"` : '';
+      return hold(
+        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="lazy" decoding="async">`
+      );
+    });
+
     // $$...$$：含换行 / 独占一行 → 块级；夹在文字中间 → 行内（避免打断段落）
     s = s.replace(/\$\$([\s\S]+?)\$\$/g, (full, m, offset, src) => {
       const formula = m.trim();
@@ -791,7 +806,7 @@
     s = s.split(/\n{2,}/).map(block => {
       const t = block.trim();
       if (!t) return '';
-      if (/^<(h[1-6]|ul|ol|pre|blockquote|div)/.test(t)) return t;
+      if (/^<(h[1-6]|ul|ol|pre|blockquote|div|img)/.test(t)) return t;
       if (/^\uE000\d+\uE001$/.test(t)) return t;
       return `<p>${block.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
@@ -858,33 +873,67 @@
 
   // ---- 博客框内阅读（向左扩展，停用三阶段视差）----
   let isArticleReading = false;
-  let readingScrollPinned = 0;
+  let readingBaseScroll = 0;
+  let readingDimLayer = null;
+
+  function ensureReadingDimLayer() {
+    if (readingDimLayer) return readingDimLayer;
+    readingDimLayer = document.createElement('div');
+    readingDimLayer.className = 'reading-dim-layer';
+    readingDimLayer.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(readingDimLayer);
+    return readingDimLayer;
+  }
+
+  function updateReadingDim(scrollTop) {
+    const layer = ensureReadingDimLayer();
+    if (!isArticleReading) {
+      layer.style.opacity = '0';
+      layer.style.backdropFilter = 'blur(0px)';
+      layer.style.webkitBackdropFilter = 'blur(0px)';
+      layer.classList.remove('is-active');
+      return;
+    }
+    const base = readingBaseScroll;
+    const progress = Math.min(1, Math.max(0, (scrollTop - base) / Math.max(180, window.innerHeight * 0.35)));
+    // 下滑越深 → 越暗、越糊
+    const opacity = 0.18 + progress * 0.52;
+    const blur = 2 + progress * 14;
+    layer.classList.add('is-active');
+    layer.style.opacity = String(opacity);
+    layer.style.backdropFilter = `blur(${blur.toFixed(1)}px) saturate(${(120 - progress * 30).toFixed(0)}%)`;
+    layer.style.webkitBackdropFilter = layer.style.backdropFilter;
+  }
 
   function enterArticleReadingLayout() {
     if (!blogPanel) return;
     isArticleReading = true;
+    document.body.classList.add('is-reading-article');
     blogPanel.classList.add('is-reading-article');
     nav && nav.classList.add('blog-mode');
     railGapLocked = true;
 
-    // 跳到视差已完成的「列表顶端」位置，后续滚动只用于阅读长文
-    const pin = (stage1Height || 0) + (stage2Height || 0);
-    readingScrollPinned = pin;
-    blogPanel.scrollTop = pin;
-
+    // 先量高度，再固定「阅读基线」scroll，避免后续 stage 高度变化导致跳动
     setupBlogScrollHeights();
+    readingBaseScroll = (stage1Height || 0) + (stage2Height || 0);
+    blogPanel.scrollTop = readingBaseScroll;
+
+    ensureReadingDimLayer();
+    updateReadingDim(readingBaseScroll);
     updateBlogScroll();
     updateGlobalAvatarPosition();
   }
 
   function exitArticleReadingLayout() {
     isArticleReading = false;
+    document.body.classList.remove('is-reading-article');
     if (blogPanel) blogPanel.classList.remove('is-reading-article');
     const view = document.getElementById('blogArticleView');
     if (view) {
       view.hidden = true;
       view.style.display = '';
     }
+    updateReadingDim(0);
     setupBlogScrollHeights();
     updateBlogScroll();
     updateGlobalAvatarPosition();
@@ -949,11 +998,16 @@
     highlightArticleCode(bodyEl);
     renderArticleMath(bodyEl);
 
-    // 正文渲染后重新量高度，保证长文可滚
+    // 正文渲染后重新量高度，保证长文可滚；保持阅读基线，避免跳动
     requestAnimationFrame(() => {
+      const keep = readingBaseScroll;
       setupBlogScrollHeights();
-      if (blogPanel) blogPanel.scrollTop = (stage1Height || 0) + (stage2Height || 0);
+      // 阅读模式下不因内容高度变化改写基线；仅保证 scroll 不小于基线
+      if (blogPanel) {
+        if (blogPanel.scrollTop < keep) blogPanel.scrollTop = keep;
+      }
       updateBlogScroll();
+      updateReadingDim(blogPanel ? blogPanel.scrollTop : keep);
       updateGlobalAvatarPosition();
     });
   }
@@ -963,7 +1017,6 @@
     if (legacyModal) legacyModal.classList.remove('active');
     if (!isArticleReading) return;
     exitArticleReadingLayout();
-    // 回到列表顶端（视差完成位置）
     if (blogPanel) {
       const pin = (stage1Height || 0) + (stage2Height || 0);
       blogPanel.scrollTop = pin;
@@ -1714,12 +1767,14 @@
     const gapPx = getBlogGapPx();
     const topMargin = getBlogTopMargin();
 
-    // 阅读模式：锁定视差完成态，主题栏收起，白框向左占满；滚动只用于阅读长文
+    // 阅读模式：锁定视差完成态；滚动只用于阅读长文（不在此回写 scrollTop，避免顶端跳动）
     if (isArticleReading) {
       railGapLocked = true;
-      const base = (stage1Height || 0) + (stage2Height || 0);
-      const p3 = Math.max(0, (scrollTop - base) / Math.max(1, stage3Extra || 1));
-      const desiredY = topMargin - Math.min(1, p3) * (stage3Extra || 0);
+      const base = readingBaseScroll || ((stage1Height || 0) + (stage2Height || 0));
+      // 框体始终钉在视口顶部附近；长文向下滚时框体随内容上移（与列表阶段3一致）
+      const extra = Math.max(0, scrollTop - base);
+      const p3 = Math.min(1, extra / Math.max(1, stage3Extra || 1));
+      const desiredY = topMargin - p3 * (stage3Extra || 0);
       blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
       blogStageDuo.style.pointerEvents = 'none';
       blogStageDuo.style.gap = '0px';
@@ -1737,10 +1792,7 @@
         blogCover.style.visibility = 'hidden';
       }
       if (isBlogActive && nav) nav.classList.add('blog-mode');
-      // 不允许滚回封面/第二阶段：若用户滚得太靠上，钳制到列表顶端
-      if (scrollTop < base - 2) {
-        blogPanel.scrollTop = base;
-      }
+      updateReadingDim(scrollTop);
       return;
     }
 
@@ -1831,6 +1883,7 @@
   }
 
   let blogScrollHideTimer = null;
+  let readingClampRaf = null;
   if (blogPanel) {
     blogPanel.addEventListener('scroll', () => {
       blogPanel.classList.add('is-scrolling');
@@ -1839,11 +1892,37 @@
         blogPanel.classList.remove('is-scrolling');
       }, 900);
 
+      // 阅读模式：越过基线时用 rAF 软钳制一次，避免在 scroll 回调里同步写 scrollTop 造成跳动
+      if (isArticleReading) {
+        const base = readingBaseScroll;
+        if (blogPanel.scrollTop < base - 0.5) {
+          if (!readingClampRaf) {
+            readingClampRaf = requestAnimationFrame(() => {
+              readingClampRaf = null;
+              if (isArticleReading && blogPanel.scrollTop < readingBaseScroll) {
+                blogPanel.scrollTop = readingBaseScroll;
+              }
+            });
+          }
+        }
+      }
+
       requestAnimationFrame(() => {
         updateBlogScroll();
         updateGlobalAvatarPosition();
       });
     }, { passive: true });
+
+    // 在顶端继续上滑时直接拦住，避免惯性来回抽
+    blogPanel.addEventListener('wheel', (e) => {
+      if (!isArticleReading) return;
+      if (blogPanel.scrollTop <= readingBaseScroll + 0.5 && e.deltaY < 0) {
+        e.preventDefault();
+        if (blogPanel.scrollTop !== readingBaseScroll) {
+          blogPanel.scrollTop = readingBaseScroll;
+        }
+      }
+    }, { passive: false });
   }
 
   function setupBlogHorizontalPassthrough() {
@@ -2211,11 +2290,6 @@
   let pointerIsRight = false;
   let pointerDownTarget = null;
   let suppressEffectsUntil = 0;
-  let lastTrailX = 0;
-  let lastTrailY = 0;
-  let lastTrailTime = 0;
-  let trailAnimId = null;
-  const trailDots = [];
 
   const coarsePointer = window.matchMedia('(hover: none), (pointer: coarse)').matches;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2272,58 +2346,280 @@
     customCursor.classList.toggle('is-hidden-for-text', !!v);
   }
 
-  // 白色曳尾：不按下也可在页面自由划动时出现
-  function spawnTrailDot(x, y) {
-    if (reduceMotion || coarsePointer) return;
-    const now = performance.now();
-    if (now - lastTrailTime < 14) return;
-    const dx = x - lastTrailX;
-    const dy = y - lastTrailY;
-    const dist = Math.hypot(dx, dy);
-    if (lastTrailTime > 0 && dist < 5) return;
-    lastTrailTime = now;
-    lastTrailX = x;
-    lastTrailY = y;
+  // ---------- 曳尾：贝塞尔平滑；快画圆加密，避免多边形 ----------
+  const TRAIL_LIFE_MS = 240;
+  const TRAIL_MAX_RAW = 64;
+  const TRAIL_MAX_LEN = 220;
+  const TRAIL_MIN_DIST = 2;
+  const TRAIL_HALF_HEAD = 7;
+  const TRAIL_HALF_TAIL = 2.0;
+  const TRAIL_SPEED_MIN = 0.12;
+  const TRAIL_SAMPLE_BASE = 6;     // 直线段最少细分
+  const TRAIL_SAMPLE_MAX = 14;     // 急转/长段最多细分
+  let trailCanvas = null;
+  let trailCtx = null;
+  let trailPoints = []; // {x,y,t}
+  let trailAnimId = null;
+  let trailLastX = 0;
+  let trailLastY = 0;
+  let trailPrevDx = 0;
+  let trailPrevDy = 0;
+  let trailHasLast = false;
+  let trailDpr = 1;
+  let trailLastMoveTs = 0;
+  const TRAIL_BUF = 320;
+  let trailLeftX = new Float32Array(TRAIL_BUF);
+  let trailLeftY = new Float32Array(TRAIL_BUF);
+  let trailRightX = new Float32Array(TRAIL_BUF);
+  let trailRightY = new Float32Array(TRAIL_BUF);
 
-    const size = 4.5 + Math.min(9, dist * 0.1);
-    const el = document.createElement('div');
-    el.className = 'cursor-trail-dot';
-    el.style.cssText = `
-      left: ${x}px;
-      top: ${y}px;
-      width: ${size}px;
-      height: ${size}px;
-      background: rgba(255, 255, 255, 0.52);
-      opacity: 0.72;
-    `;
-    document.body.appendChild(el);
-    trailDots.push({ el, born: now, life: 260 + Math.random() * 160, size });
-    if (!trailAnimId) trailAnimId = requestAnimationFrame(tickTrailDots);
+  function ensureTrailCanvas() {
+    if (trailCanvas || coarsePointer || reduceMotion) return trailCanvas;
+    trailCanvas = document.createElement('canvas');
+    trailCanvas.className = 'cursor-trail-canvas';
+    trailCanvas.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(trailCanvas);
+    trailCtx = trailCanvas.getContext('2d', { alpha: true, desynchronized: true });
+    resizeTrailCanvas();
+    window.addEventListener('resize', resizeTrailCanvas, { passive: true });
+    return trailCanvas;
   }
 
-  function tickTrailDots(ts) {
-    let alive = false;
-    for (let i = trailDots.length - 1; i >= 0; i--) {
-      const d = trailDots[i];
-      const t = (ts - d.born) / d.life;
-      if (t >= 1) {
-        if (d.el.parentNode) d.el.remove();
-        trailDots.splice(i, 1);
-        continue;
+  function resizeTrailCanvas() {
+    if (!trailCanvas || !trailCtx) return;
+    trailDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    trailCanvas.width = Math.floor(w * trailDpr);
+    trailCanvas.height = Math.floor(h * trailDpr);
+    trailCanvas.style.width = w + 'px';
+    trailCanvas.style.height = h + 'px';
+    trailCtx.setTransform(trailDpr, 0, 0, trailDpr, 0, 0);
+  }
+
+  function trimTrailByLength() {
+    if (trailPoints.length < 2) return;
+    let len = 0;
+    for (let i = trailPoints.length - 1; i > 0; i--) {
+      len += Math.hypot(
+        trailPoints[i].x - trailPoints[i - 1].x,
+        trailPoints[i].y - trailPoints[i - 1].y
+      );
+      if (len > TRAIL_MAX_LEN) {
+        trailPoints.splice(0, i);
+        break;
       }
-      const ease = 1 - t;
-      d.el.style.opacity = String(ease * 0.72);
-      d.el.style.transform = `translate(-50%, -50%) scale(${0.3 + ease * 0.7})`;
-      alive = true;
     }
-    trailAnimId = alive ? requestAnimationFrame(tickTrailDots) : null;
+    while (trailPoints.length > TRAIL_MAX_RAW) trailPoints.shift();
+  }
+
+  function pushTrailPoint(x, y) {
+    if (reduceMotion || coarsePointer) return;
+    const now = performance.now();
+
+    if (!trailHasLast) {
+      trailLastX = x;
+      trailLastY = y;
+      trailPrevDx = 0;
+      trailPrevDy = 0;
+      trailLastMoveTs = now;
+      trailHasLast = true;
+      return;
+    }
+
+    const dx = x - trailLastX;
+    const dy = y - trailLastY;
+    const dist = Math.hypot(dx, dy);
+    const dt = Math.max(4, now - trailLastMoveTs);
+    const speed = dist / dt;
+
+    const prevX = trailLastX;
+    const prevY = trailLastY;
+    trailLastX = x;
+    trailLastY = y;
+    trailLastMoveTs = now;
+
+    if (speed < TRAIL_SPEED_MIN || dist < TRAIL_MIN_DIST) {
+      if (trailPoints.length && !trailAnimId) {
+        trailAnimId = requestAnimationFrame(drawTrailFrame);
+      }
+      return;
+    }
+
+    ensureTrailCanvas();
+    if (!trailCtx) return;
+
+    // 转向角：画圆/急转时加密线性补点，减少弦线多边形感
+    let turnBoost = 0;
+    const plen = Math.hypot(trailPrevDx, trailPrevDy);
+    if (plen > 0.1 && dist > 0.1) {
+      const dot = (trailPrevDx * dx + trailPrevDy * dy) / (plen * dist);
+      const ang = Math.acos(Math.max(-1, Math.min(1, dot))); // 0..π
+      turnBoost = ang > 0.35 ? Math.ceil(ang * 4) : 0; // 转得越急补越多
+    }
+    trailPrevDx = dx;
+    trailPrevDy = dy;
+
+    // 快扫：按 ~6px 一段补点；急转再加段数
+    const steps = Math.min(16, Math.max(1, Math.ceil(dist / 6) + turnBoost));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      trailPoints.push({
+        x: prevX + dx * t,
+        y: prevY + dy * t,
+        t: now
+      });
+    }
+
+    trimTrailByLength();
+    if (!trailAnimId) trailAnimId = requestAnimationFrame(drawTrailFrame);
+  }
+
+  // Catmull-Rom → 三次贝塞尔；按曲率自适应细分，画圆不易出多边形
+  function sampleTrailCenterline(pts) {
+    const out = [];
+    const n = pts.length;
+    if (n === 0) return out;
+    if (n === 1) {
+      out.push({ x: pts[0].x, y: pts[0].y, t: pts[0].t });
+      return out;
+    }
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = pts[i === 0 ? i : i - 1];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2 < n ? i + 2 : i + 1];
+
+      const c1x = p1.x + (p2.x - p0.x) / 6;
+      const c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6;
+      const c2y = p2.y - (p3.y - p1.y) / 6;
+
+      const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      // 用控制点偏离弦线的程度估曲率
+      const midX = (p1.x + p2.x) * 0.5;
+      const midY = (p1.y + p2.y) * 0.5;
+      const curveX = (c1x + c2x) * 0.5;
+      const curveY = (c1y + c2y) * 0.5;
+      const bulge = Math.hypot(curveX - midX, curveY - midY);
+      let segs = TRAIL_SAMPLE_BASE + Math.ceil(segLen / 10) + Math.ceil(bulge / 3);
+      segs = Math.max(TRAIL_SAMPLE_BASE, Math.min(TRAIL_SAMPLE_MAX, segs));
+
+      for (let s = 0; s < segs; s++) {
+        const t = s / segs;
+        const u = 1 - t;
+        const x = u * u * u * p1.x + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * p2.x;
+        const y = u * u * u * p1.y + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * p2.y;
+        const tt = p1.t + (p2.t - p1.t) * t;
+        out.push({ x, y, t: tt });
+      }
+    }
+    const last = pts[n - 1];
+    out.push({ x: last.x, y: last.y, t: last.t });
+    return out;
+  }
+
+  function drawTrailFrame(now) {
+    if (!trailCtx || !trailCanvas) {
+      trailAnimId = null;
+      return;
+    }
+
+    const cutoff = now - TRAIL_LIFE_MS;
+    while (trailPoints.length && trailPoints[0].t < cutoff) trailPoints.shift();
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    trailCtx.clearRect(0, 0, w, h);
+
+    if (trailPoints.length < 2) {
+      trailAnimId = trailPoints.length === 0 ? null : requestAnimationFrame(drawTrailFrame);
+      return;
+    }
+
+    // 贝塞尔细分中心线
+    const smooth = sampleTrailCenterline(trailPoints);
+    const n = Math.min(smooth.length, TRAIL_BUF - 1);
+    if (n < 2) {
+      trailAnimId = requestAnimationFrame(drawTrailFrame);
+      return;
+    }
+
+    // 累计弧长（从头部）
+    const distFromHead = new Float32Array(n);
+    distFromHead[n - 1] = 0;
+    for (let i = n - 2; i >= 0; i--) {
+      distFromHead[i] = distFromHead[i + 1] + Math.hypot(
+        smooth[i + 1].x - smooth[i].x,
+        smooth[i + 1].y - smooth[i].y
+      );
+    }
+    const span = Math.max(distFromHead[0], 1);
+
+    // 法线连续：与上一帧同向，避免急转时左右翻面造成断层
+    let prevNx = 0;
+    let prevNy = 1;
+    for (let i = 0; i < n; i++) {
+      const p = smooth[i];
+      let tx, ty;
+      if (i === 0) {
+        tx = smooth[1].x - p.x;
+        ty = smooth[1].y - p.y;
+      } else if (i === n - 1) {
+        tx = p.x - smooth[i - 1].x;
+        ty = p.y - smooth[i - 1].y;
+      } else {
+        tx = smooth[i + 1].x - smooth[i - 1].x;
+        ty = smooth[i + 1].y - smooth[i - 1].y;
+      }
+      let inv = 1 / (Math.hypot(tx, ty) || 1);
+      let nx = -ty * inv;
+      let ny = tx * inv;
+      if (i > 0 && nx * prevNx + ny * prevNy < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      // 轻微混合上一法线，急转更顺
+      if (i > 0) {
+        nx = nx * 0.65 + prevNx * 0.35;
+        ny = ny * 0.65 + prevNy * 0.35;
+        inv = 1 / (Math.hypot(nx, ny) || 1);
+        nx *= inv;
+        ny *= inv;
+      }
+      prevNx = nx;
+      prevNy = ny;
+
+      const along = 1 - Math.min(1, distFromHead[i] / span);
+      const taper = along * along * (3 - 2 * along);
+      const life = Math.max(0, 1 - (now - p.t) / TRAIL_LIFE_MS);
+      const hw = (TRAIL_HALF_TAIL + (TRAIL_HALF_HEAD - TRAIL_HALF_TAIL) * taper) * (0.8 + 0.2 * life);
+      trailLeftX[i] = p.x + nx * hw;
+      trailLeftY[i] = p.y + ny * hw;
+      trailRightX[i] = p.x - nx * hw;
+      trailRightY[i] = p.y - ny * hw;
+    }
+
+    const headLife = Math.max(0, 1 - (now - smooth[n - 1].t) / TRAIL_LIFE_MS);
+    const alpha = 0.22 + headLife * 0.32;
+
+    trailCtx.beginPath();
+    trailCtx.moveTo(trailLeftX[0], trailLeftY[0]);
+    for (let i = 1; i < n; i++) trailCtx.lineTo(trailLeftX[i], trailLeftY[i]);
+    for (let i = n - 1; i >= 0; i--) trailCtx.lineTo(trailRightX[i], trailRightY[i]);
+    trailCtx.closePath();
+    trailCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    trailCtx.fill();
+
+    trailAnimId = requestAnimationFrame(drawTrailFrame);
   }
 
   function clearAllTrailDots() {
-    for (const d of trailDots) {
-      if (d.el && d.el.parentNode) d.el.remove();
+    trailPoints = [];
+    trailHasLast = false;
+    if (trailCtx && trailCanvas) {
+      trailCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     }
-    trailDots.length = 0;
     if (trailAnimId) {
       cancelAnimationFrame(trailAnimId);
       trailAnimId = null;
@@ -2384,8 +2680,8 @@
     moveCustomCursor(e.clientX, e.clientY);
     setCursorVisible(true);
     setCursorTextMode(isTextEditingTarget(e.target));
-    // 自由划动白色曳尾（不要求按下）
-    spawnTrailDot(e.clientX, e.clientY);
+    // 自由划动流畅曳尾（不要求按下）
+    pushTrailPoint(e.clientX, e.clientY);
   }, { passive: true });
 
   document.addEventListener('mouseenter', function(e) {
@@ -2396,6 +2692,7 @@
   document.addEventListener('mouseleave', function() {
     setCursorVisible(false);
     forceReleasePointer();
+    trailHasLast = false;
   }, { passive: true });
 
   document.addEventListener('mousedown', function(e) {
@@ -2465,7 +2762,7 @@
     if (!touch) return;
     lastPointerX = touch.clientX;
     lastPointerY = touch.clientY;
-    spawnTrailDot(touch.clientX, touch.clientY);
+    pushTrailPoint(touch.clientX, touch.clientY);
   }, { passive: true });
 
   window.addEventListener('touchend', function() {

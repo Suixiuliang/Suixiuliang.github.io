@@ -1744,33 +1744,15 @@ body {
 }
 
 /* ============================================================
-   自定义小圆光标（类似 iPad 秒控键盘）+ 空闲划动白色曳尾
+   自定义小圆光标（类似 iPad 秒控键盘）+ 流畅画布曳尾
    ============================================================ */
+*,
+*::before,
+*::after {
+  cursor: none !important;
+}
 html,
 body {
-  cursor: none;
-}
-a,
-button,
-input,
-textarea,
-select,
-label,
-[role="button"],
-.nav-btn,
-.theme-chip,
-.calendar-btn,
-.social-circle-btn,
-.work-circle-btn,
-.home-interest-btn,
-.blog-card,
-.apple-cal-day,
-.apple-cal-nav,
-.admin-tab-btn,
-.admin-mini-btn,
-.article-reader-close,
-.close-calendar,
-.blog-back-btn {
   cursor: none !important;
 }
 input,
@@ -1787,11 +1769,11 @@ textarea,
   height: 14px;
   margin: -7px 0 0 -7px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1.5px solid rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1.5px solid rgba(0, 0, 0, 0.16);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 2px 8px rgba(0, 0, 0, 0.22);
+    0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 2px 10px rgba(0, 0, 0, 0.25);
   pointer-events: none;
   z-index: 2147483646;
   transform: translate3d(-100px, -100px, 0);
@@ -1810,7 +1792,7 @@ textarea,
   width: 11px;
   height: 11px;
   margin: -5.5px 0 0 -5.5px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 113, 227, 0.45);
   box-shadow:
     0 0 0 2px rgba(0, 113, 227, 0.25),
@@ -1824,15 +1806,13 @@ textarea,
   opacity: 0 !important;
 }
 
-.cursor-trail-dot {
+.cursor-trail-canvas {
   position: fixed;
-  pointer-events: none;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none !important;
   z-index: 2147483645;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.25);
-  will-change: transform, opacity;
-  transform: translate(-50%, -50%) scale(1);
 }
 
 .effect-canvas,
@@ -1841,18 +1821,13 @@ textarea,
 }
 
 @media (hover: none), (pointer: coarse) {
-  html,
-  body,
-  a,
-  button,
-  input,
-  textarea,
-  select,
-  label,
-  [role="button"] {
+  *,
+  *::before,
+  *::after {
     cursor: auto !important;
   }
-  .custom-cursor {
+  .custom-cursor,
+  .cursor-trail-canvas {
     display: none !important;
   }
 }
@@ -1861,7 +1836,7 @@ textarea,
   .custom-cursor {
     transition: opacity 120ms ease !important;
   }
-  .cursor-trail-dot {
+  .cursor-trail-canvas {
     display: none !important;
   }
 }
@@ -1869,6 +1844,9 @@ textarea,
 /* ============================================================
    博客框内阅读文章：向左扩展，停用三阶段视差交互
    ============================================================ */
+.panel-blog.is-reading-article {
+  overscroll-behavior-y: none;
+}
 .panel-blog.is-reading-article .blog-cover {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -1884,14 +1862,37 @@ textarea,
   transform: translate3d(-120%, 0, 0) !important;
   overflow: hidden !important;
 }
+/* 阅读时背景变暗 + 模糊（随下滑加深） */
+.reading-dim-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(0px) saturate(120%);
+  -webkit-backdrop-filter: blur(0px) saturate(120%);
+  transition: opacity 0.2s ease;
+  will-change: opacity, backdrop-filter;
+}
+.panel-blog.is-reading-article ~ .reading-dim-layer,
+body.is-reading-article .reading-dim-layer {
+  /* 由 JS 控制具体透明度与 blur */
+}
 .panel-blog.is-reading-article .blog-stage-duo {
   gap: 0 !important;
   max-width: min(1180px, 100%) !important;
+  z-index: 3;
 }
 .panel-blog.is-reading-article .blog-white-box {
   max-width: 100% !important;
   width: 100% !important;
   transition: max-width 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  z-index: 3;
+}
+.reading-dim-layer.is-active {
+  opacity: 1;
 }
 .panel-blog.is-reading-article .blog-list,
 .panel-blog.is-reading-article .blog-footer,
@@ -1983,6 +1984,17 @@ textarea,
 .blog-article-body h5 { font-size: 0.98rem; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
 .blog-article-body h6 { font-size: 0.92rem; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
 .blog-article-body p { margin: 0.65em 0; }
+.blog-article-body img,
+.blog-article-body .md-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.9em auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.2);
+}
 .blog-article-body pre,
 .blog-article-body code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
