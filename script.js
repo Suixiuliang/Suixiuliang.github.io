@@ -747,14 +747,14 @@
     s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
       const tAttr = title ? ` title="${esc(title)}"` : '';
       return hold(
-        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="lazy" decoding="async">`
+        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="eager" decoding="async">`
       );
     });
     // 相对路径 / 同站图片
     s = s.replace(/!\[([^\]]*)\]\((\/[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
       const tAttr = title ? ` title="${esc(title)}"` : '';
       return hold(
-        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="lazy" decoding="async">`
+        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="eager" decoding="async">`
       );
     });
 
@@ -875,6 +875,8 @@
   let isArticleReading = false;
   let readingBaseScroll = 0;
   let readingDimLayer = null;
+  let articleResizeObserver = null;
+  let articleImageHandlers = [];
 
   function ensureReadingDimLayer() {
     if (readingDimLayer) return readingDimLayer;
@@ -905,6 +907,49 @@
     layer.style.webkitBackdropFilter = layer.style.backdropFilter;
   }
 
+  function stopArticleLayoutObserver() {
+    if (articleResizeObserver) {
+      articleResizeObserver.disconnect();
+      articleResizeObserver = null;
+    }
+    articleImageHandlers.forEach(({ img, handler }) => img.removeEventListener('load', handler));
+    articleImageHandlers = [];
+  }
+
+  function stabilizeArticleLayout(bodyEl) {
+    if (!bodyEl || !blogPanel) return;
+    stopArticleLayoutObserver();
+
+    const recalc = () => {
+      if (!isArticleReading) return;
+      const keep = Math.max(readingBaseScroll, blogPanel.scrollTop);
+      setupBlogScrollHeights();
+      if (blogPanel.scrollTop < readingBaseScroll) blogPanel.scrollTop = readingBaseScroll;
+      updateBlogScroll();
+      updateReadingDim(blogPanel.scrollTop || keep);
+      updateGlobalAvatarPosition();
+    };
+
+    bodyEl.querySelectorAll('img').forEach(img => {
+      const handler = () => {
+        if (typeof img.decode === 'function') {
+          img.decode().catch(() => {}).finally(recalc);
+        } else {
+          recalc();
+        }
+      };
+      img.addEventListener('load', handler, { passive: true });
+      articleImageHandlers.push({ img, handler });
+      if (img.complete) handler();
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      articleResizeObserver = new ResizeObserver(() => recalc());
+      articleResizeObserver.observe(bodyEl);
+    }
+    requestAnimationFrame(recalc);
+  }
+
   function enterArticleReadingLayout() {
     if (!blogPanel) return;
     isArticleReading = true;
@@ -917,6 +962,7 @@
     setupBlogScrollHeights();
     readingBaseScroll = (stage1Height || 0) + (stage2Height || 0);
     blogPanel.scrollTop = readingBaseScroll;
+    blogPanel.style.overscrollBehaviorY = 'none';
 
     ensureReadingDimLayer();
     updateReadingDim(readingBaseScroll);
@@ -926,8 +972,12 @@
 
   function exitArticleReadingLayout() {
     isArticleReading = false;
+    stopArticleLayoutObserver();
     document.body.classList.remove('is-reading-article');
-    if (blogPanel) blogPanel.classList.remove('is-reading-article');
+    if (blogPanel) {
+      blogPanel.classList.remove('is-reading-article');
+      blogPanel.style.overscrollBehaviorY = '';
+    }
     const view = document.getElementById('blogArticleView');
     if (view) {
       view.hidden = true;
@@ -998,18 +1048,8 @@
     highlightArticleCode(bodyEl);
     renderArticleMath(bodyEl);
 
-    // 正文渲染后重新量高度，保证长文可滚；保持阅读基线，避免跳动
-    requestAnimationFrame(() => {
-      const keep = readingBaseScroll;
-      setupBlogScrollHeights();
-      // 阅读模式下不因内容高度变化改写基线；仅保证 scroll 不小于基线
-      if (blogPanel) {
-        if (blogPanel.scrollTop < keep) blogPanel.scrollTop = keep;
-      }
-      updateBlogScroll();
-      updateReadingDim(blogPanel ? blogPanel.scrollTop : keep);
-      updateGlobalAvatarPosition();
-    });
+    // 图片、KaTeX、代码高亮都会异步改变正文高度；持续观察，避免滚动范围落后于真实高度。
+    stabilizeArticleLayout(bodyEl);
   }
 
   function closeArticleReader() {
@@ -1117,13 +1157,23 @@
                 </div>
                 <div class="admin-form-row">
                   <label>状态类型</label>
-                  <select id="adminStatusType">
-                    <option value="online"${stType==='online'?' selected':''}>在线 (绿)</option>
-                    <option value="busy"${stType==='busy'?' selected':''}>忙碌 (红)</option>
-                    <option value="away"${stType==='away'?' selected':''}>离开 (黄)</option>
-                    <option value="offline"${stType==='offline'?' selected':''}>离线 (灰)</option>
-                    <option value="custom"${stType==='custom'?' selected':''}>自定义 (蓝)</option>
-                  </select>
+                  <div class="apple-select" id="adminStatusSelect" data-value="${escapeHtml(stType)}">
+                    <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="apple-select-dot home-status-dot ${escapeHtml(stType)}"></span>
+                      <span class="apple-select-label">加载中…</span>
+                      <i class="fas fa-chevron-down apple-select-chevron"></i>
+                    </button>
+                    <div class="apple-select-menu" role="listbox">
+                      <button type="button" class="apple-select-option" data-value="online" data-label="在线" data-default-text="在线"><span class="home-status-dot online"></span><span>在线</span></button>
+                      <button type="button" class="apple-select-option" data-value="busy" data-label="忙碌" data-default-text="忙碌"><span class="home-status-dot busy"></span><span>忙碌</span></button>
+                      <button type="button" class="apple-select-option" data-value="away" data-label="离开" data-default-text="离开"><span class="home-status-dot away"></span><span>离开</span></button>
+                      <button type="button" class="apple-select-option" data-value="dnd" data-label="请勿打扰" data-default-text="请勿打扰"><span class="home-status-dot dnd"></span><span>请勿打扰</span></button>
+                      <button type="button" class="apple-select-option" data-value="invisible" data-label="隐身" data-default-text="隐身"><span class="home-status-dot invisible"></span><span>隐身</span></button>
+                      <button type="button" class="apple-select-option" data-value="offline" data-label="离线" data-default-text="离线"><span class="home-status-dot offline"></span><span>离线</span></button>
+                      <button type="button" class="apple-select-option" data-value="custom" data-label="自定义" data-default-text="自定义"><span class="home-status-dot custom"></span><span>自定义</span></button>
+                    </div>
+                    <input type="hidden" id="adminStatusType" value="${escapeHtml(stType)}">
+                  </div>
                 </div>
                 <div class="admin-form-row">
                   <label>预览</label>
@@ -1218,30 +1268,81 @@
 
     const statusText = section.querySelector('#adminStatusText');
     const statusType = section.querySelector('#adminStatusType');
+    const statusSelect = section.querySelector('#adminStatusSelect');
+    const selectTrigger = statusSelect?.querySelector('.apple-select-trigger');
+    const selectLabel = statusSelect?.querySelector('.apple-select-label');
+    const selectDot = statusSelect?.querySelector('.apple-select-dot');
     const previewText = section.querySelector('#adminStatusPreviewText');
     const previewDot = section.querySelector('#adminStatusDot');
-    const syncPreview = () => {
-      if (previewText) previewText.textContent = statusText?.value || '在线';
-      if (previewDot) {
-        previewDot.className = 'home-status-dot ' + (statusType?.value || 'online');
-      }
-    };
-    statusText?.addEventListener('input', syncPreview);
-    statusType?.addEventListener('change', syncPreview);
 
-    section.querySelector('#adminSaveStatusBtn')?.addEventListener('click', () => {
+    const statusLabels = {
+      online: '在线', busy: '忙碌', away: '离开', dnd: '请勿打扰',
+      invisible: '隐身', offline: '离线', custom: '自定义'
+    };
+
+    const syncPreview = () => {
+      const type = statusType?.value || 'online';
+      if (previewText) previewText.textContent = statusText?.value || statusLabels[type] || '在线';
+      if (previewDot) previewDot.className = 'home-status-dot ' + type;
+      if (statusSelect) statusSelect.dataset.value = type;
+      if (selectLabel) selectLabel.textContent = statusLabels[type] || '在线';
+      if (selectDot) selectDot.className = 'apple-select-dot home-status-dot ' + type;
+    };
+
+    statusText?.addEventListener('input', syncPreview);
+
+    statusSelect?.querySelectorAll('.apple-select-option').forEach(option => {
+      option.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const type = option.dataset.value || 'online';
+        const defaultText = option.dataset.defaultText || statusLabels[type] || '在线';
+        if (statusType) statusType.value = type;
+        if (statusText && (!statusText.value.trim() || Object.values(statusLabels).includes(statusText.value.trim()))) {
+          statusText.value = defaultText;
+        }
+        statusSelect.classList.remove('open');
+        selectTrigger?.setAttribute('aria-expanded', 'false');
+        syncPreview();
+      });
+    });
+
+    selectTrigger?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const open = statusSelect.classList.toggle('open');
+      selectTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!statusSelect || statusSelect.contains(event.target)) return;
+      statusSelect.classList.remove('open');
+      selectTrigger?.setAttribute('aria-expanded', 'false');
+    });
+
+    syncPreview();
+
+    section.querySelector('#adminSaveStatusBtn')?.addEventListener('click', async () => {
       const text = (statusText?.value || '').trim() || '在线';
       const type = statusType?.value || 'online';
-      profileData.status = text;
-      profileData.statusType = type;
-      try {
-        localStorage.setItem('maxsui_profile_status', JSON.stringify({ status: text, statusType: type }));
-      } catch (_) {}
-      renderProfile();
       const msg = section.querySelector('#adminStatusMsg');
-      if (msg) {
-        msg.textContent = '状态已更新并显示在主页（本地保存；后端暂无 profile 接口）';
-        msg.className = 'admin-msg ok';
+      const btn = section.querySelector('#adminSaveStatusBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/profile/status`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: text, statusType: type })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || '状态保存失败');
+        profileData.status = data.profile?.status || text;
+        profileData.statusType = data.profile?.statusType || type;
+        renderProfile();
+        if (msg) { msg.textContent = '状态已保存到服务器，并已同步到主页'; msg.className = 'admin-msg ok'; }
+      } catch (e) {
+        if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '保存状态'; }
       }
     });
 
@@ -1886,6 +1987,10 @@
   let readingClampRaf = null;
   if (blogPanel) {
     blogPanel.addEventListener('scroll', () => {
+      if (isArticleReading && blogPanel.scrollTop < readingBaseScroll) {
+        blogPanel.scrollTop = readingBaseScroll;
+        return;
+      }
       blogPanel.classList.add('is-scrolling');
       if (blogScrollHideTimer) clearTimeout(blogScrollHideTimer);
       blogScrollHideTimer = setTimeout(() => {
@@ -1986,7 +2091,7 @@
 
     const statusText = (profileData.status && String(profileData.status).trim()) || '在线';
     let statusType = (profileData.statusType || 'online').toLowerCase();
-    if (!['online', 'busy', 'away', 'offline', 'custom'].includes(statusType)) {
+    if (!['online', 'busy', 'away', 'dnd', 'invisible', 'offline', 'custom'].includes(statusType)) {
       statusType = 'custom';
     }
 
@@ -2089,6 +2194,8 @@
         const payload = data.profile || data;
         if (payload && typeof payload === 'object' && Object.keys(payload).length) {
           profileData = { ...defaultProfile, ...payload };
+          profileData.status = String(profileData.status || '在线');
+          profileData.statusType = String(profileData.statusType || 'online').toLowerCase();
         }
       }
     } catch (e) {}
@@ -2825,14 +2932,6 @@
     setupBlogScrollHeights();
     updateBlogScroll();
     updateGlobalAvatarPosition();
-
-    try {
-      const saved = JSON.parse(localStorage.getItem('maxsui_profile_status') || 'null');
-      if (saved && typeof saved === 'object') {
-        if (saved.status) profileData.status = saved.status;
-        if (saved.statusType) profileData.statusType = saved.statusType;
-      }
-    } catch (_) {}
 
     await resolveApiBase();
     await checkAdminSession();

@@ -2074,3 +2074,125 @@ body.is-reading-article .reading-dim-layer {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
+/* ============================================================
+   QQ 状态：Apple 风格自定义下拉菜单
+   不使用浏览器原生 <select> 外观
+   ============================================================ */
+.apple-select {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+}
+.apple-select-trigger {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 14px;
+  background: rgba(255,255,255,.11);
+  color: #fff;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.22), 0 8px 22px rgba(0,0,0,.10);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease;
+}
+.apple-select-trigger:hover {
+  background: rgba(255,255,255,.16);
+  border-color: rgba(255,255,255,.36);
+}
+.apple-select-trigger:active { transform: scale(.985); }
+.apple-select.open .apple-select-trigger {
+  background: rgba(255,255,255,.17);
+  border-color: rgba(10,132,255,.72);
+  box-shadow: 0 0 0 3px rgba(10,132,255,.16), inset 0 1px 1px rgba(255,255,255,.25);
+}
+.apple-select-label { flex: 1; }
+.apple-select-chevron {
+  font-size: .72rem;
+  opacity: .7;
+  transition: transform .18s ease;
+}
+.apple-select.open .apple-select-chevron { transform: rotate(180deg); }
+.apple-select-menu {
+  position: absolute;
+  z-index: 10050;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 17px;
+  background: rgba(28,28,30,.86);
+  box-shadow: 0 18px 48px rgba(0,0,0,.34), inset 0 1px 1px rgba(255,255,255,.10);
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-5px) scale(.985);
+  transform-origin: top center;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+}
+.apple-select.open .apple-select-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.apple-select-option {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background .12s ease, transform .12s ease;
+}
+.apple-select-option:hover { background: rgba(255,255,255,.11); }
+.apple-select-option:active { transform: scale(.985); }
+.apple-select-option .home-status-dot { flex: 0 0 auto; }
+
+.home-status-dot.dnd { background: #ff3b30; }
+.home-status-dot.invisible { background: #8e8e93; opacity: .68; }
+
+/* ============================================================
+   Markdown 阅读器：禁止浏览器滚动锚定导致的顶部跳动
+   ============================================================ */
+.panel-blog.is-reading-article {
+  overflow-anchor: none;
+  scroll-behavior: auto !important;
+  overscroll-behavior-y: none !important;
+}
+.blog-article-view,
+.blog-article-body {
+  overflow-anchor: none;
+}
+
+/* 图片必须参与正常文档流，并在加载完成后由 JS 重新计算阅读区域高度 */
+.blog-article-body img,
+.blog-article-body .md-img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  min-height: 1px;
+  object-fit: contain;
+}
+
+@media (max-width: 600px) {
+  .apple-select { max-width: none; }
+  .apple-select-menu { max-height: 48vh; overflow-y: auto; }
+}
