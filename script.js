@@ -856,12 +856,50 @@
     }
   }
 
+  // ---- 博客框内阅读（向左扩展，停用三阶段视差）----
+  let isArticleReading = false;
+  let readingScrollPinned = 0;
+
+  function enterArticleReadingLayout() {
+    if (!blogPanel) return;
+    isArticleReading = true;
+    blogPanel.classList.add('is-reading-article');
+    nav && nav.classList.add('blog-mode');
+    railGapLocked = true;
+
+    // 跳到视差已完成的「列表顶端」位置，后续滚动只用于阅读长文
+    const pin = (stage1Height || 0) + (stage2Height || 0);
+    readingScrollPinned = pin;
+    blogPanel.scrollTop = pin;
+
+    setupBlogScrollHeights();
+    updateBlogScroll();
+    updateGlobalAvatarPosition();
+  }
+
+  function exitArticleReadingLayout() {
+    isArticleReading = false;
+    if (blogPanel) blogPanel.classList.remove('is-reading-article');
+    const view = document.getElementById('blogArticleView');
+    if (view) {
+      view.hidden = true;
+      view.style.display = '';
+    }
+    setupBlogScrollHeights();
+    updateBlogScroll();
+    updateGlobalAvatarPosition();
+  }
+
   async function openArticleReader(idOrSlug) {
-    const modal = document.getElementById('articleReaderModal');
-    const titleEl = document.getElementById('articleReaderTitle');
-    const metaEl = document.getElementById('articleReaderMeta');
-    const bodyEl = document.getElementById('articleReaderBody');
-    if (!modal || !titleEl || !bodyEl) return;
+    const titleEl = document.getElementById('blogArticleTitle');
+    const metaEl = document.getElementById('blogArticleMeta');
+    const bodyEl = document.getElementById('blogArticleBody');
+    const view = document.getElementById('blogArticleView');
+    if (!titleEl || !bodyEl || !view) return;
+
+    // 旧弹窗若还在，关掉
+    const legacyModal = document.getElementById('articleReaderModal');
+    if (legacyModal) legacyModal.classList.remove('active');
 
     const local = blogPosts.find(p => String(p.slug) === String(idOrSlug) || String(p.id) === String(idOrSlug));
     titleEl.textContent = (local && local.title) || '加载中…';
@@ -873,7 +911,9 @@
         : '';
     }
     bodyEl.innerHTML = '<p class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载正文…</p>';
-    modal.classList.add('active');
+    view.hidden = false;
+    view.style.display = 'flex';
+    enterArticleReadingLayout();
 
     let article = local;
     try {
@@ -886,6 +926,8 @@
 
     if (!article) {
       bodyEl.innerHTML = '<p>无法加载文章内容</p>';
+      setupBlogScrollHeights();
+      updateBlogScroll();
       return;
     }
 
@@ -906,24 +948,47 @@
     bodyEl.innerHTML = simpleMarkdownToHtml(content) || '<p>（无正文）</p>';
     highlightArticleCode(bodyEl);
     renderArticleMath(bodyEl);
+
+    // 正文渲染后重新量高度，保证长文可滚
+    requestAnimationFrame(() => {
+      setupBlogScrollHeights();
+      if (blogPanel) blogPanel.scrollTop = (stage1Height || 0) + (stage2Height || 0);
+      updateBlogScroll();
+      updateGlobalAvatarPosition();
+    });
   }
 
   function closeArticleReader() {
-    const modal = document.getElementById('articleReaderModal');
-    if (modal) modal.classList.remove('active');
+    const legacyModal = document.getElementById('articleReaderModal');
+    if (legacyModal) legacyModal.classList.remove('active');
+    if (!isArticleReading) return;
+    exitArticleReadingLayout();
+    // 回到列表顶端（视差完成位置）
+    if (blogPanel) {
+      const pin = (stage1Height || 0) + (stage2Height || 0);
+      blogPanel.scrollTop = pin;
+      updateBlogScroll();
+    }
   }
 
   function setupArticleReaderUI() {
-    const modal = document.getElementById('articleReaderModal');
-    const closeBtn = document.getElementById('articleReaderClose');
-    if (closeBtn) closeBtn.addEventListener('click', closeArticleReader);
-    if (modal) {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeArticleReader();
+    const backBtn = document.getElementById('blogArticleBack');
+    if (backBtn) backBtn.addEventListener('click', closeArticleReader);
+
+    // 兼容旧弹窗关闭按钮
+    const legacyClose = document.getElementById('articleReaderClose');
+    const legacyModal = document.getElementById('articleReaderModal');
+    if (legacyClose) legacyClose.addEventListener('click', closeArticleReader);
+    if (legacyModal) {
+      legacyModal.addEventListener('click', (e) => {
+        if (e.target === legacyModal) closeArticleReader();
       });
     }
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeArticleReader();
+      if (e.key === 'Escape' && isArticleReading) {
+        closeArticleReader();
+      }
     });
   }
 
@@ -1500,8 +1565,9 @@
       if (isBlogActive !== wasBlog) {
         if (!isBlogActive) {
           nav.classList.remove('blog-mode');
+          if (isArticleReading) closeArticleReader();
         } else {
-          if (blogPanel) blogPanel.scrollTop = 0;
+          if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
           updateBlogScroll();
         }
       }
@@ -1647,6 +1713,40 @@
     const vh = blogPanel.clientHeight || window.innerHeight;
     const gapPx = getBlogGapPx();
     const topMargin = getBlogTopMargin();
+
+    // 阅读模式：锁定视差完成态，主题栏收起，白框向左占满；滚动只用于阅读长文
+    if (isArticleReading) {
+      railGapLocked = true;
+      const base = (stage1Height || 0) + (stage2Height || 0);
+      const p3 = Math.max(0, (scrollTop - base) / Math.max(1, stage3Extra || 1));
+      const desiredY = topMargin - Math.min(1, p3) * (stage3Extra || 0);
+      blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
+      blogStageDuo.style.pointerEvents = 'none';
+      blogStageDuo.style.gap = '0px';
+      if (blogWhiteBox) {
+        blogWhiteBox.style.pointerEvents = 'auto';
+        blogWhiteBox.style.maxWidth = '100%';
+      }
+      if (blogThemeRail) {
+        blogThemeRail.style.pointerEvents = 'none';
+        blogThemeRail.style.opacity = '0';
+        blogThemeRail.classList.remove('is-visible');
+      }
+      if (blogCover) {
+        blogCover.style.opacity = '0';
+        blogCover.style.visibility = 'hidden';
+      }
+      if (isBlogActive && nav) nav.classList.add('blog-mode');
+      // 不允许滚回封面/第二阶段：若用户滚得太靠上，钳制到列表顶端
+      if (scrollTop < base - 2) {
+        blogPanel.scrollTop = base;
+      }
+      return;
+    }
+
+    if (blogCover) {
+      blogCover.style.visibility = '';
+    }
 
     let p1 = Math.min(1, Math.max(0, scrollTop / (stage1Height || 1)));
     let p2 = 0;
@@ -2086,11 +2186,12 @@
   }
 
   // ============================================================
-  //  点击特效事件绑定
+  //  自定义小圆光标 + 空闲划动白色曳尾 + 按下连续点击特效
+  //  （修复选中文字拖拽后“粘住”）
   // ============================================================
   function getClickColor(target, isRight) {
     const forbiddenZone = document.getElementById('forbiddenZone');
-    if (forbiddenZone && forbiddenZone.contains(target)) {
+    if (forbiddenZone && target && forbiddenZone.contains(target)) {
       return { color: COLORS.FORBIDDEN, name: '淡红' };
     }
     return isRight ? { color: COLORS.RIGHT, name: '淡蓝' } : { color: COLORS.LEFT, name: '淡黄' };
@@ -2105,27 +2206,128 @@
 
   let isPointerDown = false;
   let pointerTimer = null;
-  let lastPointerX = 0, lastPointerY = 0;
+  let lastPointerX = 0;
+  let lastPointerY = 0;
   let pointerIsRight = false;
+  let pointerDownTarget = null;
+  let suppressEffectsUntil = 0;
+  let lastTrailX = 0;
+  let lastTrailY = 0;
+  let lastTrailTime = 0;
+  let trailAnimId = null;
+  const trailDots = [];
 
-  function startPointerTimer(e) {
-    const isRight = (e.button === 2);
-    pointerIsRight = isRight;
-    const x = e.clientX, y = e.clientY;
-    lastPointerX = x;
-    lastPointerY = y;
-    triggerAnimation(x, y, isRight);
-    if (pointerTimer) clearInterval(pointerTimer);
-    pointerTimer = setInterval(() => {
-      triggerAnimation(lastPointerX, lastPointerY, pointerIsRight);
-    }, 150);
-    isPointerDown = true;
+  const coarsePointer = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let customCursor = null;
+  if (!coarsePointer) {
+    customCursor = document.createElement('div');
+    customCursor.className = 'custom-cursor';
+    customCursor.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(customCursor);
   }
 
-  function updatePointerPosition(e) {
-    if (!isPointerDown) return;
-    lastPointerX = e.clientX;
-    lastPointerY = e.clientY;
+  function isTextEditingTarget(el) {
+    if (!el || el === document || el === window) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if (el.isContentEditable) return true;
+    try {
+      if (el.closest && el.closest('input, textarea, select, [contenteditable="true"]')) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  function shouldSkipClickEffects(target) {
+    if (!target) return false;
+    if (isTextEditingTarget(target)) return true;
+    try {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed && String(sel.toString() || '').length > 0) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function moveCustomCursor(x, y) {
+    if (!customCursor) return;
+    customCursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  }
+
+  function setCursorVisible(v) {
+    if (!customCursor) return;
+    customCursor.classList.toggle('is-visible', !!v);
+  }
+
+  function setCursorDown(v, isRight) {
+    if (!customCursor) return;
+    customCursor.classList.toggle('is-down', !!v);
+    customCursor.classList.toggle('is-right', !!isRight);
+  }
+
+  function setCursorTextMode(v) {
+    if (!customCursor) return;
+    customCursor.classList.toggle('is-hidden-for-text', !!v);
+  }
+
+  // 白色曳尾：不按下也可在页面自由划动时出现
+  function spawnTrailDot(x, y) {
+    if (reduceMotion || coarsePointer) return;
+    const now = performance.now();
+    if (now - lastTrailTime < 14) return;
+    const dx = x - lastTrailX;
+    const dy = y - lastTrailY;
+    const dist = Math.hypot(dx, dy);
+    if (lastTrailTime > 0 && dist < 5) return;
+    lastTrailTime = now;
+    lastTrailX = x;
+    lastTrailY = y;
+
+    const size = 4.5 + Math.min(9, dist * 0.1);
+    const el = document.createElement('div');
+    el.className = 'cursor-trail-dot';
+    el.style.cssText = `
+      left: ${x}px;
+      top: ${y}px;
+      width: ${size}px;
+      height: ${size}px;
+      background: rgba(255, 255, 255, 0.52);
+      opacity: 0.72;
+    `;
+    document.body.appendChild(el);
+    trailDots.push({ el, born: now, life: 260 + Math.random() * 160, size });
+    if (!trailAnimId) trailAnimId = requestAnimationFrame(tickTrailDots);
+  }
+
+  function tickTrailDots(ts) {
+    let alive = false;
+    for (let i = trailDots.length - 1; i >= 0; i--) {
+      const d = trailDots[i];
+      const t = (ts - d.born) / d.life;
+      if (t >= 1) {
+        if (d.el.parentNode) d.el.remove();
+        trailDots.splice(i, 1);
+        continue;
+      }
+      const ease = 1 - t;
+      d.el.style.opacity = String(ease * 0.72);
+      d.el.style.transform = `translate(-50%, -50%) scale(${0.3 + ease * 0.7})`;
+      alive = true;
+    }
+    trailAnimId = alive ? requestAnimationFrame(tickTrailDots) : null;
+  }
+
+  function clearAllTrailDots() {
+    for (const d of trailDots) {
+      if (d.el && d.el.parentNode) d.el.remove();
+    }
+    trailDots.length = 0;
+    if (trailAnimId) {
+      cancelAnimationFrame(trailAnimId);
+      trailAnimId = null;
+    }
   }
 
   function stopPointerTimer() {
@@ -2134,84 +2336,179 @@
       pointerTimer = null;
     }
     isPointerDown = false;
+    pointerDownTarget = null;
+    setCursorDown(false, false);
   }
 
-  document.addEventListener('mousedown', function(e) {
-    if (e.button === 0 || e.button === 2) {
-      startPointerTimer(e);
-      if (e.button === 2) e.preventDefault();
+  function forceReleasePointer() {
+    stopPointerTimer();
+    suppressEffectsUntil = performance.now() + 120;
+  }
+
+  function startPointerEffects(x, y, isRight, target) {
+    if (performance.now() < suppressEffectsUntil) return;
+
+    pointerIsRight = isRight;
+    lastPointerX = x;
+    lastPointerY = y;
+    pointerDownTarget = target || null;
+    isPointerDown = true;
+    setCursorDown(true, isRight);
+
+    // 输入框 / 已有选区：只标记按下，不启动连续点击特效
+    if (shouldSkipClickEffects(target)) {
+      return;
     }
-  });
+
+    triggerAnimation(x, y, isRight);
+    if (pointerTimer) clearInterval(pointerTimer);
+    pointerTimer = setInterval(() => {
+      if (!isPointerDown) {
+        stopPointerTimer();
+        return;
+      }
+      if (shouldSkipClickEffects(pointerDownTarget)) {
+        if (pointerTimer) {
+          clearInterval(pointerTimer);
+          pointerTimer = null;
+        }
+        return;
+      }
+      triggerAnimation(lastPointerX, lastPointerY, pointerIsRight);
+    }, 160);
+  }
 
   document.addEventListener('mousemove', function(e) {
-    updatePointerPosition(e);
-  });
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
+    moveCustomCursor(e.clientX, e.clientY);
+    setCursorVisible(true);
+    setCursorTextMode(isTextEditingTarget(e.target));
+    // 自由划动白色曳尾（不要求按下）
+    spawnTrailDot(e.clientX, e.clientY);
+  }, { passive: true });
 
-  document.addEventListener('mouseup', function(e) {
-    if (isPointerDown) stopPointerTimer();
-  });
+  document.addEventListener('mouseenter', function(e) {
+    moveCustomCursor(e.clientX, e.clientY);
+    setCursorVisible(true);
+  }, { passive: true });
 
   document.addEventListener('mouseleave', function() {
-    if (isPointerDown) stopPointerTimer();
+    setCursorVisible(false);
+    forceReleasePointer();
+  }, { passive: true });
+
+  document.addEventListener('mousedown', function(e) {
+    if (e.button !== 0 && e.button !== 2) return;
+    startPointerEffects(e.clientX, e.clientY, e.button === 2, e.target);
+    if (e.button === 2) e.preventDefault();
+  }, true);
+
+  window.addEventListener('mouseup', function() {
+    if (isPointerDown) forceReleasePointer();
+  }, true);
+
+  window.addEventListener('pointerup', function() {
+    if (isPointerDown) forceReleasePointer();
+  }, true);
+
+  window.addEventListener('pointercancel', function() {
+    forceReleasePointer();
+  }, true);
+
+  window.addEventListener('blur', function() {
+    forceReleasePointer();
+  });
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) forceReleasePointer();
+  });
+
+  window.addEventListener('dragend', function() {
+    forceReleasePointer();
+  }, true);
+
+  window.addEventListener('drop', function() {
+    forceReleasePointer();
+  }, true);
+
+  document.addEventListener('dragstart', function() {
+    if (pointerTimer) {
+      clearInterval(pointerTimer);
+      pointerTimer = null;
+    }
+  }, true);
+
+  document.addEventListener('selectionchange', function() {
+    if (!isPointerDown) return;
+    try {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed && String(sel.toString() || '').length > 0) {
+        if (pointerTimer) {
+          clearInterval(pointerTimer);
+          pointerTimer = null;
+        }
+      }
+    } catch (_) {}
   });
 
   document.addEventListener('touchstart', function(e) {
     const touch = e.touches[0];
     if (!touch) return;
-    pointerIsRight = false;
-    const x = touch.clientX, y = touch.clientY;
-    lastPointerX = x;
-    lastPointerY = y;
-    triggerAnimation(x, y, false);
-    if (pointerTimer) clearInterval(pointerTimer);
-    pointerTimer = setInterval(() => {
-      triggerAnimation(lastPointerX, lastPointerY, false);
-    }, 150);
-    isPointerDown = true;
-    e.preventDefault();
-  }, { passive: false });
+    lastPointerX = touch.clientX;
+    lastPointerY = touch.clientY;
+    startPointerEffects(touch.clientX, touch.clientY, false, e.target);
+  }, { passive: true });
 
   document.addEventListener('touchmove', function(e) {
-    if (!isPointerDown) return;
     const touch = e.touches[0];
     if (!touch) return;
     lastPointerX = touch.clientX;
     lastPointerY = touch.clientY;
-    e.preventDefault();
-  }, { passive: false });
+    spawnTrailDot(touch.clientX, touch.clientY);
+  }, { passive: true });
 
-  document.addEventListener('touchend', function(e) {
-    if (isPointerDown) stopPointerTimer();
-  });
+  window.addEventListener('touchend', function() {
+    if (isPointerDown) forceReleasePointer();
+  }, true);
 
-  document.addEventListener('touchcancel', function() {
-    if (isPointerDown) stopPointerTimer();
-  });
+  window.addEventListener('touchcancel', function() {
+    forceReleasePointer();
+  }, true);
 
   document.addEventListener('click', function(e) {
-    if (e.button === 0) {
-      if (!isPointerDown) {
+    if (e.button === 0 && !isPointerDown && performance.now() >= suppressEffectsUntil) {
+      if (!shouldSkipClickEffects(e.target)) {
         triggerAnimation(e.clientX, e.clientY, false);
       }
     }
-  });
+  }, true);
 
   document.addEventListener('contextmenu', function(e) {
     e.preventDefault();
-    if (!isPointerDown) {
-      triggerAnimation(e.clientX, e.clientY, true);
+    if (!isPointerDown && performance.now() >= suppressEffectsUntil) {
+      if (!shouldSkipClickEffects(e.target)) {
+        triggerAnimation(e.clientX, e.clientY, true);
+      }
     }
-  });
+  }, true);
 
   document.addEventListener('keydown', function(e) {
     if (e.key === ' ' || e.key === 'Space') {
+      if (isTextEditingTarget(e.target)) return;
       e.preventDefault();
-      const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
       const target = document.elementFromPoint(cx, cy);
       const { color, name } = getClickColor(target, false);
       triggerClickEffect(cx, cy, color, name);
     }
+    if (e.key === 'Escape') {
+      forceReleasePointer();
+      clearAllTrailDots();
+    }
   });
+
 
   // ---------- 初始化 ----------
   async function init() {
