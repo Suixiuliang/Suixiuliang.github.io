@@ -731,55 +731,118 @@
       .replace(/>/g, '&gt;');
 
     let s = String(md).replace(/\r\n/g, '\n');
+
+    // 代码块（先保护，避免内部 $ / # 被误解析）
     s = s.replace(/```([a-zA-Z0-9_+-]*)[ \t]*\n?([\s\S]*?)```/g, (_, lang, code) => {
-      const cls = lang ? `language-${esc(lang)}` : '';
-      return hold(`<pre class="md-code"><code class="${cls}">${esc(code.replace(/^\n|\n$/g, ''))}</code></pre>`);
+      const langClean = (lang || '').trim().toLowerCase();
+      const cls = langClean ? `language-${esc(langClean)}` : '';
+      const body = esc(code.replace(/^\n+|\n+$/g, ''));
+      return hold(`<pre class="md-code"><code class="${cls}">${body}</code></pre>`);
     });
-    s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) =>
-      hold(`<div class="md-math-display">$$${m.trim()}$$</div>`));
+
+    // 行内代码
+    s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
+
+    // $$...$$：含换行 / 独占一行 → 块级；夹在文字中间 → 行内（避免打断段落）
+    s = s.replace(/\$\$([\s\S]+?)\$\$/g, (full, m, offset, src) => {
+      const formula = m.trim();
+      const hasNewline = /\n/.test(m);
+      let lineStart = offset;
+      while (lineStart > 0 && src[lineStart - 1] !== '\n') lineStart--;
+      let lineEnd = offset + full.length;
+      while (lineEnd < src.length && src[lineEnd] !== '\n') lineEnd++;
+      const before = src.slice(lineStart, offset);
+      const after = src.slice(offset + full.length, lineEnd);
+      const aloneOnLine = !hasNewline && /^\s*$/.test(before) && /^\s*$/.test(after);
+      if (hasNewline || aloneOnLine) {
+        return hold(`<div class="md-math-display">$$${formula}$$</div>`);
+      }
+      return hold(`<span class="md-math-inline">\\(${formula}\\)</span>`);
+    });
+
+    // \[...\] 块级、\(...\) 行内
     s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) =>
       hold(`<div class="md-math-display">\\[${m.trim()}\\]</div>`));
     s = s.replace(/\\\((.+?)\\\)/g, (_, m) =>
       hold(`<span class="md-math-inline">\\(${m}\\)</span>`));
+
+    // 单 $...$ 行内（排除 $$ 与金额类）
     s = s.replace(/(^|[^\\$])\$([^\s$][^$\n]*?[^\s$])\$(?!\d)/g, (_, pre, m) =>
-      pre + hold(`<span class="md-math-inline">$${m}$</span>`));
-    s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
+      pre + hold(`<span class="md-math-inline">\\(${m}\\)</span>`));
+
     s = esc(s);
-    s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // 标题：从深到浅，支持 h1–h6
+    s = s.replace(/^######[ \t]+(.+)$/gm, '<h6>$1</h6>');
+    s = s.replace(/^#####[ \t]+(.+)$/gm, '<h5>$1</h5>');
+    s = s.replace(/^####[ \t]+(.+)$/gm, '<h4>$1</h4>');
+    s = s.replace(/^###[ \t]+(.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^##[ \t]+(.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^#[ \t]+(.+)$/gm, '<h1>$1</h1>');
+
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
     s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    s = s.replace(/^&gt;[ \t]+(.+)$/gm, '<blockquote>$1</blockquote>');
     s = s.replace(/^(?:- |\* )(.+)$/gm, '<li>$1</li>');
     s = s.replace(/(?:<li>[\s\S]*?<\/li>\s*)+/g, (m) => `<ul>${m}</ul>`);
+
     s = s.split(/\n{2,}/).map(block => {
       const t = block.trim();
       if (!t) return '';
-      if (/^<(h[1-3]|ul|pre|blockquote|div)/.test(t)) return t;
+      if (/^<(h[1-6]|ul|ol|pre|blockquote|div)/.test(t)) return t;
       if (/^\uE000\d+\uE001$/.test(t)) return t;
       return `<p>${block.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
+
     s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
     return s;
+  }
+
+  function highlightArticleCode(root) {
+    if (!root) return;
+    const run = () => {
+      if (typeof window.hljs === 'undefined' || typeof window.hljs.highlightElement !== 'function') {
+        return false;
+      }
+      root.querySelectorAll('pre code').forEach((block) => {
+        try {
+          window.hljs.highlightElement(block);
+        } catch (_) { /* ignore single-block errors */ }
+      });
+      return true;
+    };
+    if (!run()) {
+      let n = 0;
+      const timer = setInterval(() => {
+        n += 1;
+        if (run() || n > 40) clearInterval(timer);
+      }, 50);
+    }
   }
 
   function renderArticleMath(root) {
     if (!root) return;
     const tryRender = () => {
       if (typeof window.renderMathInElement === 'function') {
-        window.renderMathInElement(root, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '\\[', right: '\\]', display: true },
-            { left: '$', right: '$', display: false },
-            { left: '\\(', right: '\\)', display: false }
-          ],
-          throwOnError: false,
-          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-        });
+        try {
+          window.renderMathInElement(root, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '\\[', right: '\\]', display: true },
+              { left: '\\(', right: '\\)', display: false },
+              { left: '$', right: '$', display: false }
+            ],
+            throwOnError: false,
+            strict: 'ignore',
+            trust: false,
+            ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+            ignoredClasses: ['md-code']
+          });
+        } catch (e) {
+          console.warn('[KaTeX] render error', e);
+        }
         return true;
       }
       return false;
@@ -841,6 +904,7 @@
     }
     const content = article.content || article.body || (local && local.content) || article.summary || article.excerpt || '';
     bodyEl.innerHTML = simpleMarkdownToHtml(content) || '<p>（无正文）</p>';
+    highlightArticleCode(bodyEl);
     renderArticleMath(bodyEl);
   }
 

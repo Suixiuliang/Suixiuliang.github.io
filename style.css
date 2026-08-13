@@ -1097,10 +1097,21 @@ body {
 }
 .article-reader-body h1,
 .article-reader-body h2,
-.article-reader-body h3 {
+.article-reader-body h3,
+.article-reader-body h4,
+.article-reader-body h5,
+.article-reader-body h6 {
   margin: 1.1em 0 0.45em;
   line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: #ffffff;
 }
+.article-reader-body h1 { font-size: 1.55rem; font-weight: 700; }
+.article-reader-body h2 { font-size: 1.35rem; font-weight: 650; }
+.article-reader-body h3 { font-size: 1.18rem; font-weight: 600; }
+.article-reader-body h4 { font-size: 1.05rem; font-weight: 600; color: rgba(255, 255, 255, 0.95); }
+.article-reader-body h5 { font-size: 0.98rem; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.article-reader-body h6 { font-size: 0.92rem; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
 .article-reader-body p { margin: 0.65em 0; }
 .article-reader-body pre,
 .article-reader-body code {
@@ -1109,7 +1120,7 @@ body {
 }
 .article-reader-body pre,
 .article-reader-body pre.md-code {
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(0, 0, 0, 0.42);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
   padding: 0.85rem 1rem;
@@ -1122,18 +1133,69 @@ body {
   padding: 0.1em 0.35em;
   border-radius: 6px;
   font-size: 0.88em;
+  color: #f0f6ff;
 }
 .article-reader-body pre code {
-  background: transparent;
+  background: transparent !important;
   padding: 0;
   font-size: 0.86em;
-  color: rgba(230, 240, 255, 0.95);
+  color: #e6edf7;
+  display: block;
+  overflow-x: auto;
+}
+/* highlight.js 深色玻璃背景微调 */
+.article-reader-body pre code.hljs {
+  background: transparent !important;
+  padding: 0;
+  color: #e6edf7;
+}
+.article-reader-body .hljs-keyword,
+.article-reader-body .hljs-selector-tag,
+.article-reader-body .hljs-built_in {
+  color: #ff7b72;
+}
+.article-reader-body .hljs-string,
+.article-reader-body .hljs-attr {
+  color: #a5d6ff;
+}
+.article-reader-body .hljs-number,
+.article-reader-body .hljs-literal {
+  color: #79c0ff;
+}
+.article-reader-body .hljs-comment,
+.article-reader-body .hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+.article-reader-body .hljs-title,
+.article-reader-body .hljs-section,
+.article-reader-body .hljs-function .hljs-title {
+  color: #d2a8ff;
+}
+.article-reader-body .hljs-type,
+.article-reader-body .hljs-class .hljs-title {
+  color: #ffa657;
+}
+.article-reader-body .hljs-meta,
+.article-reader-body .hljs-meta .hljs-keyword {
+  color: #7ee787;
+}
+.article-reader-body .hljs-variable,
+.article-reader-body .hljs-template-variable {
+  color: #ffa198;
+}
+.article-reader-body .hljs-params {
+  color: #e6edf7;
 }
 .article-reader-body .md-math-display {
   overflow-x: auto;
   margin: 1em 0;
   padding: 0.4em 0;
   text-align: center;
+}
+.article-reader-body .md-math-inline {
+  display: inline;
+  white-space: nowrap;
 }
 .article-reader-body .katex-display {
   margin: 0.85em 0;
@@ -1143,6 +1205,9 @@ body {
 .article-reader-body .katex {
   font-size: 1.05em;
   color: #e8f1ff;
+}
+.article-reader-body .katex-error {
+  color: #ff8a8a !important;
 }
 .article-reader-body a { color: #7eb6ff; }
 .article-reader-body ul,
