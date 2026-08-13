@@ -1331,12 +1331,14 @@
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: text, statusType: type })
+          // 与 worker.js 对齐：status_type / status_text
+          body: JSON.stringify({ status_type: type, status_text: text })
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) throw new Error(data.error || '状态保存失败');
-        profileData.status = data.profile?.status || text;
-        profileData.statusType = data.profile?.statusType || type;
+        const p = data.profile || {};
+        profileData.status = p.status_text || p.status || text;
+        profileData.statusType = String(p.status_type || p.statusType || type).toLowerCase();
         renderProfile();
         if (msg) { msg.textContent = '状态已保存到服务器，并已同步到主页'; msg.className = 'admin-msg ok'; }
       } catch (e) {
@@ -2194,8 +2196,13 @@
         const payload = data.profile || data;
         if (payload && typeof payload === 'object' && Object.keys(payload).length) {
           profileData = { ...defaultProfile, ...payload };
-          profileData.status = String(profileData.status || '在线');
-          profileData.statusType = String(profileData.statusType || 'online').toLowerCase();
+          // 后端返回 snake_case：status_type / status_text
+          profileData.status = String(
+            payload.status_text ?? payload.status ?? profileData.status ?? '在线'
+          );
+          profileData.statusType = String(
+            payload.status_type ?? payload.statusType ?? profileData.statusType ?? 'online'
+          ).toLowerCase();
         }
       }
     } catch (e) {}
