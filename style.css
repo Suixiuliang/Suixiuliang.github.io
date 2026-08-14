@@ -850,27 +850,16 @@ body {
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: auto;
-  will-change: transform, max-width, height, max-height, box-shadow;
-  /* Apple spring：response ~0.4，轻微 overshoot */
+  will-change: max-width, width, height, max-height, box-shadow;
+  /* 平滑放大为主，尾段略带回弹（不是硬弹簧乱弹） */
   transition:
-    max-width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    max-height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    transform 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    box-shadow 0.38s cubic-bezier(0.25, 1, 0.5, 1),
-    border-radius 0.38s cubic-bezier(0.25, 1, 0.5, 1);
-  transform: scale(1);
+    max-width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    max-height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    border-radius 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   transform-origin: center top;
-}
-.blog-white-box.is-box-morphing {
-  transform: scale(0.975);
-}
-.blog-white-box.is-box-expanded {
-  transform: scale(1);
-}
-.blog-white-box.is-box-shrinking {
-  transform: scale(0.98);
 }
 @media (max-width: 720px) {
   :root {
@@ -1989,12 +1978,11 @@ body.is-reading-article .reading-dim-layer {
   max-width: 100% !important;
   width: 100% !important;
   transition:
-    max-width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    max-height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    transform 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
-    box-shadow 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+    max-width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    max-height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
+    box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   position: relative;
   z-index: 3;
   display: flex;
@@ -2009,8 +1997,7 @@ body.is-reading-article .reading-dim-layer {
 @media (prefers-reduced-motion: reduce) {
   .blog-white-box,
   .panel-blog.is-reading-article .blog-white-box {
-    transition: opacity 0.2s ease !important;
-    transform: none !important;
+    transition: none !important;
   }
 }
 .panel-blog.is-reading-article .white-box-inner {
@@ -2195,61 +2182,65 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— HTML 音频：液态玻璃播放器 —— */
+/* —— HTML 音频：与站点一致的液态玻璃外壳 —— */
 .blog-article-body .md-audio-player {
-  margin: 1.1em 0;
-  padding: 0.85rem 1rem 0.95rem;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.12);
+  margin: 1.15em 0;
+  padding: 0.95rem 1.05rem 1.05rem;
+  border-radius: var(--radius-card, 22px);
+  background: rgba(255, 255, 255, 0.13);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.28),
-    inset 0 1px 1.5px rgba(255, 255, 255, 0.4),
-    inset 0 -0.5px 1px rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(22px) saturate(170%);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
+    0 12px 36px rgba(0, 0, 0, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.38),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 .blog-article-body .md-audio-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 0.55rem;
-  font-size: 0.82rem;
-  font-weight: 550;
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: -0.01em;
+  gap: 10px;
+  margin-bottom: 0.65rem;
+  font-size: 0.86rem;
+  font-weight: 560;
+  color: rgba(255, 255, 255, 0.94);
+  letter-spacing: -0.015em;
 }
 .blog-article-body .md-audio-label i {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 113, 227, 0.28);
-  border: 1px solid rgba(120, 180, 255, 0.4);
-  color: #9ec9ff;
-  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 0.78rem;
 }
 .blog-article-body .md-audio-player audio,
 .blog-article-body audio {
   display: block;
   width: 100%;
-  height: 40px;
+  height: 42px;
   border-radius: 999px;
   outline: none;
-  /* 尽量贴近系统控件，外层玻璃托住 */
-  background: rgba(0, 0, 0, 0.22);
+  color-scheme: dark;
+  background: transparent;
 }
 .blog-article-body audio:not(.md-audio-player audio) {
-  margin: 0.85em 0;
-  padding: 0.35rem 0.5rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  margin: 0.95em 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  color-scheme: dark;
 }
 /* —— 行内 code —— */
 .blog-article-body code {
@@ -2675,4 +2666,63 @@ body.is-reading-article .reading-dim-layer {
 @media (prefers-reduced-motion: reduce) {
   .site-context-menu { animation: none; }
   .site-ctx-item:active:not(.is-disabled) { transform: none; }
+}
+
+/* ============================================================
+   API 离线：锁定首页 + 顶栏灵动岛 + 头像居中
+   ============================================================ */
+body.api-offline-lock .horizontal-scroll-container {
+  overflow-x: hidden !important;
+  touch-action: pan-y;
+}
+body.api-offline-lock .panel:not(#home) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.glass-nav.is-api-island {
+  justify-content: center;
+  max-width: min(92vw, 440px);
+  width: max-content;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+}
+.glass-nav.is-api-island .logo,
+.glass-nav.is-api-island .nav-links,
+.glass-nav.is-api-island .blog-toolbar {
+  display: none !important;
+}
+.glass-nav.is-api-island .nav-api-island {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+}
+.nav-api-island {
+  display: none;
+}
+.nav-api-island-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 90, 90, 0.2);
+  border: 1px solid rgba(255, 140, 140, 0.4);
+  color: #ff8e8e;
+  font-size: 0.8rem;
+}
+.nav-api-island-text {
+  font-size: 0.84rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.94);
+}
+.global-avatar.is-offline-center {
+  z-index: 900;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
 }

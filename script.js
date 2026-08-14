@@ -429,22 +429,61 @@
     return false;
   }
 
-  function showBootApiIsland() {
-    const island = document.getElementById('bootApiIsland');
-    if (!island) return;
-    island.setAttribute('aria-hidden', 'false');
-    // 双 rAF：先挂上布局再开过渡，保证弹簧感从当前值出发
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        island.classList.add('is-visible');
-      });
+  let apiOfflineLocked = false;
+
+  /** API 不可达：不卡门禁，进入首页并锁定；顶栏变灵动岛；头像居中 */
+  function applyApiOfflineHomeMode() {
+    apiOfflineLocked = true;
+    document.body.classList.add('api-offline-lock');
+
+    // 顶栏 → 灵动岛消息
+    const nav = document.getElementById('mainNav');
+    if (nav) {
+      nav.classList.add('is-api-island');
+      nav.setAttribute('aria-live', 'polite');
+      // 保留结构，用岛内容覆盖展示
+      let island = nav.querySelector('.nav-api-island');
+      if (!island) {
+        island = document.createElement('div');
+        island.className = 'nav-api-island';
+        island.innerHTML =
+          `<span class="nav-api-island-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>` +
+          `<span class="nav-api-island-text">您所在的国家/地区暂时不支持连接到后台接口</span>`;
+        nav.appendChild(island);
+      }
+    }
+
+    // 强制停在首页
+    const home = document.getElementById('home');
+    if (scrollContainer && home) {
+      scrollContainer.scrollTo({ left: home.offsetLeft, behavior: 'auto' });
+    }
+    document.querySelectorAll('.nav-btn').forEach((b) => {
+      b.classList.toggle('active', b.getAttribute('data-section') === 'home');
     });
-    const title = document.getElementById('bootLoaderTitle');
-    const desc = document.getElementById('bootLoaderDesc');
-    const card = document.getElementById('bootLoaderCard');
-    if (title) title.textContent = '无法进入';
-    if (desc) desc.textContent = '后台接口不可用，门禁已拦截本次访问';
-    if (card) card.classList.add('is-blocked');
+
+    // 头像居中（下一帧等布局）
+    requestAnimationFrame(() => {
+      centerAvatarForOffline();
+      updateGlobalAvatarPosition();
+    });
+  }
+
+  function centerAvatarForOffline() {
+    const globalAvatar = document.getElementById('globalAvatar');
+    if (!globalAvatar || !apiOfflineLocked) return;
+    const size = Math.min(180, Math.max(120, Math.round(window.innerWidth * 0.22)));
+    globalAvatar.style.width = size + 'px';
+    globalAvatar.style.height = size + 'px';
+    globalAvatar.style.opacity = '1';
+    globalAvatar.style.transform =
+      `translate(calc(${window.innerWidth / 2}px - 50%), calc(${window.innerHeight / 2}px - 50%))`;
+    globalAvatar.classList.add('is-offline-center');
+  }
+
+  function showBootApiIsland() {
+    // 兼容旧调用：改为离线首页模式（不再卡门禁）
+    applyApiOfflineHomeMode();
   }
 
   function formatDateUTC8(input) {
@@ -757,27 +796,84 @@
     ).toString().toLowerCase();
     if (raw === 'html' || raw === 'text/html') return 'html';
     if (raw === 'markdown' || raw === 'md' || raw === 'text/markdown') return 'markdown';
-    // 启发式：明显 HTML 文档
     const c = String(article.content || article.body || '');
-    if (/^\s*<(?:!doctype|html|div|section|article|p|h[1-6]|audio|video)\b/i.test(c)) return 'html';
+    // 完整 HTML 文档 / 明显标签
+    if (/<!doctype\s+html/i.test(c) || /<html[\s>]/i.test(c) || /<body[\s>]/i.test(c)) return 'html';
+    if (/^\s*<(?:div|section|article|p|h[1-6]|audio|video|figure)\b/i.test(c)) return 'html';
     return 'markdown';
   }
 
-  /** 管理端 HTML 轻量清洗：去掉脚本，保留媒体与常见排版标签 */
+  /**
+   * 安全提取可嵌入片段：
+   * - 完整文档只取 body 内部
+   * - 去掉 style/script/link/meta，避免污染整站
+   * - 去掉事件属性与 javascript: URL
+   * - 去掉会破坏深色玻璃阅读的 color/background 内联样式
+   */
   function sanitizeAdminHtml(html) {
-    const tpl = document.createElement('template');
-    tpl.innerHTML = String(html || '');
-    tpl.content.querySelectorAll('script, iframe, object, embed, link[rel="import"]').forEach((n) => n.remove());
-    tpl.content.querySelectorAll('*').forEach((el) => {
+    const raw = String(html || '').trim();
+    if (!raw) return '';
+
+    let fragmentHtml = '';
+    const looksFullDoc = /<!doctype\s+html/i.test(raw) || /<html[\s>]/i.test(raw) || /<body[\s>]/i.test(raw);
+
+    try {
+      if (looksFullDoc && typeof DOMParser !== 'undefined') {
+        const doc = new DOMParser().parseFromString(raw, 'text/html');
+        doc.querySelectorAll('script, style, link, meta, title, noscript, iframe, object, embed').forEach((n) => n.remove());
+        fragmentHtml = (doc.body && doc.body.innerHTML) ? doc.body.innerHTML : '';
+      } else {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = raw;
+        tpl.content.querySelectorAll('script, style, link, meta, title, noscript, iframe, object, embed').forEach((n) => n.remove());
+        fragmentHtml = tpl.innerHTML;
+      }
+    } catch (_) {
+      // 最后兜底：粗暴剥壳
+      fragmentHtml = raw
+        .replace(/<!doctype[^>]*>/gi, '')
+        .replace(/<\/?(html|head|body)[^>]*>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[\s\S]*?<\/script>/gi, '');
+    }
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML = fragmentHtml;
+
+    // 再清一次危险节点
+    wrap.querySelectorAll('script, style, link, meta, title, noscript, iframe, object, embed, form').forEach((n) => n.remove());
+
+    wrap.querySelectorAll('*').forEach((el) => {
       [...el.attributes].forEach((attr) => {
         const name = attr.name.toLowerCase();
         const val = String(attr.value || '');
-        if (name.startsWith('on') || /^javascript:/i.test(val)) {
+        if (name.startsWith('on') || name === 'srcdoc') {
           el.removeAttribute(attr.name);
+          return;
+        }
+        if ((name === 'href' || name === 'src' || name === 'xlink:href') && /^\s*javascript:/i.test(val)) {
+          el.removeAttribute(attr.name);
+          return;
+        }
+        // 去掉会把整页衬成白底/黑字的内联样式关键声明
+        if (name === 'style') {
+          const cleaned = val
+            .replace(/(?:^|;)\s*(?:color|background|background-color|background-image|font-family)\s*:[^;]*/gi, '')
+            .replace(/^;+|;+$/g, '')
+            .trim();
+          if (cleaned) el.setAttribute('style', cleaned);
+          else el.removeAttribute('style');
         }
       });
+
+      // 常见“完整博客模板”class → 站内语义 class，避免白底块
+      if (el.classList.contains('audio-player')) {
+        el.classList.remove('audio-player');
+        el.classList.add('md-audio-player');
+      }
     });
-    return tpl.innerHTML;
+
+    return wrap.innerHTML;
   }
 
   function renderArticleBodyHtml(content, contentType) {
@@ -790,19 +886,28 @@
   function enhanceArticleMedia(root) {
     if (!root) return;
     root.querySelectorAll('audio').forEach((audio) => {
-      if (audio.closest('.md-audio-player')) return;
+      if (audio.closest('.md-audio-player')) {
+        audio.setAttribute('controls', '');
+        audio.preload = audio.preload || 'metadata';
+        return;
+      }
       audio.setAttribute('controls', '');
       audio.preload = audio.preload || 'metadata';
       const wrap = document.createElement('div');
       wrap.className = 'md-audio-player';
       const label = document.createElement('div');
       label.className = 'md-audio-label';
-      const src = audio.getAttribute('src') || (audio.querySelector('source') && audio.querySelector('source').src) || '';
-      const name = src ? decodeURIComponent(src.split('/').pop().split('?')[0] || '音频') : '音频';
+      const src = audio.getAttribute('src') || (audio.querySelector('source') && audio.querySelector('source').getAttribute('src')) || '';
+      let name = '音频';
+      try {
+        if (src) name = decodeURIComponent((src.split('/').pop() || '音频').split('?')[0]) || '音频';
+      } catch (_) {}
       label.innerHTML = `<i class="fas fa-music"></i><span>${escapeHtml(name)}</span>`;
-      audio.parentNode.insertBefore(wrap, audio);
-      wrap.appendChild(label);
-      wrap.appendChild(audio);
+      if (audio.parentNode) {
+        audio.parentNode.insertBefore(wrap, audio);
+        wrap.appendChild(label);
+        wrap.appendChild(audio);
+      }
     });
   }
 
@@ -1352,16 +1457,11 @@
     if (!blogPanel) return;
     isArticleReading = true;
     document.body.classList.add('is-reading-article');
-    // 先挂 morph 起点，再在下一帧进入阅读态，保证弹簧从当前值出发
-    if (blogWhiteBox) {
-      blogWhiteBox.classList.remove('is-box-shrinking');
-      blogWhiteBox.classList.add('is-box-morphing');
-    }
     blogPanel.classList.add('is-reading-article');
     nav && nav.classList.add('blog-mode');
     railGapLocked = true;
 
-    // 外层钉在阅读基线；正文改在玻璃框内滚动
+    // 外层钉在阅读基线；正文改在玻璃框内滚动（宽高由 CSS 平滑过渡）
     setupBlogScrollHeights();
     readingBaseScroll = (stage1Height || 0) + (stage2Height || 0);
     blogPanel.scrollTop = readingBaseScroll;
@@ -1377,13 +1477,6 @@
     updateBlogScroll();
     updateGlobalAvatarPosition();
     lockOuterScrollToBase();
-
-    requestAnimationFrame(() => {
-      if (blogWhiteBox) {
-        blogWhiteBox.classList.add('is-box-expanded');
-        blogWhiteBox.classList.remove('is-box-morphing');
-      }
-    });
   }
 
   function exitArticleReadingLayout() {
@@ -1395,43 +1488,34 @@
       readingOuterLockRaf = null;
     }
 
-    // 先播缩小动画，再卸阅读态 class
+    // 清正文，避免异常 HTML 残留污染列表布局
+    const bodyEl = document.getElementById('blogArticleBody');
+    if (bodyEl) bodyEl.innerHTML = '';
+    const titleEl = document.getElementById('blogArticleTitle');
+    const metaEl = document.getElementById('blogArticleMeta');
+    if (titleEl) titleEl.textContent = '';
+    if (metaEl) metaEl.innerHTML = '';
+
+    document.body.classList.remove('is-reading-article');
+    document.documentElement.style.removeProperty('--reading-box-max-h');
     if (blogWhiteBox) {
-      blogWhiteBox.classList.add('is-box-shrinking');
-      blogWhiteBox.classList.remove('is-box-expanded');
+      blogWhiteBox.style.maxHeight = '';
+      blogWhiteBox.style.height = '';
     }
-
-    const finish = () => {
-      document.body.classList.remove('is-reading-article');
-      document.documentElement.style.removeProperty('--reading-box-max-h');
-      if (blogWhiteBox) {
-        blogWhiteBox.style.maxHeight = '';
-        blogWhiteBox.style.height = '';
-        blogWhiteBox.classList.remove('is-box-shrinking', 'is-box-morphing', 'is-box-expanded');
-      }
-      if (blogPanel) {
-        blogPanel.classList.remove('is-reading-article');
-        blogPanel.style.overscrollBehaviorY = '';
-      }
-      const view = document.getElementById('blogArticleView');
-      if (view) {
-        view.hidden = true;
-        view.style.display = '';
-        view.scrollTop = 0;
-      }
-      updateReadingDim(0);
-      setupBlogScrollHeights();
-      updateBlogScroll();
-      updateGlobalAvatarPosition();
-    };
-
-    // 等弹簧过渡结束再卸布局（与 CSS duration 对齐）
-    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
-      finish();
-    } else {
-      setTimeout(finish, 420);
+    if (blogPanel) {
+      blogPanel.classList.remove('is-reading-article');
+      blogPanel.style.overscrollBehaviorY = '';
     }
+    const view = document.getElementById('blogArticleView');
+    if (view) {
+      view.hidden = true;
+      view.style.display = '';
+      view.scrollTop = 0;
+    }
+    updateReadingDim(0);
+    setupBlogScrollHeights();
+    updateBlogScroll();
+    updateGlobalAvatarPosition();
   }
 
   async function openArticleReader(idOrSlug) {
@@ -1557,6 +1641,12 @@
   function bindNavLinkClick(link) {
     link.addEventListener('click', (e) => {
       e.preventDefault();
+      if (apiOfflineLocked) {
+        // 离线模式只允许停在首页
+        const home = document.getElementById('home');
+        if (home && scrollContainer) scrollContainer.scrollTo({ left: home.offsetLeft, behavior: 'smooth' });
+        return;
+      }
       const target = document.getElementById(link.getAttribute('href').substring(1));
       if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
     });
@@ -1674,10 +1764,18 @@
                 </div>
                 <div class="admin-form-row">
                   <label>正文格式</label>
-                  <select id="adminArticleFormat">
-                    <option value="markdown">Markdown</option>
-                    <option value="html">HTML（可嵌音频 / 富文本）</option>
-                  </select>
+                  <div class="apple-select" id="adminArticleFormatSelect" data-value="markdown">
+                    <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="apple-select-dot home-status-dot custom"></span>
+                      <span class="apple-select-label">Markdown</span>
+                      <i class="fas fa-chevron-down apple-select-chevron"></i>
+                    </button>
+                    <div class="apple-select-menu" role="listbox">
+                      <button type="button" class="apple-select-option" data-value="markdown" data-label="Markdown"><span class="home-status-dot online"></span><span>Markdown</span></button>
+                      <button type="button" class="apple-select-option" data-value="html" data-label="HTML（可嵌音频）"><span class="home-status-dot custom"></span><span>HTML（可嵌音频）</span></button>
+                    </div>
+                  </div>
+                  <input type="hidden" id="adminArticleFormat" value="markdown">
                 </div>
                 <div class="admin-form-row">
                   <label id="adminArticleContentLabel">正文（Markdown）</label>
@@ -1685,11 +1783,19 @@
                 </div>
                 <div class="admin-form-row">
                   <label>状态</label>
-                  <select id="adminArticleStatus">
-                    <option value="published">发布</option>
-                    <option value="draft">草稿</option>
-                    <option value="archived">归档</option>
-                  </select>
+                  <div class="apple-select" id="adminArticleStatusSelect" data-value="published">
+                    <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="apple-select-dot home-status-dot online"></span>
+                      <span class="apple-select-label">发布</span>
+                      <i class="fas fa-chevron-down apple-select-chevron"></i>
+                    </button>
+                    <div class="apple-select-menu" role="listbox">
+                      <button type="button" class="apple-select-option" data-value="published" data-label="发布"><span class="home-status-dot online"></span><span>发布</span></button>
+                      <button type="button" class="apple-select-option" data-value="draft" data-label="草稿"><span class="home-status-dot away"></span><span>草稿</span></button>
+                      <button type="button" class="apple-select-option" data-value="archived" data-label="归档"><span class="home-status-dot offline"></span><span>归档</span></button>
+                    </div>
+                  </div>
+                  <input type="hidden" id="adminArticleStatus" value="published">
                 </div>
                 <div class="admin-form-actions">
                   <button type="button" class="nav-btn apple-primary-btn" id="adminSaveArticleBtn">保存</button>
@@ -1811,7 +1917,15 @@
     section.querySelector('#adminRefreshArticlesBtn')?.addEventListener('click', loadAdminArticles);
     section.querySelector('#adminSaveArticleBtn')?.addEventListener('click', saveAdminArticle);
     section.querySelector('#adminResetEditorBtn')?.addEventListener('click', resetAdminEditor);
-    section.querySelector('#adminArticleFormat')?.addEventListener('change', syncAdminFormatUI);
+    wireAppleSelect(section.querySelector('#adminArticleFormatSelect'), {
+      onChange: () => syncAdminFormatUI()
+    });
+    wireAppleSelect(section.querySelector('#adminArticleStatusSelect'), {
+      onChange: (value) => {
+        const hidden = document.getElementById('adminArticleStatus');
+        if (hidden) hidden.value = value;
+      }
+    });
     syncAdminFormatUI();
 
     section.querySelector('#adminArticleTitle')?.addEventListener('input', (e) => {
@@ -1890,10 +2004,14 @@
       document.getElementById('adminArticleCategory').value = a.category || '';
       document.getElementById('adminArticleExcerpt').value = a.excerpt || '';
       document.getElementById('adminArticleContent').value = a.content || '';
-      const fmtEl = document.getElementById('adminArticleFormat');
-      if (fmtEl) fmtEl.value = detectContentType(a) === 'html' ? 'html' : 'markdown';
+      const fmt = detectContentType(a) === 'html' ? 'html' : 'markdown';
+      setAppleSelectValue('adminArticleFormatSelect', fmt);
+      const fmtHidden = document.getElementById('adminArticleFormat');
+      if (fmtHidden) fmtHidden.value = fmt;
+      setAppleSelectValue('adminArticleStatusSelect', a.status || 'published');
+      const stHidden = document.getElementById('adminArticleStatus');
+      if (stHidden) stHidden.value = a.status || 'published';
       syncAdminFormatUI();
-      document.getElementById('adminArticleStatus').value = 'published';
       document.getElementById('adminEditorTitle').textContent = '编辑文章 #' + id;
       document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'editor'));
       document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'editor'));
@@ -1903,8 +2021,84 @@
     }
   }
 
+  function wireAppleSelect(root, { onChange } = {}) {
+    if (!root || root.dataset.wired === '1') return;
+    root.dataset.wired = '1';
+    const trigger = root.querySelector('.apple-select-trigger');
+    const label = root.querySelector('.apple-select-label');
+    const dot = root.querySelector('.apple-select-dot');
+    const menu = root.querySelector('.apple-select-menu');
+    if (!trigger || !menu) return;
+
+    const close = () => {
+      root.classList.remove('open');
+      trigger.setAttribute('aria-expanded', 'false');
+    };
+    const open = () => {
+      document.querySelectorAll('.apple-select.open').forEach((el) => {
+        if (el !== root) el.classList.remove('open');
+      });
+      root.classList.add('open');
+      trigger.setAttribute('aria-expanded', 'true');
+    };
+
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (root.classList.contains('open')) close();
+      else open();
+    });
+
+    menu.querySelectorAll('.apple-select-option').forEach((opt) => {
+      opt.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const value = opt.getAttribute('data-value') || '';
+        const text = opt.getAttribute('data-label') || opt.textContent.trim();
+        root.dataset.value = value;
+        if (label) label.textContent = text;
+        const optDot = opt.querySelector('.home-status-dot');
+        if (dot && optDot) {
+          dot.className = 'apple-select-dot ' + optDot.className;
+        }
+        close();
+        if (typeof onChange === 'function') onChange(value, text);
+      });
+    });
+
+    if (!wireAppleSelect._docBound) {
+      wireAppleSelect._docBound = true;
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.apple-select.open').forEach((el) => el.classList.remove('open'));
+      });
+    }
+  }
+
+  function setAppleSelectValue(rootOrId, value) {
+    const root = typeof rootOrId === 'string' ? document.getElementById(rootOrId) : rootOrId;
+    if (!root) return;
+    const val = String(value || '');
+    root.dataset.value = val;
+    const opt = root.querySelector(`.apple-select-option[data-value="${val}"]`);
+    const label = root.querySelector('.apple-select-label');
+    const dot = root.querySelector('.apple-select-dot');
+    if (opt) {
+      if (label) label.textContent = opt.getAttribute('data-label') || opt.textContent.trim();
+      const optDot = opt.querySelector('.home-status-dot');
+      if (dot && optDot) dot.className = 'apple-select-dot ' + optDot.className;
+    }
+  }
+
+  function getAppleSelectValue(rootOrId, fallback) {
+    const root = typeof rootOrId === 'string' ? document.getElementById(rootOrId) : rootOrId;
+    if (!root) return fallback;
+    return root.dataset.value || fallback;
+  }
+
   function syncAdminFormatUI() {
-    const fmt = (document.getElementById('adminArticleFormat')?.value || 'markdown').toLowerCase();
+    const fmt = (getAppleSelectValue('adminArticleFormatSelect', 'markdown') || 'markdown').toLowerCase();
+    const hidden = document.getElementById('adminArticleFormat');
+    if (hidden) hidden.value = fmt;
     const label = document.getElementById('adminArticleContentLabel');
     const ta = document.getElementById('adminArticleContent');
     if (label) {
@@ -1912,7 +2106,7 @@
     }
     if (ta) {
       ta.placeholder = fmt === 'html'
-        ? '<!-- 可直接写 HTML，例如音频 -->\n<audio controls src="https://example.com/a.mp3"></audio>'
+        ? '<!-- 片段 HTML 即可，勿贴完整 html/head/body -->\n<audio controls src="https://example.com/a.mp3"></audio>\n<p>说明文字</p>'
         : '# 标题\n\n正文…';
     }
   }
@@ -1925,9 +2119,12 @@
     document.getElementById('adminArticleCategory').value = '';
     document.getElementById('adminArticleExcerpt').value = '';
     document.getElementById('adminArticleContent').value = '';
-    const fmtEl = document.getElementById('adminArticleFormat');
-    if (fmtEl) fmtEl.value = 'markdown';
-    document.getElementById('adminArticleStatus').value = 'published';
+    setAppleSelectValue('adminArticleFormatSelect', 'markdown');
+    setAppleSelectValue('adminArticleStatusSelect', 'published');
+    const fmtHidden = document.getElementById('adminArticleFormat');
+    if (fmtHidden) fmtHidden.value = 'markdown';
+    const stHidden = document.getElementById('adminArticleStatus');
+    if (stHidden) stHidden.value = 'published';
     document.getElementById('adminEditorTitle').textContent = '新建文章';
     const msg = document.getElementById('adminEditorMsg');
     if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
@@ -1937,9 +2134,10 @@
   async function saveAdminArticle() {
     const msg = document.getElementById('adminEditorMsg');
     const id = document.getElementById('adminEditArticleId')?.value;
-    const contentType = (document.getElementById('adminArticleFormat')?.value || 'markdown').toLowerCase() === 'html'
+    const contentType = (getAppleSelectValue('adminArticleFormatSelect', 'markdown') || 'markdown').toLowerCase() === 'html'
       ? 'html'
       : 'markdown';
+    const statusVal = getAppleSelectValue('adminArticleStatusSelect', 'draft') || 'draft';
     const body = {
       title: (document.getElementById('adminArticleTitle')?.value || '').trim(),
       slug: (document.getElementById('adminArticleSlug')?.value || '').trim(),
@@ -1948,7 +2146,7 @@
       content: document.getElementById('adminArticleContent')?.value || '',
       content_type: contentType,
       format: contentType,
-      status: document.getElementById('adminArticleStatus')?.value || 'draft'
+      status: statusVal
     };
     if (!body.title || !body.slug || !body.content) {
       if (msg) { msg.textContent = '请填写标题、Slug 与正文'; msg.className = 'admin-msg err'; }
@@ -2120,6 +2318,10 @@
 
   function updateGlobalAvatarPosition() {
     const globalAvatar = document.getElementById('globalAvatar');
+    if (apiOfflineLocked) {
+      centerAvatarForOffline();
+      return;
+    }
     const homePlaceholder = document.getElementById('homeAvatarPlaceholder');
     const blogPlaceholder = document.getElementById('coverAvatarPlaceholder');
     const worksPlaceholder = document.getElementById('worksAvatarPlaceholder');
@@ -2306,6 +2508,14 @@
   }
 
   scrollContainer.addEventListener('scroll', () => {
+    if (apiOfflineLocked) {
+      const home = document.getElementById('home');
+      if (home && Math.abs(scrollContainer.scrollLeft - home.offsetLeft) > 2) {
+        scrollContainer.scrollLeft = home.offsetLeft;
+      }
+      requestAnimationFrame(centerAvatarForOffline);
+      return;
+    }
     updateActiveNavFromScroll();
     onHorizontalScrollForNav();
     requestAnimationFrame(updateGlobalAvatarPosition);
@@ -2887,29 +3097,18 @@
     let done = 0;
     const total = Math.max(1, urls.length);
 
-    // 图片预载 + API /health 并行；健康检查失败则门禁拦截
+    // 图片预载 + API /health 并行；失败不卡门禁，仅标记离线首页模式
     const healthPromise = resolveApiBase();
 
     await Promise.all(urls.map(async (url) => {
       await loadImageWithProgress(url);
       done += 1;
-      // 预留一点进度给 health，避免 100% 后仍卡检查
       setBootProgress((done / total) * 88);
     }));
 
     const apiOk = await healthPromise;
     setBootProgress(100);
     await new Promise(r => setTimeout(r, 160));
-
-    if (!apiOk) {
-      showBootApiIsland();
-      if (loader) {
-        loader.classList.add('is-blocked');
-        loader.setAttribute('aria-busy', 'true');
-      }
-      // 拦截：不卸门禁、不恢复滚动
-      return { blocked: true };
-    }
 
     if (loader) {
       loader.classList.add('is-done');
@@ -2922,7 +3121,7 @@
       stopAnim();
     }
     if (scrollContainer) scrollContainer.style.overflow = '';
-    return { blocked: false };
+    return { blocked: false, apiOk: !!apiOk };
   }
 
   // ============================================================
@@ -3722,11 +3921,9 @@
   async function init() {
     loadSpriteImage();
 
-    // 门禁优先：图片 + /api/health；失败则灵动岛提示并永久拦截
+    // 门禁只负责资源；API 失败不拦截门禁，进入首页离线模式
     const bootResult = await runBootLoader();
-    if (bootResult && bootResult.blocked) {
-      return;
-    }
+    const apiOk = !(bootResult && bootResult.apiOk === false);
 
     renderProfile();
     filterAndRenderBlogs('', null);
@@ -3741,6 +3938,13 @@
     updateBlogScroll();
     updateGlobalAvatarPosition();
 
+    if (!apiOk) {
+      applyApiOfflineHomeMode();
+      // 离线仍保留点击特效 / 右键菜单；不拉后台数据
+      setTimeout(() => centerAvatarForOffline(), 80);
+      return;
+    }
+
     await checkAdminSession();
     await fetchAllData();
 
@@ -3748,7 +3952,7 @@
       const catRes = await fetch(`${API_BASE_URL}/categories`, { credentials: 'include' });
       if (catRes.ok) {
         const catData = await catRes.json();
-        if (Array.isArray(catData.categories)) renderThemeRail(catData.categories);
+        if (catData && Array.isArray(catData.categories)) renderThemeRail(catData.categories);
       }
     } catch (_) {}
 
