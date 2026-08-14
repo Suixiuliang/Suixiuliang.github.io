@@ -746,6 +746,66 @@
     });
   }
 
+  function detectContentType(article) {
+    if (!article) return 'markdown';
+    const raw = (
+      article.content_type ||
+      article.contentType ||
+      article.format ||
+      article.type ||
+      ''
+    ).toString().toLowerCase();
+    if (raw === 'html' || raw === 'text/html') return 'html';
+    if (raw === 'markdown' || raw === 'md' || raw === 'text/markdown') return 'markdown';
+    // 启发式：明显 HTML 文档
+    const c = String(article.content || article.body || '');
+    if (/^\s*<(?:!doctype|html|div|section|article|p|h[1-6]|audio|video)\b/i.test(c)) return 'html';
+    return 'markdown';
+  }
+
+  /** 管理端 HTML 轻量清洗：去掉脚本，保留媒体与常见排版标签 */
+  function sanitizeAdminHtml(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(html || '');
+    tpl.content.querySelectorAll('script, iframe, object, embed, link[rel="import"]').forEach((n) => n.remove());
+    tpl.content.querySelectorAll('*').forEach((el) => {
+      [...el.attributes].forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        const val = String(attr.value || '');
+        if (name.startsWith('on') || /^javascript:/i.test(val)) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+    return tpl.innerHTML;
+  }
+
+  function renderArticleBodyHtml(content, contentType) {
+    if ((contentType || '').toLowerCase() === 'html') {
+      return sanitizeAdminHtml(content) || '';
+    }
+    return simpleMarkdownToHtml(content) || '';
+  }
+
+  function enhanceArticleMedia(root) {
+    if (!root) return;
+    root.querySelectorAll('audio').forEach((audio) => {
+      if (audio.closest('.md-audio-player')) return;
+      audio.setAttribute('controls', '');
+      audio.preload = audio.preload || 'metadata';
+      const wrap = document.createElement('div');
+      wrap.className = 'md-audio-player';
+      const label = document.createElement('div');
+      label.className = 'md-audio-label';
+      const src = audio.getAttribute('src') || (audio.querySelector('source') && audio.querySelector('source').src) || '';
+      const name = src ? decodeURIComponent(src.split('/').pop().split('?')[0] || '音频') : '音频';
+      label.innerHTML = `<i class="fas fa-music"></i><span>${escapeHtml(name)}</span>`;
+      audio.parentNode.insertBefore(wrap, audio);
+      wrap.appendChild(label);
+      wrap.appendChild(audio);
+    });
+  }
+
   function simpleMarkdownToHtml(md) {
     if (!md) return '';
     const slots = [];
@@ -1292,6 +1352,11 @@
     if (!blogPanel) return;
     isArticleReading = true;
     document.body.classList.add('is-reading-article');
+    // 先挂 morph 起点，再在下一帧进入阅读态，保证弹簧从当前值出发
+    if (blogWhiteBox) {
+      blogWhiteBox.classList.remove('is-box-shrinking');
+      blogWhiteBox.classList.add('is-box-morphing');
+    }
     blogPanel.classList.add('is-reading-article');
     nav && nav.classList.add('blog-mode');
     railGapLocked = true;
@@ -1312,6 +1377,13 @@
     updateBlogScroll();
     updateGlobalAvatarPosition();
     lockOuterScrollToBase();
+
+    requestAnimationFrame(() => {
+      if (blogWhiteBox) {
+        blogWhiteBox.classList.add('is-box-expanded');
+        blogWhiteBox.classList.remove('is-box-morphing');
+      }
+    });
   }
 
   function exitArticleReadingLayout() {
@@ -1322,26 +1394,44 @@
       cancelAnimationFrame(readingOuterLockRaf);
       readingOuterLockRaf = null;
     }
-    document.body.classList.remove('is-reading-article');
-    document.documentElement.style.removeProperty('--reading-box-max-h');
+
+    // 先播缩小动画，再卸阅读态 class
     if (blogWhiteBox) {
-      blogWhiteBox.style.maxHeight = '';
-      blogWhiteBox.style.height = '';
+      blogWhiteBox.classList.add('is-box-shrinking');
+      blogWhiteBox.classList.remove('is-box-expanded');
     }
-    if (blogPanel) {
-      blogPanel.classList.remove('is-reading-article');
-      blogPanel.style.overscrollBehaviorY = '';
+
+    const finish = () => {
+      document.body.classList.remove('is-reading-article');
+      document.documentElement.style.removeProperty('--reading-box-max-h');
+      if (blogWhiteBox) {
+        blogWhiteBox.style.maxHeight = '';
+        blogWhiteBox.style.height = '';
+        blogWhiteBox.classList.remove('is-box-shrinking', 'is-box-morphing', 'is-box-expanded');
+      }
+      if (blogPanel) {
+        blogPanel.classList.remove('is-reading-article');
+        blogPanel.style.overscrollBehaviorY = '';
+      }
+      const view = document.getElementById('blogArticleView');
+      if (view) {
+        view.hidden = true;
+        view.style.display = '';
+        view.scrollTop = 0;
+      }
+      updateReadingDim(0);
+      setupBlogScrollHeights();
+      updateBlogScroll();
+      updateGlobalAvatarPosition();
+    };
+
+    // 等弹簧过渡结束再卸布局（与 CSS duration 对齐）
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      finish();
+    } else {
+      setTimeout(finish, 420);
     }
-    const view = document.getElementById('blogArticleView');
-    if (view) {
-      view.hidden = true;
-      view.style.display = '';
-      view.scrollTop = 0;
-    }
-    updateReadingDim(0);
-    setupBlogScrollHeights();
-    updateBlogScroll();
-    updateGlobalAvatarPosition();
   }
 
   async function openArticleReader(idOrSlug) {
@@ -1399,9 +1489,16 @@
           : '');
     }
     const content = article.content || article.body || (local && local.content) || article.summary || article.excerpt || '';
-    bodyEl.innerHTML = simpleMarkdownToHtml(content) || '<p>（无正文）</p>';
-    highlightArticleCode(bodyEl);
-    renderArticleMath(bodyEl);
+    const ctype = detectContentType(article) || detectContentType(local) || 'markdown';
+    bodyEl.innerHTML = renderArticleBodyHtml(content, ctype) || '<p>（无正文）</p>';
+    enhanceArticleMedia(bodyEl);
+    if (ctype !== 'html') {
+      highlightArticleCode(bodyEl);
+      renderArticleMath(bodyEl);
+    } else {
+      // HTML 文里也可能嵌了代码块
+      highlightArticleCode(bodyEl);
+    }
 
     // 图片、KaTeX、代码高亮都会异步改变正文高度；持续观察，避免滚动范围落后于真实高度。
     stabilizeArticleLayout(bodyEl);
@@ -1576,7 +1673,14 @@
                   <input type="text" id="adminArticleExcerpt" maxlength="1000" placeholder="一句话简介">
                 </div>
                 <div class="admin-form-row">
-                  <label>正文（Markdown）</label>
+                  <label>正文格式</label>
+                  <select id="adminArticleFormat">
+                    <option value="markdown">Markdown</option>
+                    <option value="html">HTML（可嵌音频 / 富文本）</option>
+                  </select>
+                </div>
+                <div class="admin-form-row">
+                  <label id="adminArticleContentLabel">正文（Markdown）</label>
                   <textarea id="adminArticleContent" placeholder="# 标题&#10;&#10;正文…"></textarea>
                 </div>
                 <div class="admin-form-row">
@@ -1707,6 +1811,8 @@
     section.querySelector('#adminRefreshArticlesBtn')?.addEventListener('click', loadAdminArticles);
     section.querySelector('#adminSaveArticleBtn')?.addEventListener('click', saveAdminArticle);
     section.querySelector('#adminResetEditorBtn')?.addEventListener('click', resetAdminEditor);
+    section.querySelector('#adminArticleFormat')?.addEventListener('change', syncAdminFormatUI);
+    syncAdminFormatUI();
 
     section.querySelector('#adminArticleTitle')?.addEventListener('input', (e) => {
       const id = section.querySelector('#adminEditArticleId')?.value;
@@ -1784,6 +1890,9 @@
       document.getElementById('adminArticleCategory').value = a.category || '';
       document.getElementById('adminArticleExcerpt').value = a.excerpt || '';
       document.getElementById('adminArticleContent').value = a.content || '';
+      const fmtEl = document.getElementById('adminArticleFormat');
+      if (fmtEl) fmtEl.value = detectContentType(a) === 'html' ? 'html' : 'markdown';
+      syncAdminFormatUI();
       document.getElementById('adminArticleStatus').value = 'published';
       document.getElementById('adminEditorTitle').textContent = '编辑文章 #' + id;
       document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'editor'));
@@ -1791,6 +1900,20 @@
       if (msg) { msg.textContent = '已载入文章'; msg.className = 'admin-msg ok'; }
     } catch (e) {
       if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+    }
+  }
+
+  function syncAdminFormatUI() {
+    const fmt = (document.getElementById('adminArticleFormat')?.value || 'markdown').toLowerCase();
+    const label = document.getElementById('adminArticleContentLabel');
+    const ta = document.getElementById('adminArticleContent');
+    if (label) {
+      label.textContent = fmt === 'html' ? '正文（HTML）' : '正文（Markdown）';
+    }
+    if (ta) {
+      ta.placeholder = fmt === 'html'
+        ? '<!-- 可直接写 HTML，例如音频 -->\n<audio controls src="https://example.com/a.mp3"></audio>'
+        : '# 标题\n\n正文…';
     }
   }
 
@@ -1802,21 +1925,29 @@
     document.getElementById('adminArticleCategory').value = '';
     document.getElementById('adminArticleExcerpt').value = '';
     document.getElementById('adminArticleContent').value = '';
+    const fmtEl = document.getElementById('adminArticleFormat');
+    if (fmtEl) fmtEl.value = 'markdown';
     document.getElementById('adminArticleStatus').value = 'published';
     document.getElementById('adminEditorTitle').textContent = '新建文章';
     const msg = document.getElementById('adminEditorMsg');
     if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
+    syncAdminFormatUI();
   }
 
   async function saveAdminArticle() {
     const msg = document.getElementById('adminEditorMsg');
     const id = document.getElementById('adminEditArticleId')?.value;
+    const contentType = (document.getElementById('adminArticleFormat')?.value || 'markdown').toLowerCase() === 'html'
+      ? 'html'
+      : 'markdown';
     const body = {
       title: (document.getElementById('adminArticleTitle')?.value || '').trim(),
       slug: (document.getElementById('adminArticleSlug')?.value || '').trim(),
       category: (document.getElementById('adminArticleCategory')?.value || '').trim() || null,
       excerpt: (document.getElementById('adminArticleExcerpt')?.value || '').trim(),
       content: document.getElementById('adminArticleContent')?.value || '',
+      content_type: contentType,
+      format: contentType,
       status: document.getElementById('adminArticleStatus')?.value || 'draft'
     };
     if (!body.title || !body.slug || !body.content) {

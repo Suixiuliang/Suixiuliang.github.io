@@ -1,4 +1,4 @@
-﻿* {
+* {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -850,7 +850,27 @@ body {
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: auto;
-  will-change: transform, max-width;
+  will-change: transform, max-width, height, max-height, box-shadow;
+  /* Apple spring：response ~0.4，轻微 overshoot */
+  transition:
+    max-width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    max-height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    transform 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    box-shadow 0.38s cubic-bezier(0.25, 1, 0.5, 1),
+    border-radius 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+  transform: scale(1);
+  transform-origin: center top;
+}
+.blog-white-box.is-box-morphing {
+  transform: scale(0.975);
+}
+.blog-white-box.is-box-expanded {
+  transform: scale(1);
+}
+.blog-white-box.is-box-shrinking {
+  transform: scale(0.98);
 }
 @media (max-width: 720px) {
   :root {
@@ -1968,7 +1988,13 @@ body.is-reading-article .reading-dim-layer {
 .panel-blog.is-reading-article .blog-white-box {
   max-width: 100% !important;
   width: 100% !important;
-  transition: max-width 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+  transition:
+    max-width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    width 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    max-height 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    transform 0.42s cubic-bezier(0.22, 1.2, 0.36, 1),
+    box-shadow 0.38s cubic-bezier(0.25, 1, 0.5, 1);
   position: relative;
   z-index: 3;
   display: flex;
@@ -1976,6 +2002,16 @@ body.is-reading-article .reading-dim-layer {
   max-height: var(--reading-box-max-h, calc(100vh - 96px));
   height: var(--reading-box-max-h, calc(100vh - 96px));
   overflow: hidden;
+  box-shadow:
+    0 28px 56px rgba(0, 0, 0, 0.32),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45);
+}
+@media (prefers-reduced-motion: reduce) {
+  .blog-white-box,
+  .panel-blog.is-reading-article .blog-white-box {
+    transition: opacity 0.2s ease !important;
+    transform: none !important;
+  }
 }
 .panel-blog.is-reading-article .white-box-inner {
   flex: 1 1 auto;
@@ -2158,6 +2194,62 @@ body.is-reading-article .reading-dim-layer {
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
+}
+/* —— HTML 音频：液态玻璃播放器 —— */
+.blog-article-body .md-audio-player {
+  margin: 1.1em 0;
+  padding: 0.85rem 1rem 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.28),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.4),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+}
+.blog-article-body .md-audio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 550;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: -0.01em;
+}
+.blog-article-body .md-audio-label i {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 113, 227, 0.28);
+  border: 1px solid rgba(120, 180, 255, 0.4);
+  color: #9ec9ff;
+  font-size: 0.75rem;
+}
+.blog-article-body .md-audio-player audio,
+.blog-article-body audio {
+  display: block;
+  width: 100%;
+  height: 40px;
+  border-radius: 999px;
+  outline: none;
+  /* 尽量贴近系统控件，外层玻璃托住 */
+  background: rgba(0, 0, 0, 0.22);
+}
+.blog-article-body audio:not(.md-audio-player audio) {
+  margin: 0.85em 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
 }
 /* —— 行内 code —— */
 .blog-article-body code {
