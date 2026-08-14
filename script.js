@@ -397,35 +397,54 @@
 
   let API_BASE_URL = API_CANDIDATES[0];
 
-  async function resolveApiBase() {
-    const tryOne = async (base) => {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 4500);
-      try {
-        const res = await fetch(`${base}/health`, {
-          method: 'GET',
-          signal: ctrl.signal,
-          cache: 'no-store',
-          credentials: 'omit'
-        });
-        clearTimeout(timer);
-        if (!res.ok) return false;
-        const data = await res.json().catch(() => null);
-        return !!(data && (data.success || data.status === 'ok'));
-      } catch {
-        clearTimeout(timer);
-        return false;
-      }
-    };
+  async function probeApiHealth(base, timeoutMs) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 4500);
+    try {
+      const res = await fetch(`${base}/health`, {
+        method: 'GET',
+        signal: ctrl.signal,
+        cache: 'no-store',
+        credentials: 'omit'
+      });
+      clearTimeout(timer);
+      if (!res.ok) return false;
+      const data = await res.json().catch(() => null);
+      return !!(data && (data.success || data.status === 'ok'));
+    } catch {
+      clearTimeout(timer);
+      return false;
+    }
+  }
 
+  /** @returns {Promise<boolean>} 是否有可用 API */
+  async function resolveApiBase() {
     for (const base of API_CANDIDATES) {
-      if (await tryOne(base)) {
+      if (await probeApiHealth(base, 4500)) {
         API_BASE_URL = base;
-        return API_BASE_URL;
+        return true;
       }
     }
     API_BASE_URL = API_CANDIDATES[0];
-    return API_BASE_URL;
+    return false;
+  }
+
+  function showBootApiIsland() {
+    const island = document.getElementById('bootApiIsland');
+    if (!island) return;
+    island.setAttribute('aria-hidden', 'false');
+    // 双 rAF：先挂上布局再开过渡，保证弹簧感从当前值出发
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        island.classList.add('is-visible');
+      });
+    });
+    const title = document.getElementById('bootLoaderTitle');
+    const desc = document.getElementById('bootLoaderDesc');
+    const card = document.getElementById('bootLoaderCard');
+    if (title) title.textContent = '无法进入';
+    if (desc) desc.textContent = '后台接口不可用，门禁已拦截本次访问';
+    if (card) card.classList.add('is-blocked');
   }
 
   function formatDateUTC8(input) {
@@ -1127,9 +1146,10 @@
     const el = getArticleScrollEl();
     const maxScroll = el ? Math.max(1, el.scrollHeight - el.clientHeight) : 1;
     const top = el ? el.scrollTop : (typeof scrollHint === 'number' ? scrollHint : 0);
-    const progress = Math.min(1, Math.max(0, top / Math.max(180, maxScroll * 0.45, window.innerHeight * 0.35)));
-    const opacity = 0.18 + progress * 0.52;
-    const blur = 2 + progress * 14;
+    // 更快变暗：约半屏 / 短距离内拉满进度
+    const progress = Math.min(1, Math.max(0, top / Math.max(70, maxScroll * 0.18, window.innerHeight * 0.16)));
+    const opacity = 0.22 + progress * 0.58;
+    const blur = 3 + progress * 16;
     layer.classList.add('is-active');
     layer.style.opacity = String(opacity);
     layer.style.backdropFilter = `blur(${blur.toFixed(1)}px) saturate(${(120 - progress * 30).toFixed(0)}%)`;
@@ -2734,16 +2754,31 @@
 
     const urls = CRITICAL_IMAGE_URLS.slice();
     let done = 0;
-    const total = urls.length;
+    const total = Math.max(1, urls.length);
+
+    // 图片预载 + API /health 并行；健康检查失败则门禁拦截
+    const healthPromise = resolveApiBase();
 
     await Promise.all(urls.map(async (url) => {
       await loadImageWithProgress(url);
       done += 1;
-      setBootProgress((done / total) * 100);
+      // 预留一点进度给 health，避免 100% 后仍卡检查
+      setBootProgress((done / total) * 88);
     }));
 
-    await new Promise(r => setTimeout(r, 180));
+    const apiOk = await healthPromise;
     setBootProgress(100);
+    await new Promise(r => setTimeout(r, 160));
+
+    if (!apiOk) {
+      showBootApiIsland();
+      if (loader) {
+        loader.classList.add('is-blocked');
+        loader.setAttribute('aria-busy', 'true');
+      }
+      // 拦截：不卸门禁、不恢复滚动
+      return { blocked: true };
+    }
 
     if (loader) {
       loader.classList.add('is-done');
@@ -2756,6 +2791,7 @@
       stopAnim();
     }
     if (scrollContainer) scrollContainer.style.overflow = '';
+    return { blocked: false };
   }
 
   // ============================================================
@@ -3555,7 +3591,11 @@
   async function init() {
     loadSpriteImage();
 
-    const bootPromise = runBootLoader();
+    // 门禁优先：图片 + /api/health；失败则灵动岛提示并永久拦截
+    const bootResult = await runBootLoader();
+    if (bootResult && bootResult.blocked) {
+      return;
+    }
 
     renderProfile();
     filterAndRenderBlogs('', null);
@@ -3570,7 +3610,6 @@
     updateBlogScroll();
     updateGlobalAvatarPosition();
 
-    await resolveApiBase();
     await checkAdminSession();
     await fetchAllData();
 
@@ -3581,8 +3620,6 @@
         if (Array.isArray(catData.categories)) renderThemeRail(catData.categories);
       }
     } catch (_) {}
-
-    await bootPromise;
 
     setTimeout(() => {
       setupBlogScrollHeights();

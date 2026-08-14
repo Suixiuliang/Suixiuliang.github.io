@@ -1,4 +1,4 @@
-* {
+﻿* {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -1236,6 +1236,84 @@ body {
   visibility: hidden;
   pointer-events: none;
 }
+.boot-loader.is-blocked {
+  pointer-events: auto;
+}
+.boot-loader-card.is-blocked {
+  border-color: rgba(255, 120, 120, 0.35);
+}
+.boot-loader-card.is-blocked h2 {
+  color: #ffb4b4;
+}
+
+/* —— 门禁灵动岛（Dynamic Island 风格液态玻璃） —— */
+.boot-api-island {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: min(92vw, 440px);
+  /* 从上方收缩态出发；可见时弹簧展开（Apple response ~0.4、轻微 overshoot） */
+  transform: translate3d(-50%, -140%, 0) scale(0.42, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: center top;
+  transition:
+    transform 0.55s cubic-bezier(0.22, 1.25, 0.36, 1),
+    opacity 0.32s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform, opacity;
+}
+.boot-api-island.is-visible {
+  transform: translate3d(-50%, 0, 0) scale(1, 1);
+  opacity: 1;
+  pointer-events: auto;
+}
+.boot-api-island-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.72rem 1.15rem 0.72rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.42),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  color: #f4f7ff;
+}
+.boot-api-island-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 90, 90, 0.2);
+  border: 1px solid rgba(255, 140, 140, 0.4);
+  color: #ff8e8e;
+  font-size: 0.82rem;
+}
+.boot-api-island-text {
+  font-size: 0.84rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-api-island {
+    transition: opacity 0.2s ease;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+  .boot-api-island:not(.is-visible) {
+    opacity: 0;
+  }
+}
 .boot-loader-canvas {
   position: absolute;
   inset: 0;
@@ -2422,10 +2500,10 @@ body.is-reading-article .reading-dim-layer {
    自定义右键菜单（液态玻璃 + 两端全圆选项）
    ============================================================ */
 .site-context-menu {
-  /* 在初版 14 / 10 基础上略加大一点，外圆角 ≈ 选项圆角 + padding */
+  /* 选项两头正圆 20px；背景板 26px */
   --ctx-pad: 6px;
-  --ctx-item-r: 12px;
-  --ctx-shell-r: 18px;
+  --ctx-r: 20px;
+  --ctx-shell-r: 26px;
   position: fixed;
   z-index: 2147483000;
   min-width: 210px;
@@ -2459,7 +2537,7 @@ body.is-reading-article .reading-dim-layer {
   gap: 10px;
   padding: 0.58rem 0.95rem;
   border: 1px solid transparent;
-  border-radius: var(--ctx-item-r);
+  border-radius: var(--ctx-r);
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.92);
   font: inherit;
