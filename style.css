@@ -1988,15 +1988,15 @@ body.is-reading-article .reading-dim-layer {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.35rem 0 0.65rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.25rem 0 0.55rem;
+  border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 6;
-  /* 工具栏仅自身半透明底，不再大面积 blur 空区 */
-  background: rgba(20, 28, 40, 0.55);
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  /* 去掉整条黑长方形底，只保留按钮本身的玻璃感 */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .blog-back-btn {
   appearance: none;
@@ -2414,12 +2414,15 @@ body.is-reading-article .reading-dim-layer {
    自定义右键菜单（液态玻璃 + 两端全圆选项）
    ============================================================ */
 .site-context-menu {
+  --ctx-pad: 6px;
+  --ctx-item-r: 999px;
   position: fixed;
   z-index: 2147483000;
   min-width: 210px;
   max-width: min(300px, calc(100vw - 16px));
-  padding: 8px;
-  border-radius: 22px;
+  padding: var(--ctx-pad);
+  /* 外围 R 角与内层圆头选项对齐：外圆角 ≈ 选项半高 + padding（用 999px 与选项同为胶囊形） */
+  border-radius: var(--ctx-item-r);
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
@@ -2447,7 +2450,7 @@ body.is-reading-article .reading-dim-layer {
   gap: 10px;
   padding: 0.58rem 0.95rem;
   border: 1px solid transparent;
-  border-radius: 999px; /* 两端全圆 */
+  border-radius: var(--ctx-item-r); /* 与菜单外壳同一套圆头 */
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.92);
   font: inherit;
