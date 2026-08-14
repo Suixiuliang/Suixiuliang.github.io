@@ -1162,6 +1162,36 @@
     });
   }
 
+  function updateBackBtnOnArticleScroll(view) {
+    const btn = document.getElementById('blogArticleBack');
+    if (!btn || !view) return;
+    const title = document.getElementById('blogArticleTitle');
+    const meta = document.getElementById('blogArticleMeta');
+    const toolbar = view.querySelector('.blog-article-toolbar');
+    const mark = meta || title;
+    // 过了标题/元信息底边（分割线之后）开始淡出
+    let fadeStart = 72;
+    if (mark) {
+      const toolbarH = toolbar ? toolbar.offsetHeight : 0;
+      fadeStart = Math.max(24, mark.offsetTop + mark.offsetHeight - toolbarH * 0.35);
+    }
+    const fadeLen = 52;
+    const st = view.scrollTop || 0;
+    let t = 0;
+    if (st <= fadeStart) t = 0;
+    else if (st >= fadeStart + fadeLen) t = 1;
+    else t = (st - fadeStart) / fadeLen;
+    // ease
+    t = t * t * (3 - 2 * t);
+    const opacity = 1 - t;
+    btn.style.opacity = String(opacity);
+    btn.style.transform = t > 0.01 ? `translateY(${(-8 * t).toFixed(1)}px)` : '';
+    btn.classList.toggle('is-faded', opacity < 0.12);
+    if (toolbar) {
+      toolbar.style.pointerEvents = opacity < 0.12 ? 'none' : '';
+    }
+  }
+
   function bindArticleInnerScroll() {
     const view = getArticleScrollEl();
     if (!view) return;
@@ -1171,9 +1201,12 @@
     readingArticleScrollHandler = () => {
       if (!isArticleReading) return;
       updateReadingDim(view.scrollTop);
+      updateBackBtnOnArticleScroll(view);
       updateGlobalAvatarPosition();
     };
     view.addEventListener('scroll', readingArticleScrollHandler, { passive: true });
+    // 初始复位
+    updateBackBtnOnArticleScroll(view);
   }
 
   function unbindArticleInnerScroll() {
@@ -1182,6 +1215,12 @@
       view.removeEventListener('scroll', readingArticleScrollHandler);
     }
     readingArticleScrollHandler = null;
+    const btn = document.getElementById('blogArticleBack');
+    if (btn) {
+      btn.style.opacity = '';
+      btn.style.transform = '';
+      btn.classList.remove('is-faded');
+    }
   }
 
   function stopArticleLayoutObserver() {

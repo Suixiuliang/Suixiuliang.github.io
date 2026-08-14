@@ -2013,7 +2013,15 @@ body.is-reading-article .reading-dim-layer {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    opacity 0.22s ease;
+  will-change: opacity, transform;
+}
+.blog-back-btn.is-faded {
+  pointer-events: none;
 }
 .blog-back-btn:hover {
   background: rgba(255, 255, 255, 0.2);
@@ -2414,15 +2422,16 @@ body.is-reading-article .reading-dim-layer {
    自定义右键菜单（液态玻璃 + 两端全圆选项）
    ============================================================ */
 .site-context-menu {
+  /* 在初版 14 / 10 基础上略加大一点，外圆角 ≈ 选项圆角 + padding */
   --ctx-pad: 6px;
-  --ctx-item-r: 999px;
+  --ctx-item-r: 12px;
+  --ctx-shell-r: 18px;
   position: fixed;
   z-index: 2147483000;
   min-width: 210px;
   max-width: min(300px, calc(100vw - 16px));
   padding: var(--ctx-pad);
-  /* 外围 R 角与内层圆头选项对齐：外圆角 ≈ 选项半高 + padding（用 999px 与选项同为胶囊形） */
-  border-radius: var(--ctx-item-r);
+  border-radius: var(--ctx-shell-r);
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
@@ -2450,7 +2459,7 @@ body.is-reading-article .reading-dim-layer {
   gap: 10px;
   padding: 0.58rem 0.95rem;
   border: 1px solid transparent;
-  border-radius: var(--ctx-item-r); /* 与菜单外壳同一套圆头 */
+  border-radius: var(--ctx-item-r);
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.92);
   font: inherit;
@@ -2489,9 +2498,9 @@ body.is-reading-article .reading-dim-layer {
 }
 .site-ctx-sep {
   height: 1px;
-  margin: 6px 12px;
+  margin: 6px 10px;
   background: rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
+  border-radius: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
   .site-context-menu { animation: none; }
