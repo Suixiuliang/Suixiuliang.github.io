@@ -869,6 +869,38 @@
    * - 去掉事件属性与 javascript: URL
    * - 去掉会破坏深色玻璃阅读的 color/background 内联样式
    */
+  const IFRAME_HOST_ALLOW = [
+    'player.bilibili.com',
+    'www.bilibili.com',
+    'bilibili.com',
+    'www.youtube.com',
+    'youtube.com',
+    'www.youtube-nocookie.com',
+    'youtu.be',
+    'player.youku.com',
+    'v.qq.com',
+    'open.spotify.com',
+    'w.soundcloud.com',
+    'embed.music.apple.com',
+    'codepen.io',
+    'codesandbox.io',
+    'stackblitz.com',
+    'player.vimeo.com'
+  ];
+
+  function isAllowedIframeSrc(src) {
+    // 按需求：直接放行 iframe（仅拦 javascript: / data:）
+    const s = String(src || '').trim();
+    if (!s || /^\s*javascript:/i.test(s) || /^\s*data:/i.test(s)) return false;
+    return true;
+  }
+
+  function normalizeIframeSrc(src) {
+    const s = String(src || '').trim();
+    if (s.startsWith('//')) return 'https:' + s;
+    return s;
+  }
+
   function sanitizeAdminHtml(html) {
     const raw = String(html || '').trim();
     if (!raw) return '';
@@ -879,16 +911,16 @@
     try {
       if (looksFullDoc && typeof DOMParser !== 'undefined') {
         const doc = new DOMParser().parseFromString(raw, 'text/html');
-        doc.querySelectorAll('script, style, link, meta, title, noscript, iframe, object, embed').forEach((n) => n.remove());
+        // 注意：不要在这里删 iframe，后面白名单处理
+        doc.querySelectorAll('script, style, link, meta, title, noscript, object, embed').forEach((n) => n.remove());
         fragmentHtml = (doc.body && doc.body.innerHTML) ? doc.body.innerHTML : '';
       } else {
         const tpl = document.createElement('template');
         tpl.innerHTML = raw;
-        tpl.content.querySelectorAll('script, style, link, meta, title, noscript, iframe, object, embed').forEach((n) => n.remove());
+        tpl.content.querySelectorAll('script, style, link, meta, title, noscript, object, embed').forEach((n) => n.remove());
         fragmentHtml = tpl.innerHTML;
       }
     } catch (_) {
-      // 最后兜底：粗暴剥壳
       fragmentHtml = raw
         .replace(/<!doctype[^>]*>/gi, '')
         .replace(/<\/?(html|head|body)[^>]*>/gi, '')
@@ -899,10 +931,40 @@
     const wrap = document.createElement('div');
     wrap.innerHTML = fragmentHtml;
 
-    // 再清一次危险节点
-    wrap.querySelectorAll('script, style, link, meta, title, noscript, iframe, object, embed, form').forEach((n) => n.remove());
+    // 危险节点（iframe 单独处理）
+    wrap.querySelectorAll('script, style, link, meta, title, noscript, object, embed, form').forEach((n) => n.remove());
+
+    // iframe：直接渲染（含 //player.bilibili.com 协议相对地址）
+    wrap.querySelectorAll('iframe').forEach((iframe) => {
+      let src = iframe.getAttribute('src') || '';
+      if (!isAllowedIframeSrc(src)) {
+        iframe.remove();
+        return;
+      }
+      src = normalizeIframeSrc(src);
+      [...iframe.attributes].forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on') || name === 'srcdoc') iframe.removeAttribute(attr.name);
+      });
+      iframe.setAttribute('src', src);
+      iframe.setAttribute('loading', 'lazy');
+      iframe.setAttribute('allowfullscreen', 'true');
+      if (!iframe.getAttribute('allow')) {
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen');
+      }
+      iframe.setAttribute('frameborder', '0');
+      iframe.setAttribute('scrolling', iframe.getAttribute('scrolling') || 'no');
+      iframe.classList.add('md-embed-iframe');
+      if (!iframe.parentElement || !iframe.parentElement.classList.contains('md-embed')) {
+        const box = document.createElement('div');
+        box.className = 'md-embed';
+        iframe.parentNode.insertBefore(box, iframe);
+        box.appendChild(iframe);
+      }
+    });
 
     wrap.querySelectorAll('*').forEach((el) => {
+      if (el.tagName === 'IFRAME') return; // 已处理
       [...el.attributes].forEach((attr) => {
         const name = attr.name.toLowerCase();
         const val = String(attr.value || '');
@@ -914,7 +976,6 @@
           el.removeAttribute(attr.name);
           return;
         }
-        // 去掉会把整页衬成白底/黑字的内联样式关键声明
         if (name === 'style') {
           const cleaned = val
             .replace(/(?:^|;)\s*(?:color|background|background-color|background-image|font-family)\s*:[^;]*/gi, '')
@@ -925,7 +986,6 @@
         }
       });
 
-      // 常见“完整博客模板”class → 站内语义 class，避免白底块
       if (el.classList.contains('audio-player')) {
         el.classList.remove('audio-player');
         el.classList.add('md-audio-player');
