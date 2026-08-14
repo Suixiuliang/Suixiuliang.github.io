@@ -1,0 +1,45 @@
+# GitHub Pages SPA 回退：部署时把 index.html 复制为 404.html
+# 这样访问 /blog/{slug} 时 GitHub Pages 会返回 404.html（内容=SPA），前端再读 pathname 打开文章
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare SPA fallback (404.html = index.html)
+        run: |
+          cp index.html 404.html
+          # 可选：保证相对资源路径在深层路由下仍可用（若你用绝对路径 /script.js 可跳过）
+          ls -la index.html 404.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
