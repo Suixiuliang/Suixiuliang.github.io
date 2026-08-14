@@ -2189,144 +2189,70 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 自研液态玻璃音乐播放器 —— */
+/* —— 仿 HTML5 audio：播放图标 + 进度 + 时间（无标题/音量） —— */
 .blog-article-body .md-audio-player,
 .blog-article-body .glass-audio-player {
-  margin: 1.15em 0;
-  padding: 0.95rem 1.05rem;
-  border-radius: var(--radius-card, 22px);
-  background: rgba(255, 255, 255, 0.13);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.22),
-    inset 0 1px 1px rgba(255, 255, 255, 0.38),
-    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  margin: 0.85em 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   color: #fff;
 }
-.glass-audio-player .gap-main {
+.glass-audio-player.h5-like .gap-main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
-.glass-audio-player .gap-play,
-.glass-audio-player .gap-mute {
+.glass-audio-player .gap-play {
   appearance: none;
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
-  color: #fff;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease;
+  font-size: 0.85rem;
 }
-.glass-audio-player .gap-play:hover,
-.glass-audio-player .gap-mute:hover { background: rgba(255, 255, 255, 0.22); }
-.glass-audio-player .gap-play:active,
-.glass-audio-player .gap-mute:active { transform: scale(0.96); }
-.glass-audio-player.is-playing .gap-play {
-  background: rgba(0, 113, 227, 0.55);
-  border-color: rgba(120, 180, 255, 0.45);
-}
-.glass-audio-player .gap-meta {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.glass-audio-player .gap-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.88rem;
-  font-weight: 560;
-  letter-spacing: -0.015em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.glass-audio-player .gap-title i { opacity: 0.85; font-size: 0.8rem; }
-.glass-audio-player .gap-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.glass-audio-player .gap-play:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
 .glass-audio-player .gap-time {
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.72);
   min-width: 2.2em;
+  font-family: system-ui, -apple-system, sans-serif;
 }
-.glass-audio-player .gap-seek,
-.glass-audio-player .gap-vol-seek {
+.glass-audio-player .gap-seek {
   position: relative;
   flex: 1 1 auto;
-  height: 18px;
+  height: 16px;
   display: flex;
   align-items: center;
   cursor: pointer;
   touch-action: none;
 }
-.glass-audio-player .gap-vol-seek {
-  width: 72px;
-  flex: 0 0 72px;
-}
 .glass-audio-player .gap-seek-track {
   position: relative;
   width: 100%;
-  height: 5px;
+  height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
-  overflow: visible;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
 }
 .glass-audio-player .gap-seek-fill {
   height: 100%;
   width: 0%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #5ac8fa, #0071e3);
-  box-shadow: 0 0 10px rgba(0, 113, 227, 0.35);
-}
-.glass-audio-player .gap-seek-thumb {
-  position: absolute;
-  top: 50%;
-  left: 0%;
-  width: 12px;
-  height: 12px;
-  margin-top: -6px;
-  margin-left: -6px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.glass-audio-player .gap-seek:hover .gap-seek-thumb,
-.glass-audio-player.is-playing .gap-seek-thumb { opacity: 1; }
-.glass-audio-player .gap-vol {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-.glass-audio-player .gap-mute {
-  width: 34px;
-  height: 34px;
-  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.85);
 }
 .glass-audio-player audio { display: none !important; }
-@media (max-width: 560px) {
-  .glass-audio-player .gap-vol-seek { display: none; }
-}
+
 /* —— 行内 code —— */
 .blog-article-body code {
   font-family: Consolas, "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace;

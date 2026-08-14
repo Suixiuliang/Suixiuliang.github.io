@@ -950,45 +950,25 @@
   }
 
   /** 自研液态玻璃音乐播放器（替换原生 controls） */
+  /** 仿 HTML5 audio 控件：播放/暂停（仅图标）+ 进度 + 时间，无标题/音量条 */
   function buildGlassAudioPlayer(audio) {
-    const src = audio.getAttribute('src')
-      || (audio.querySelector('source') && audio.querySelector('source').getAttribute('src'))
-      || '';
-    let title = audio.getAttribute('data-title') || audio.getAttribute('title') || '';
-    if (!title && src) {
-      try { title = decodeURIComponent((src.split('/').pop() || '').split('?')[0]); } catch (_) { title = ''; }
-    }
-    if (!title) title = '音频';
-
     audio.removeAttribute('controls');
     audio.preload = audio.preload || 'metadata';
     audio.style.display = 'none';
 
     const player = document.createElement('div');
-    player.className = 'md-audio-player glass-audio-player';
+    player.className = 'md-audio-player glass-audio-player h5-like';
     player.innerHTML =
       `<div class="gap-main">` +
         `<button type="button" class="gap-play" aria-label="播放/暂停"><i class="fas fa-play"></i></button>` +
-        `<div class="gap-meta">` +
-          `<div class="gap-title"><i class="fas fa-music"></i><span>${escapeHtml(title)}</span></div>` +
-          `<div class="gap-row">` +
-            `<span class="gap-time gap-cur">0:00</span>` +
-            `<div class="gap-seek" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">` +
-              `<div class="gap-seek-track"><div class="gap-seek-fill"></div><div class="gap-seek-thumb"></div></div>` +
-            `</div>` +
-            `<span class="gap-time gap-dur">0:00</span>` +
-          `</div>` +
+        `<span class="gap-time gap-cur">0:00</span>` +
+        `<div class="gap-seek" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">` +
+          `<div class="gap-seek-track"><div class="gap-seek-fill"></div></div>` +
         `</div>` +
-        `<div class="gap-vol">` +
-          `<button type="button" class="gap-mute" aria-label="静音"><i class="fas fa-volume-up"></i></button>` +
-          `<div class="gap-vol-seek" role="slider" tabindex="0">` +
-            `<div class="gap-seek-track"><div class="gap-seek-fill gap-vol-fill"></div></div>` +
-          `</div>` +
-        `</div>` +
+        `<span class="gap-time gap-dur">0:00</span>` +
       `</div>`;
 
     if (audio.parentNode) {
-      // 若已在旧壳里，替换外壳
       const oldShell = audio.closest('.md-audio-player');
       if (oldShell && oldShell !== player) {
         oldShell.parentNode.insertBefore(player, oldShell);
@@ -1006,12 +986,6 @@
     const durEl = player.querySelector('.gap-dur');
     const seek = player.querySelector('.gap-seek');
     const fill = player.querySelector('.gap-seek-fill');
-    const thumb = player.querySelector('.gap-seek-thumb');
-    const muteBtn = player.querySelector('.gap-mute');
-    const muteIcon = muteBtn.querySelector('i');
-    const volSeek = player.querySelector('.gap-vol-seek');
-    const volFill = player.querySelector('.gap-vol-fill');
-
     let seeking = false;
 
     const syncPlayUi = () => {
@@ -1025,21 +999,14 @@
       const p = d > 0 ? (t / d) * 100 : 0;
       if (!seeking) {
         fill.style.width = p + '%';
-        thumb.style.left = p + '%';
         seek.setAttribute('aria-valuenow', String(Math.round(p)));
       }
       curEl.textContent = formatPlayerTime(t);
       durEl.textContent = formatPlayerTime(d);
     };
-    const syncVol = () => {
-      const v = audio.muted ? 0 : audio.volume;
-      volFill.style.width = (v * 100) + '%';
-      muteIcon.className = v === 0 ? 'fas fa-volume-mute' : (v < 0.4 ? 'fas fa-volume-down' : 'fas fa-volume-up');
-    };
 
     playBtn.addEventListener('click', () => {
       if (audio.paused) {
-        // 暂停同页其它播放器
         document.querySelectorAll('.glass-audio-player audio').forEach((a) => {
           if (a !== audio) a.pause();
         });
@@ -1054,7 +1021,6 @@
       const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
       if (audio.duration) audio.currentTime = ratio * audio.duration;
       fill.style.width = (ratio * 100) + '%';
-      thumb.style.left = (ratio * 100) + '%';
     };
     seek.addEventListener('pointerdown', (e) => {
       seeking = true;
@@ -1071,41 +1037,15 @@
     });
     seek.addEventListener('pointercancel', () => { seeking = false; });
 
-    muteBtn.addEventListener('click', () => {
-      audio.muted = !audio.muted;
-      syncVol();
-    });
-    const volFromEvent = (clientX) => {
-      const rect = volSeek.getBoundingClientRect();
-      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
-      audio.muted = false;
-      audio.volume = ratio;
-      syncVol();
-    };
-    volSeek.addEventListener('pointerdown', (e) => {
-      volSeek.setPointerCapture(e.pointerId);
-      volFromEvent(e.clientX);
-      const move = (ev) => volFromEvent(ev.clientX);
-      const up = (ev) => {
-        volSeek.removeEventListener('pointermove', move);
-        volSeek.removeEventListener('pointerup', up);
-        try { volSeek.releasePointerCapture(ev.pointerId); } catch (_) {}
-      };
-      volSeek.addEventListener('pointermove', move);
-      volSeek.addEventListener('pointerup', up);
-    });
-
     audio.addEventListener('play', syncPlayUi);
     audio.addEventListener('pause', syncPlayUi);
     audio.addEventListener('ended', syncPlayUi);
     audio.addEventListener('timeupdate', syncProgress);
     audio.addEventListener('loadedmetadata', syncProgress);
     audio.addEventListener('durationchange', syncProgress);
-    audio.addEventListener('volumechange', syncVol);
 
     syncPlayUi();
     syncProgress();
-    syncVol();
     return player;
   }
 
