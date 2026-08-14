@@ -2189,49 +2189,65 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 仿 HTML5 audio：播放图标 + 进度 + 时间（无标题/音量） —— */
+/* —— 液态玻璃音乐播放器（仿 HTML5 布局 + 强调色进度条） —— */
 .blog-article-body .md-audio-player,
 .blog-article-body .glass-audio-player {
-  margin: 0.85em 0;
-  padding: 0.35rem 0.5rem;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  margin: 1em 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.38),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
   color: #fff;
 }
 .glass-audio-player.h5-like .gap-main {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .glass-audio-player .gap-play {
   appearance: none;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.95);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  transition: background 0.15s ease, transform 0.12s ease;
 }
-.glass-audio-player .gap-play:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.glass-audio-player .gap-play:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.glass-audio-player .gap-play:active { transform: scale(0.96); }
+.glass-audio-player.is-playing .gap-play {
+  background: rgba(0, 113, 227, 0.45);
+  border-color: rgba(120, 180, 255, 0.5);
+}
 .glass-audio-player .gap-time {
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.78);
   min-width: 2.2em;
   font-family: system-ui, -apple-system, sans-serif;
 }
 .glass-audio-player .gap-seek {
   position: relative;
   flex: 1 1 auto;
-  height: 16px;
+  height: 18px;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -2240,16 +2256,18 @@ body.is-reading-article .reading-dim-layer {
 .glass-audio-player .gap-seek-track {
   position: relative;
   width: 100%;
-  height: 4px;
+  height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
   overflow: hidden;
 }
 .glass-audio-player .gap-seek-fill {
   height: 100%;
   width: 0%;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.85);
+  /* 纯色强调色 */
+  background: #0071e3;
 }
 .glass-audio-player audio { display: none !important; }
 

@@ -1129,6 +1129,14 @@
     // 行内代码
     s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
 
+    // 自定义：@...@ 插入 HTML 片段（需含标签；完整文档会经 sanitize 抽 body）
+    // 例：@<audio controls src="https://xxx.mp3"></audio>@
+    s = s.replace(/@([\s\S]+?)@/g, (full, inner) => {
+      const t = String(inner || '').trim();
+      if (!t || !/<[a-zA-Z]/.test(t)) return full; // 非 HTML，原样保留（如邮箱）
+      return hold(sanitizeAdminHtml(t) || '');
+    });
+
     // 图片：![alt](url) / ![alt](url "title") —— 须在链接规则之前保护
     s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
       const tAttr = title ? ` title="${esc(title)}"` : '';
