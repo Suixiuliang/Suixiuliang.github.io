@@ -743,12 +743,38 @@
     let s = String(md).replace(/\r\n/g, '\n');
 
     // 代码块（先保护，避免内部 $ / # 被误解析）
+    // 支持 ```cpp / ``` cpp / ```cpp\n 等写法
     // macOS 红绿灯标题栏 + 右上角语言标签 + 复制按钮
-    s = s.replace(/```([a-zA-Z0-9_+-]*)[ \t]*\n?([\s\S]*?)```/g, (_, lang, code) => {
+    s = s.replace(/```[ \t]*([a-zA-Z0-9_+#.-]*)[ \t]*\r?\n([\s\S]*?)```/g, (_, lang, code) => {
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
       const body = esc(code.replace(/^\n+|\n+$/g, ''));
+      return hold(
+        `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
+          `<div class="md-code-titlebar">` +
+            `<div class="md-code-traffic" aria-hidden="true">` +
+              `<span class="md-code-dot md-code-dot-red"></span>` +
+              `<span class="md-code-dot md-code-dot-yellow"></span>` +
+              `<span class="md-code-dot md-code-dot-green"></span>` +
+            `</div>` +
+            `<div class="md-code-titlebar-right">` +
+              `<span class="md-code-lang">${esc(langLabel)}</span>` +
+              `<button type="button" class="md-code-copy" title="复制代码" aria-label="复制代码">` +
+                `<i class="far fa-copy"></i><span>复制</span>` +
+              `</button>` +
+            `</div>` +
+          `</div>` +
+          `<pre class="md-code"><code class="${cls}">${body}</code></pre>` +
+        `</div>`
+      );
+    });
+    // 兜底：单行 ```code``` 或无换行写法
+    s = s.replace(/```[ \t]*([a-zA-Z0-9_+#.-]*)[ \t]+([\s\S]*?)```/g, (_, lang, code) => {
+      const langClean = (lang || '').trim().toLowerCase();
+      const langLabel = langClean || 'text';
+      const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
+      const body = esc(String(code).replace(/^\n+|\n+$/g, ''));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -989,21 +1015,45 @@
     if (!root) return;
     bindCodeCopyButtons(root);
     const run = () => {
-      if (typeof window.hljs === 'undefined' || typeof window.hljs.highlightElement !== 'function') {
-        return false;
-      }
-      root.querySelectorAll('pre code').forEach((block) => {
+      if (typeof window.hljs === 'undefined') return false;
+      const blocks = root.querySelectorAll('pre code');
+      if (!blocks.length) return true;
+      blocks.forEach((block) => {
+        if (block.dataset.hljsDone === '1') return;
         try {
-          window.hljs.highlightElement(block);
-        } catch (_) { /* ignore single-block errors */ }
+          // 从 class="language-xxx" 取语言；兼容 c++ / cpp
+          let lang = '';
+          const m = (block.className || '').match(/language-([a-zA-Z0-9_+#.-]+)/);
+          if (m) lang = m[1].toLowerCase();
+          if (lang === 'c++') lang = 'cpp';
+          if (lang === 'c#') lang = 'csharp';
+          if (lang === 'text' || lang === 'plain') lang = '';
+
+          if (lang && window.hljs.getLanguage && window.hljs.getLanguage(lang) && window.hljs.highlight) {
+            const src = block.textContent || '';
+            const result = window.hljs.highlight(src, { language: lang, ignoreIllegals: true });
+            block.innerHTML = result.value;
+            block.classList.add('hljs');
+            if (!block.classList.contains('language-' + lang)) {
+              block.classList.add('language-' + lang);
+            }
+          } else if (typeof window.hljs.highlightElement === 'function') {
+            window.hljs.highlightElement(block);
+          } else if (typeof window.hljs.highlightBlock === 'function') {
+            window.hljs.highlightBlock(block);
+          }
+          block.dataset.hljsDone = '1';
+        } catch (err) {
+          console.warn('[hljs]', err);
+        }
       });
       return true;
     };
-    if (!run()) {
+    if (!run() || (typeof window.hljs === 'undefined')) {
       let n = 0;
       const timer = setInterval(() => {
         n += 1;
-        if (run() || n > 40) clearInterval(timer);
+        if ((typeof window.hljs !== 'undefined' && run()) || n > 60) clearInterval(timer);
       }, 50);
     }
   }
