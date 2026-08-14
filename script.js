@@ -431,7 +431,7 @@
 
   let apiOfflineLocked = false;
 
-  /** API 不可达：不卡门禁，进入首页并锁定；顶栏变灵动岛；头像居中 */
+  /** API 不可达：不卡门禁；顶栏灵动岛；只保留居中头像（去掉简介等） */
   function applyApiOfflineHomeMode() {
     apiOfflineLocked = true;
     document.body.classList.add('api-offline-lock');
@@ -441,7 +441,6 @@
     if (nav) {
       nav.classList.add('is-api-island');
       nav.setAttribute('aria-live', 'polite');
-      // 保留结构，用岛内容覆盖展示
       let island = nav.querySelector('.nav-api-island');
       if (!island) {
         island = document.createElement('div');
@@ -453,6 +452,19 @@
       }
     }
 
+    // 去掉个人简介等，只留居中头像
+    const profile = document.getElementById('profileContainer');
+    if (profile) {
+      profile.setAttribute('hidden', '');
+      profile.classList.add('is-offline-hidden');
+    }
+    document.querySelectorAll(
+      '#home .home-text, #home .home-name, #home .home-bio, #home .home-meta, #home .home-interests, #home .home-actions, #home .interest-tags'
+    ).forEach((el) => {
+      el.setAttribute('hidden', '');
+      el.classList.add('is-offline-hidden');
+    });
+
     // 强制停在首页
     const home = document.getElementById('home');
     if (scrollContainer && home) {
@@ -462,7 +474,6 @@
       b.classList.toggle('active', b.getAttribute('data-section') === 'home');
     });
 
-    // 头像居中（下一帧等布局）
     requestAnimationFrame(() => {
       centerAvatarForOffline();
       updateGlobalAvatarPosition();
@@ -472,13 +483,56 @@
   function centerAvatarForOffline() {
     const globalAvatar = document.getElementById('globalAvatar');
     if (!globalAvatar || !apiOfflineLocked) return;
-    const size = Math.min(180, Math.max(120, Math.round(window.innerWidth * 0.22)));
+    const size = Math.min(200, Math.max(132, Math.round(window.innerWidth * 0.24)));
     globalAvatar.style.width = size + 'px';
     globalAvatar.style.height = size + 'px';
     globalAvatar.style.opacity = '1';
     globalAvatar.style.transform =
       `translate(calc(${window.innerWidth / 2}px - 50%), calc(${window.innerHeight / 2}px - 50%))`;
     globalAvatar.classList.add('is-offline-center');
+  }
+
+  // ---------- 文章公开链接：https://suixiuliang.github.io/blog/{slug} ----------
+  const SITE_PUBLIC_ORIGIN = 'https://suixiuliang.github.io';
+  function articlePublicPath(slug) {
+    const s = String(slug || '').replace(/^\/+|\/+$/g, '');
+    return `/blog/${encodeURIComponent(s)}`;
+  }
+  function articlePublicUrl(slug) {
+    return SITE_PUBLIC_ORIGIN + articlePublicPath(slug);
+  }
+  function parseBlogSlugFromLocation() {
+    try {
+      const path = String(location.pathname || '');
+      let m = path.match(/\/blog\/([^/]+)\/?$/i);
+      if (m) return decodeURIComponent(m[1]);
+      // 兼容 hash 路由 #/blog/slug
+      const hash = String(location.hash || '');
+      m = hash.match(/#\/?blog\/([^/]+)\/?/i);
+      if (m) return decodeURIComponent(m[1]);
+    } catch (_) {}
+    return null;
+  }
+  function setArticleUrl(slug, { replace = false } = {}) {
+    if (!slug) return;
+    const path = articlePublicPath(slug);
+    try {
+      if (replace) history.replaceState({ blogSlug: slug }, '', path);
+      else history.pushState({ blogSlug: slug }, '', path);
+    } catch (_) {
+      // file:// 等环境可能无法改 path，退回 hash
+      try {
+        if (replace) history.replaceState({ blogSlug: slug }, '', `#/blog/${encodeURIComponent(slug)}`);
+        else history.pushState({ blogSlug: slug }, '', `#/blog/${encodeURIComponent(slug)}`);
+      } catch (__) {}
+    }
+  }
+  function clearArticleUrl() {
+    try {
+      history.pushState({}, '', '/');
+    } catch (_) {
+      try { history.pushState({}, '', '#'); } catch (__) {}
+    }
   }
 
   function showBootApiIsland() {
@@ -750,9 +804,11 @@
     let html = '';
     filtered.forEach(post => {
       const displayDate = post.date || formatDateUTC8(post.rawDate) || '';
-      const id = escapeHtml(post.slug || post.id);
+      const slug = post.slug || post.id;
+      const id = escapeHtml(slug);
+      const href = articlePublicUrl(slug);
       html += `
-        <article class="blog-card" role="button" tabindex="0" data-id="${id}">
+        <a class="blog-card" href="${escapeHtml(href)}" data-id="${id}" data-slug="${id}">
           <div class="blog-icon"><i class="fas ${post.icon || 'fa-pen'}"></i></div>
           <h3>${escapeHtml(post.title || '无标题')}</h3>
           <p>${escapeHtml(post.summary || '')}</p>
@@ -761,19 +817,22 @@
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
           <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
-        </article>
+        </a>
       `;
     });
     list.innerHTML = html;
     if (countEl) countEl.textContent = `${filtered.length} 篇文章`;
 
     list.querySelectorAll('.blog-card[data-id]').forEach(card => {
-      const open = () => openArticleReader(card.dataset.id);
+      const open = (e) => {
+        if (e) e.preventDefault();
+        openArticleReader(card.dataset.slug || card.dataset.id);
+      };
       card.addEventListener('click', open);
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          open();
+          open(e);
         }
       });
     });
@@ -883,31 +942,179 @@
     return simpleMarkdownToHtml(content) || '';
   }
 
+  function formatPlayerTime(sec) {
+    if (!isFinite(sec) || sec < 0) return '0:00';
+    const s = Math.floor(sec % 60);
+    const m = Math.floor(sec / 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  /** 自研液态玻璃音乐播放器（替换原生 controls） */
+  function buildGlassAudioPlayer(audio) {
+    const src = audio.getAttribute('src')
+      || (audio.querySelector('source') && audio.querySelector('source').getAttribute('src'))
+      || '';
+    let title = audio.getAttribute('data-title') || audio.getAttribute('title') || '';
+    if (!title && src) {
+      try { title = decodeURIComponent((src.split('/').pop() || '').split('?')[0]); } catch (_) { title = ''; }
+    }
+    if (!title) title = '音频';
+
+    audio.removeAttribute('controls');
+    audio.preload = audio.preload || 'metadata';
+    audio.style.display = 'none';
+
+    const player = document.createElement('div');
+    player.className = 'md-audio-player glass-audio-player';
+    player.innerHTML =
+      `<div class="gap-main">` +
+        `<button type="button" class="gap-play" aria-label="播放/暂停"><i class="fas fa-play"></i></button>` +
+        `<div class="gap-meta">` +
+          `<div class="gap-title"><i class="fas fa-music"></i><span>${escapeHtml(title)}</span></div>` +
+          `<div class="gap-row">` +
+            `<span class="gap-time gap-cur">0:00</span>` +
+            `<div class="gap-seek" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">` +
+              `<div class="gap-seek-track"><div class="gap-seek-fill"></div><div class="gap-seek-thumb"></div></div>` +
+            `</div>` +
+            `<span class="gap-time gap-dur">0:00</span>` +
+          `</div>` +
+        `</div>` +
+        `<div class="gap-vol">` +
+          `<button type="button" class="gap-mute" aria-label="静音"><i class="fas fa-volume-up"></i></button>` +
+          `<div class="gap-vol-seek" role="slider" tabindex="0">` +
+            `<div class="gap-seek-track"><div class="gap-seek-fill gap-vol-fill"></div></div>` +
+          `</div>` +
+        `</div>` +
+      `</div>`;
+
+    if (audio.parentNode) {
+      // 若已在旧壳里，替换外壳
+      const oldShell = audio.closest('.md-audio-player');
+      if (oldShell && oldShell !== player) {
+        oldShell.parentNode.insertBefore(player, oldShell);
+        player.appendChild(audio);
+        oldShell.remove();
+      } else {
+        audio.parentNode.insertBefore(player, audio);
+        player.appendChild(audio);
+      }
+    }
+
+    const playBtn = player.querySelector('.gap-play');
+    const playIcon = playBtn.querySelector('i');
+    const curEl = player.querySelector('.gap-cur');
+    const durEl = player.querySelector('.gap-dur');
+    const seek = player.querySelector('.gap-seek');
+    const fill = player.querySelector('.gap-seek-fill');
+    const thumb = player.querySelector('.gap-seek-thumb');
+    const muteBtn = player.querySelector('.gap-mute');
+    const muteIcon = muteBtn.querySelector('i');
+    const volSeek = player.querySelector('.gap-vol-seek');
+    const volFill = player.querySelector('.gap-vol-fill');
+
+    let seeking = false;
+
+    const syncPlayUi = () => {
+      const playing = !audio.paused && !audio.ended;
+      playIcon.className = playing ? 'fas fa-pause' : 'fas fa-play';
+      player.classList.toggle('is-playing', playing);
+    };
+    const syncProgress = () => {
+      const d = audio.duration || 0;
+      const t = audio.currentTime || 0;
+      const p = d > 0 ? (t / d) * 100 : 0;
+      if (!seeking) {
+        fill.style.width = p + '%';
+        thumb.style.left = p + '%';
+        seek.setAttribute('aria-valuenow', String(Math.round(p)));
+      }
+      curEl.textContent = formatPlayerTime(t);
+      durEl.textContent = formatPlayerTime(d);
+    };
+    const syncVol = () => {
+      const v = audio.muted ? 0 : audio.volume;
+      volFill.style.width = (v * 100) + '%';
+      muteIcon.className = v === 0 ? 'fas fa-volume-mute' : (v < 0.4 ? 'fas fa-volume-down' : 'fas fa-volume-up');
+    };
+
+    playBtn.addEventListener('click', () => {
+      if (audio.paused) {
+        // 暂停同页其它播放器
+        document.querySelectorAll('.glass-audio-player audio').forEach((a) => {
+          if (a !== audio) a.pause();
+        });
+        audio.play().catch(() => {});
+      } else {
+        audio.pause();
+      }
+    });
+
+    const seekFromEvent = (clientX) => {
+      const rect = seek.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
+      if (audio.duration) audio.currentTime = ratio * audio.duration;
+      fill.style.width = (ratio * 100) + '%';
+      thumb.style.left = (ratio * 100) + '%';
+    };
+    seek.addEventListener('pointerdown', (e) => {
+      seeking = true;
+      seek.setPointerCapture(e.pointerId);
+      seekFromEvent(e.clientX);
+    });
+    seek.addEventListener('pointermove', (e) => {
+      if (!seeking) return;
+      seekFromEvent(e.clientX);
+    });
+    seek.addEventListener('pointerup', (e) => {
+      seeking = false;
+      try { seek.releasePointerCapture(e.pointerId); } catch (_) {}
+    });
+    seek.addEventListener('pointercancel', () => { seeking = false; });
+
+    muteBtn.addEventListener('click', () => {
+      audio.muted = !audio.muted;
+      syncVol();
+    });
+    const volFromEvent = (clientX) => {
+      const rect = volSeek.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
+      audio.muted = false;
+      audio.volume = ratio;
+      syncVol();
+    };
+    volSeek.addEventListener('pointerdown', (e) => {
+      volSeek.setPointerCapture(e.pointerId);
+      volFromEvent(e.clientX);
+      const move = (ev) => volFromEvent(ev.clientX);
+      const up = (ev) => {
+        volSeek.removeEventListener('pointermove', move);
+        volSeek.removeEventListener('pointerup', up);
+        try { volSeek.releasePointerCapture(ev.pointerId); } catch (_) {}
+      };
+      volSeek.addEventListener('pointermove', move);
+      volSeek.addEventListener('pointerup', up);
+    });
+
+    audio.addEventListener('play', syncPlayUi);
+    audio.addEventListener('pause', syncPlayUi);
+    audio.addEventListener('ended', syncPlayUi);
+    audio.addEventListener('timeupdate', syncProgress);
+    audio.addEventListener('loadedmetadata', syncProgress);
+    audio.addEventListener('durationchange', syncProgress);
+    audio.addEventListener('volumechange', syncVol);
+
+    syncPlayUi();
+    syncProgress();
+    syncVol();
+    return player;
+  }
+
   function enhanceArticleMedia(root) {
     if (!root) return;
     root.querySelectorAll('audio').forEach((audio) => {
-      if (audio.closest('.md-audio-player')) {
-        audio.setAttribute('controls', '');
-        audio.preload = audio.preload || 'metadata';
-        return;
-      }
-      audio.setAttribute('controls', '');
-      audio.preload = audio.preload || 'metadata';
-      const wrap = document.createElement('div');
-      wrap.className = 'md-audio-player';
-      const label = document.createElement('div');
-      label.className = 'md-audio-label';
-      const src = audio.getAttribute('src') || (audio.querySelector('source') && audio.querySelector('source').getAttribute('src')) || '';
-      let name = '音频';
-      try {
-        if (src) name = decodeURIComponent((src.split('/').pop() || '音频').split('?')[0]) || '音频';
-      } catch (_) {}
-      label.innerHTML = `<i class="fas fa-music"></i><span>${escapeHtml(name)}</span>`;
-      if (audio.parentNode) {
-        audio.parentNode.insertBefore(wrap, audio);
-        wrap.appendChild(label);
-        wrap.appendChild(audio);
-      }
+      if (audio.dataset.glassPlayer === '1') return;
+      audio.dataset.glassPlayer = '1';
+      buildGlassAudioPlayer(audio);
     });
   }
 
@@ -1530,6 +1737,15 @@
     if (legacyModal) legacyModal.classList.remove('active');
 
     const local = blogPosts.find(p => String(p.slug) === String(idOrSlug) || String(p.id) === String(idOrSlug));
+    const slugForUrl = (local && local.slug) || idOrSlug;
+    if (slugForUrl) setArticleUrl(slugForUrl);
+
+    // 打开文章时滚到博客面板
+    const blogEl = document.getElementById('blog');
+    if (blogEl && scrollContainer) {
+      scrollContainer.scrollTo({ left: blogEl.offsetLeft, behavior: 'smooth' });
+    }
+
     titleEl.textContent = (local && local.title) || '加载中…';
     if (metaEl) {
       metaEl.innerHTML = local
@@ -1560,6 +1776,8 @@
     }
 
     titleEl.textContent = article.title || (local && local.title) || '无标题';
+    const finalSlug = article.slug || (local && local.slug) || idOrSlug;
+    if (finalSlug) setArticleUrl(finalSlug, { replace: true });
     const rawDate = article.published_at || article.created_at || article.date || (local && local.rawDate) || '';
     const displayDate = formatDateUTC8(rawDate) || (local && local.date) || '';
     if (metaEl) {
@@ -1580,11 +1798,9 @@
       highlightArticleCode(bodyEl);
       renderArticleMath(bodyEl);
     } else {
-      // HTML 文里也可能嵌了代码块
       highlightArticleCode(bodyEl);
     }
 
-    // 图片、KaTeX、代码高亮都会异步改变正文高度；持续观察，避免滚动范围落后于真实高度。
     stabilizeArticleLayout(bodyEl);
   }
 
@@ -1593,6 +1809,7 @@
     if (legacyModal) legacyModal.classList.remove('active');
     if (!isArticleReading) return;
     exitArticleReadingLayout();
+    clearArticleUrl();
     if (blogPanel) {
       const pin = (stage1Height || 0) + (stage2Height || 0);
       blogPanel.scrollTop = pin;
@@ -3955,6 +4172,17 @@
         if (catData && Array.isArray(catData.categories)) renderThemeRail(catData.categories);
       }
     } catch (_) {}
+
+    // 深链 /blog/{slug} 或返回键
+    const bootSlug = parseBlogSlugFromLocation();
+    if (bootSlug) {
+      openArticleReader(bootSlug);
+    }
+    window.addEventListener('popstate', () => {
+      const slug = (history.state && history.state.blogSlug) || parseBlogSlugFromLocation();
+      if (slug) openArticleReader(slug);
+      else if (isArticleReading) closeArticleReader();
+    });
 
     setTimeout(() => {
       setupBlogScrollHeights();
