@@ -1660,6 +1660,80 @@ a.blog-list .blog-card,
   line-height: 1.5;
   border-radius: var(--radius-sm);
 }
+/* 文章编辑：左右分栏源码 / 预览 */
+.admin-editor-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: min(62vh, 640px);
+  margin-top: 0.35rem;
+}
+@media (max-width: 900px) {
+  .admin-editor-split { grid-template-columns: 1fr; min-height: auto; }
+}
+.admin-editor-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.admin-editor-pane-head {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+.admin-editor-split #adminArticleContent {
+  flex: 1 1 auto;
+  min-height: min(56vh, 560px);
+  height: min(56vh, 560px);
+  resize: vertical;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.admin-editor-preview {
+  flex: 1 1 auto;
+  min-height: min(56vh, 560px);
+  height: min(56vh, 560px);
+  overflow: auto;
+  padding: 0.85rem 1rem;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.92);
+}
+.admin-editor-preview img { max-width: 100%; height: auto; border-radius: 8px; }
+.admin-articles-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.admin-articles-toolbar input[type="search"] {
+  flex: 1 1 180px;
+  min-width: 140px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 0.5rem 0.95rem;
+  font: inherit;
+  outline: none;
+}
+.admin-articles-toolbar input[type="search"]:focus {
+  border-color: rgba(0, 113, 227, 0.7);
+  background: rgba(255, 255, 255, 0.14);
+}
 .admin-form-row input:focus,
 .admin-form-row select:focus,
 .admin-form-row textarea:focus {
@@ -2189,12 +2263,16 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 液态玻璃音乐播放器（仿 HTML5 布局 + 强调色进度条） —— */
+/* —— 液态玻璃音乐播放器（播放钮与左端圆头同心，上下左 3px） —— */
 .blog-article-body .md-audio-player,
 .blog-article-body .glass-audio-player {
+  --gap-pad: 3px;
+  --gap-btn: 44px; /* 按钮直径；外壳高度 = 按钮 + 上下各 3px */
   margin: 1em 0;
-  padding: 0.65rem 1rem;
-  border-radius: 999px; /* 播放框两端圆头 */
+  padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
+  height: calc(var(--gap-btn) + var(--gap-pad) * 2);
+  box-sizing: border-box;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.13);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
@@ -2204,29 +2282,33 @@ body.is-reading-article .reading-dim-layer {
   backdrop-filter: blur(22px) saturate(180%);
   -webkit-backdrop-filter: blur(22px) saturate(180%);
   color: #fff;
+  display: flex;
+  align-items: center;
 }
 .glass-audio-player.h5-like .gap-main {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  height: 100%;
 }
 .glass-audio-player .gap-play {
   appearance: none;
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: var(--gap-btn);
+  height: var(--gap-btn);
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
   color: rgba(255, 255, 255, 0.95);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 1rem;
   transition: background 0.15s ease, transform 0.12s ease;
 }
 .glass-audio-player .gap-play:hover {
@@ -2271,10 +2353,11 @@ body.is-reading-article .reading-dim-layer {
 }
 .glass-audio-player audio { display: none !important; }
 
-/* —— 嵌入 iframe（B 站等）响应式容器 —— */
+/* —— 嵌入 iframe：默认适中尺寸，避免把小部件撑满整宽 —— */
 .blog-article-body .md-embed {
   position: relative;
-  width: 100%;
+  width: min(100%, 560px);
+  max-width: 100%;
   margin: 1em 0;
   border-radius: 14px;
   overflow: hidden;
@@ -2282,6 +2365,11 @@ body.is-reading-article .reading-dim-layer {
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
   aspect-ratio: 16 / 9;
+  max-height: min(320px, 52vw);
+}
+.blog-article-body .md-embed.is-wide {
+  width: min(100%, 720px);
+  max-height: min(405px, 56vw);
 }
 .blog-article-body .md-embed-iframe,
 .blog-article-body iframe.md-embed-iframe {
@@ -2292,6 +2380,11 @@ body.is-reading-article .reading-dim-layer {
   border: 0;
   display: block;
   background: #000;
+}
+/* 若原文给了明确宽高且较小，按属性缩放 */
+.blog-article-body iframe:not(.md-embed-iframe) {
+  max-width: 100%;
+  border-radius: 12px;
 }
 
 

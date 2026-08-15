@@ -1960,7 +1960,10 @@
             <div class="glass-card admin-card">
               <div class="admin-toolbar">
                 <h3 style="margin:0"><i class="fas fa-list"></i> 文章管理</h3>
-                <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshArticlesBtn"><i class="fas fa-sync"></i> 刷新</button>
+                <div class="admin-articles-toolbar">
+                  <input type="search" id="adminArticlesSearch" placeholder="搜索标题 / slug / 分类…" autocomplete="off">
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshArticlesBtn"><i class="fas fa-sync"></i> 刷新</button>
+                </div>
               </div>
               <div id="adminArticlesList"><p class="admin-msg">加载中…</p></div>
               <p class="admin-msg" id="adminArticlesMsg"></p>
@@ -2002,9 +2005,18 @@
                   </div>
                   <input type="hidden" id="adminArticleFormat" value="markdown">
                 </div>
-                <div class="admin-form-row">
+                <div class="admin-form-row admin-form-row-editor">
                   <label id="adminArticleContentLabel">正文（Markdown）</label>
-                  <textarea id="adminArticleContent" placeholder="# 标题&#10;&#10;正文…"></textarea>
+                  <div class="admin-editor-split">
+                    <div class="admin-editor-pane">
+                      <div class="admin-editor-pane-head">源码</div>
+                      <textarea id="adminArticleContent" placeholder="# 标题&#10;&#10;正文…"></textarea>
+                    </div>
+                    <div class="admin-editor-pane">
+                      <div class="admin-editor-pane-head">预览</div>
+                      <div class="admin-editor-preview blog-article-body" id="adminArticlePreview"><p class="admin-msg">在左侧输入后实时预览…</p></div>
+                    </div>
+                  </div>
                 </div>
                 <div class="admin-form-row">
                   <label>状态</label>
@@ -2053,8 +2065,13 @@
           p.classList.toggle('active', p.dataset.panel === tab);
         });
         if (tab === 'articles') loadAdminArticles();
+        if (tab === 'status') syncAdminStatusFormFromProfile();
+        if (tab === 'editor') updateAdminArticlePreview();
       });
     });
+
+    // 进入管理面板时同步当前状态（不要总是从「在线」开始）
+    syncAdminStatusFormFromProfile();
 
     const statusText = section.querySelector('#adminStatusText');
     const statusType = section.querySelector('#adminStatusType');
@@ -2140,10 +2157,23 @@
 
     section.querySelector('#adminLogoutBtn')?.addEventListener('click', adminLogout);
     section.querySelector('#adminRefreshArticlesBtn')?.addEventListener('click', loadAdminArticles);
+    section.querySelector('#adminArticlesSearch')?.addEventListener('input', (e) => {
+      renderAdminArticlesTable(filterAdminArticles(e.target.value));
+    });
     section.querySelector('#adminSaveArticleBtn')?.addEventListener('click', saveAdminArticle);
     section.querySelector('#adminResetEditorBtn')?.addEventListener('click', resetAdminEditor);
+    const contentTa = section.querySelector('#adminArticleContent');
+    let previewTimer = null;
+    contentTa?.addEventListener('input', () => {
+      clearTimeout(previewTimer);
+      previewTimer = setTimeout(updateAdminArticlePreview, 180);
+    });
+    // 切换格式时刷新预览
     wireAppleSelect(section.querySelector('#adminArticleFormatSelect'), {
-      onChange: () => syncAdminFormatUI()
+      onChange: () => {
+        syncAdminFormatUI();
+        updateAdminArticlePreview();
+      }
     });
     wireAppleSelect(section.querySelector('#adminArticleStatusSelect'), {
       onChange: (value) => {
@@ -2152,6 +2182,7 @@
       }
     });
     syncAdminFormatUI();
+    updateAdminArticlePreview();
 
     section.querySelector('#adminArticleTitle')?.addEventListener('input', (e) => {
       const id = section.querySelector('#adminEditArticleId')?.value;
@@ -2172,46 +2203,113 @@
     loadAdminArticles();
   }
 
+  let adminArticlesCache = [];
+
+  function renderAdminArticlesTable(list) {
+    const box = document.getElementById('adminArticlesList');
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = '<p class="admin-msg">没有匹配的文章</p>';
+      return;
+    }
+    const rows = list.map(a => `
+      <tr>
+        <td>${escapeHtml(a.title)}</td>
+        <td><code>${escapeHtml(a.slug)}</code></td>
+        <td>${escapeHtml(a.category || '—')}</td>
+        <td>${escapeHtml(dateOnlyUTC8(a.published_at || a.created_at || '') || (a.published_at || a.created_at || '').slice(0, 10))}</td>
+        <td class="admin-article-actions">
+          <button type="button" class="admin-mini-btn" data-edit-id="${a.id}" data-slug="${escapeHtml(a.slug)}">编辑</button>
+          <button type="button" class="admin-mini-btn danger" data-del-id="${a.id}">删除</button>
+        </td>
+      </tr>
+    `).join('');
+    box.innerHTML = `
+      <table class="admin-article-table">
+        <thead><tr><th>标题</th><th>Slug</th><th>分类</th><th>日期</th><th>操作</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    box.querySelectorAll('[data-edit-id]').forEach(btn => {
+      btn.addEventListener('click', () => editAdminArticle(btn.dataset.editId, btn.dataset.slug));
+    });
+    box.querySelectorAll('[data-del-id]').forEach(btn => {
+      btn.addEventListener('click', () => deleteAdminArticle(btn.dataset.delId));
+    });
+  }
+
+  function filterAdminArticles(keyword) {
+    const kw = String(keyword || '').trim().toLowerCase();
+    if (!kw) return adminArticlesCache.slice();
+    return adminArticlesCache.filter((a) => {
+      const blob = [a.title, a.slug, a.category, a.excerpt].map((x) => String(x || '').toLowerCase()).join(' ');
+      return blob.includes(kw);
+    });
+  }
+
   async function loadAdminArticles() {
     const box = document.getElementById('adminArticlesList');
     const msg = document.getElementById('adminArticlesMsg');
     if (!box) return;
     box.innerHTML = '<p class="admin-msg">加载中…</p>';
     try {
-      const res = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/articles?limit=100`, { credentials: 'include' });
       const data = await res.json().catch(() => null);
-      const list = data?.articles || [];
-      if (!list.length) {
+      adminArticlesCache = data?.articles || [];
+      if (!adminArticlesCache.length) {
         box.innerHTML = '<p class="admin-msg">暂无已发布文章（草稿需后端管理列表接口）</p>';
         return;
       }
-      let rows = list.map(a => `
-        <tr>
-          <td>${escapeHtml(a.title)}</td>
-          <td><code>${escapeHtml(a.slug)}</code></td>
-          <td>${escapeHtml(a.category || '—')}</td>
-          <td>${escapeHtml(dateOnlyUTC8(a.published_at || a.created_at || '') || (a.published_at || a.created_at || '').slice(0, 10))}</td>
-          <td class="admin-article-actions">
-            <button type="button" class="admin-mini-btn" data-edit-id="${a.id}" data-slug="${escapeHtml(a.slug)}">编辑</button>
-            <button type="button" class="admin-mini-btn danger" data-del-id="${a.id}">删除</button>
-          </td>
-        </tr>
-      `).join('');
-      box.innerHTML = `
-        <table class="admin-article-table">
-          <thead><tr><th>标题</th><th>Slug</th><th>分类</th><th>日期</th><th>操作</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-      box.querySelectorAll('[data-edit-id]').forEach(btn => {
-        btn.addEventListener('click', () => editAdminArticle(btn.dataset.editId, btn.dataset.slug));
-      });
-      box.querySelectorAll('[data-del-id]').forEach(btn => {
-        btn.addEventListener('click', () => deleteAdminArticle(btn.dataset.delId));
-      });
-      if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
+      const kw = document.getElementById('adminArticlesSearch')?.value || '';
+      renderAdminArticlesTable(filterAdminArticles(kw));
+      if (msg) { msg.textContent = `共 ${adminArticlesCache.length} 篇`; msg.className = 'admin-msg'; }
     } catch (e) {
       box.innerHTML = '<p class="admin-msg err">加载失败</p>';
     }
+  }
+
+  function updateAdminArticlePreview() {
+    const ta = document.getElementById('adminArticleContent');
+    const preview = document.getElementById('adminArticlePreview');
+    if (!ta || !preview) return;
+    const fmt = (getAppleSelectValue('adminArticleFormatSelect', 'markdown') || 'markdown').toLowerCase();
+    const raw = ta.value || '';
+    if (!raw.trim()) {
+      preview.innerHTML = '<p class="admin-msg">在左侧输入后实时预览…</p>';
+      return;
+    }
+    preview.innerHTML = renderArticleBodyHtml(raw, fmt) || '<p class="admin-msg">（空）</p>';
+    enhanceArticleMedia(preview);
+    if (fmt !== 'html') {
+      highlightArticleCode(preview);
+      renderArticleMath(preview);
+    } else {
+      highlightArticleCode(preview);
+    }
+  }
+
+  function syncAdminStatusFormFromProfile() {
+    const st = profileData.status || '在线';
+    const stType = String(profileData.statusType || 'online').toLowerCase();
+    const statusText = document.getElementById('adminStatusText');
+    const statusType = document.getElementById('adminStatusType');
+    const statusSelect = document.getElementById('adminStatusSelect');
+    if (statusText) statusText.value = st;
+    if (statusType) statusType.value = stType;
+    if (statusSelect) {
+      statusSelect.dataset.value = stType;
+      const label = statusSelect.querySelector('.apple-select-label');
+      const dot = statusSelect.querySelector('.apple-select-dot');
+      const labels = {
+        online: '在线', busy: '忙碌', away: '离开', dnd: '请勿打扰',
+        invisible: '隐身', offline: '离线', custom: '自定义'
+      };
+      if (label) label.textContent = labels[stType] || stType;
+      if (dot) dot.className = 'apple-select-dot home-status-dot ' + stType;
+    }
+    const previewText = document.getElementById('adminStatusPreviewText');
+    const previewDot = document.getElementById('adminStatusDot');
+    if (previewText) previewText.textContent = st;
+    if (previewDot) previewDot.className = 'home-status-dot ' + stType;
   }
 
   async function editAdminArticle(id, slug) {
@@ -2240,6 +2338,7 @@
       document.getElementById('adminEditorTitle').textContent = '编辑文章 #' + id;
       document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'editor'));
       document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'editor'));
+      updateAdminArticlePreview();
       if (msg) { msg.textContent = '已载入文章'; msg.className = 'admin-msg ok'; }
     } catch (e) {
       if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
@@ -2537,6 +2636,32 @@
         openAdminLoginModal();
       } else {
         avatarClickTimer = setTimeout(() => { avatarClickCount = 0; }, 2000);
+      }
+    });
+  }
+
+  /** 连续点 7 次导航 Logo（>_MaxSui）切换鼠标拖尾 */
+  function setupLogoTrailToggle() {
+    const logo = document.querySelector('.glass-nav .logo');
+    if (!logo || logo.dataset.trailToggleBound === '1') return;
+    logo.dataset.trailToggleBound = '1';
+    logo.style.cursor = 'pointer';
+    logo.title = '连续点击 7 次可开关拖尾';
+    let n = 0;
+    let timer = null;
+    logo.addEventListener('click', (e) => {
+      e.preventDefault();
+      n += 1;
+      clearTimeout(timer);
+      if (n >= 7) {
+        n = 0;
+        setTrailEffectEnabled(!trailEffectEnabled);
+        // 轻提示：标题闪一下
+        const prev = logo.title;
+        logo.title = trailEffectEnabled ? '拖尾已开启' : '拖尾已关闭';
+        setTimeout(() => { logo.title = prev; }, 1600);
+      } else {
+        timer = setTimeout(() => { n = 0; }, 2000);
       }
     });
   }
@@ -3105,6 +3230,7 @@
     });
 
     setupAvatarSecret();
+    setupLogoTrailToggle();
   }
 
   function renderWorks() {
@@ -3498,8 +3624,22 @@
     while (trailPoints.length > TRAIL_MAX_RAW) trailPoints.shift();
   }
 
+  let trailEffectEnabled = true;
+
+  function setTrailEffectEnabled(on) {
+    trailEffectEnabled = !!on;
+    if (!trailEffectEnabled) {
+      try { clearAllTrailDots(); } catch (_) {}
+      trailPoints = [];
+      trailHasLast = false;
+      if (trailCanvas && trailCtx) {
+        try { trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height); } catch (_) {}
+      }
+    }
+  }
+
   function pushTrailPoint(x, y) {
-    if (reduceMotion || coarsePointer) return;
+    if (!trailEffectEnabled || reduceMotion || coarsePointer) return;
     const now = performance.now();
 
     if (!trailHasLast) {
