@@ -1538,6 +1538,8 @@
 
   let readingListBoxHeight = 0;
   let readingHeightAnimating = false;
+  let readingHeightRaf = null;
+  const READING_TRANSITION_MS = 500;
 
   function getReadingBoxTargetHeight() {
     if (!blogPanel) return Math.max(240, window.innerHeight - 96);
@@ -1546,21 +1548,95 @@
     return Math.max(240, Math.round((blogPanel.clientHeight || window.innerHeight) - topMargin - bottomPad));
   }
 
+  function setWhiteBoxHeightPx(px) {
+    if (!blogWhiteBox) return;
+    const h = Math.max(0, Math.round(px));
+    blogWhiteBox.style.boxSizing = 'border-box';
+    blogWhiteBox.style.overflow = 'hidden';
+    blogWhiteBox.style.flex = '0 0 auto';
+    blogWhiteBox.style.alignSelf = 'flex-start';
+    // 高度只走内联，避免被 flex stretch / 内容回弹带走
+    blogWhiteBox.style.height = h + 'px';
+    blogWhiteBox.style.maxHeight = h + 'px';
+    blogWhiteBox.style.minHeight = h + 'px';
+  }
+
+  function clearWhiteBoxHeightInline() {
+    if (!blogWhiteBox) return;
+    blogWhiteBox.style.height = '';
+    blogWhiteBox.style.maxHeight = '';
+    blogWhiteBox.style.minHeight = '';
+    blogWhiteBox.style.flex = '';
+    blogWhiteBox.style.overflow = '';
+    blogWhiteBox.style.alignSelf = '';
+  }
+
   function applyReadingBoxMetrics() {
     if (!blogPanel || !blogWhiteBox || !isArticleReading) return;
     const maxH = getReadingBoxTargetHeight();
     document.documentElement.style.setProperty('--reading-box-max-h', maxH + 'px');
-    // 高度过渡进行中不要改 height，否则会打断下边界动画
     if (readingHeightAnimating) return;
-    blogWhiteBox.style.maxHeight = maxH + 'px';
-    blogWhiteBox.style.height = maxH + 'px';
+    setWhiteBoxHeightPx(maxH);
   }
 
-  function setWhiteBoxHeightPx(px) {
-    if (!blogWhiteBox) return;
-    const h = Math.max(0, Math.round(px));
-    blogWhiteBox.style.height = h + 'px';
-    blogWhiteBox.style.maxHeight = h + 'px';
+  /** cubic-bezier(0.4, 0, 0.2, 1) 近似，与左边 CSS 扩展同节奏 */
+  function easeReadingHeight(t) {
+    const c1 = 0.4, c2 = 0.0, c3 = 0.2, c4 = 1.0;
+    const cx = 3 * c1;
+    const bx = 3 * (c3 - c1) - cx;
+    const ax = 1 - cx - bx;
+    const cy = 3 * c2;
+    const by = 3 * (c4 - c2) - cy;
+    const ay = 1 - cy - by;
+    const sampleX = (u) => ((ax * u + bx) * u + cx) * u;
+    const sampleY = (u) => ((ay * u + by) * u + cy) * u;
+    const sampleDX = (u) => (3 * ax * u + 2 * bx) * u + cx;
+    let u = t;
+    for (let i = 0; i < 5; i++) {
+      const x = sampleX(u) - t;
+      const d = sampleDX(u);
+      if (Math.abs(d) < 1e-6) break;
+      u -= x / d;
+      if (u < 0) u = 0;
+      else if (u > 1) u = 1;
+    }
+    return sampleY(u);
+  }
+
+  /** 下边界：rAF 插值高度（不依赖 CSS height transition，避免 auto→px 瞬跳） */
+  function animateWhiteBoxHeight(fromH, toH, duration) {
+    duration = duration == null ? READING_TRANSITION_MS : duration;
+    return new Promise((resolve) => {
+      if (!blogWhiteBox) {
+        resolve();
+        return;
+      }
+      if (readingHeightRaf) {
+        cancelAnimationFrame(readingHeightRaf);
+        readingHeightRaf = null;
+      }
+      readingHeightAnimating = true;
+      const a = Math.round(fromH);
+      const b = Math.round(toH);
+      blogWhiteBox.style.transition = 'max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1), width 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
+      setWhiteBoxHeightPx(a);
+      void blogWhiteBox.offsetHeight;
+      const t0 = performance.now();
+
+      const step = (now) => {
+        const t = Math.min(1, (now - t0) / Math.max(1, duration));
+        setWhiteBoxHeightPx(a + (b - a) * easeReadingHeight(t));
+        if (t < 1) {
+          readingHeightRaf = requestAnimationFrame(step);
+        } else {
+          readingHeightRaf = null;
+          setWhiteBoxHeightPx(b);
+          readingHeightAnimating = false;
+          resolve();
+        }
+      };
+      readingHeightRaf = requestAnimationFrame(step);
+    });
   }
 
   function lockOuterScrollToBase() {
@@ -1686,19 +1762,25 @@
   }
 
   let readingExitTimer = null;
-  const READING_TRANSITION_MS = 500;
 
-  function enterArticleReadingLayout() {
+  function enterArticleReadingLayout(premeasuredListHeight) {
     if (!blogPanel || !blogWhiteBox) return;
     if (readingExitTimer) {
       clearTimeout(readingExitTimer);
       readingExitTimer = null;
     }
+    if (readingHeightRaf) {
+      cancelAnimationFrame(readingHeightRaf);
+      readingHeightRaf = null;
+    }
 
-    // 1) 先锁住「列表时」的像素高度（下边界动画起点）
-    const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
+    // —— 先在「纯列表」高度上锁死下边界，再切换阅读 class（避免列表/正文切换造成高度瞬跳）——
+    let startH = Math.round(premeasuredListHeight || 0);
+    if (!startH) {
+      startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
+    }
     readingListBoxHeight = startH || readingListBoxHeight || 360;
-    readingHeightAnimating = true;
+    blogWhiteBox.style.transition = 'max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1), width 0.5s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
     setWhiteBoxHeightPx(readingListBoxHeight);
     void blogWhiteBox.offsetHeight;
 
@@ -1715,19 +1797,16 @@
     blogPanel.scrollTop = readingBaseScroll;
     blogPanel.style.overscrollBehaviorY = 'none';
 
+    // 再钉一次起始高度（class 切换后内容会折叠，但外框必须仍是列表高度）
+    setWhiteBoxHeightPx(readingListBoxHeight);
+    void blogWhiteBox.offsetHeight;
+
     const endH = getReadingBoxTargetHeight();
     document.documentElement.style.setProperty('--reading-box-max-h', endH + 'px');
 
-    // 2) 下一帧再到阅读高度 → CSS transition 驱动下边界在 0.5s 内下移
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!isArticleReading || !blogWhiteBox) return;
-        setWhiteBoxHeightPx(endH);
-        setTimeout(() => {
-          readingHeightAnimating = false;
-          if (isArticleReading) applyReadingBoxMetrics();
-        }, READING_TRANSITION_MS);
-      });
+    // 下边界：0.5s rAF 插值（与左边 CSS 扩展同曲线）
+    animateWhiteBoxHeight(readingListBoxHeight, endH, READING_TRANSITION_MS).then(() => {
+      if (isArticleReading) applyReadingBoxMetrics();
     });
 
     const view = getArticleScrollEl();
@@ -1747,6 +1826,10 @@
       clearTimeout(readingExitTimer);
       readingExitTimer = null;
     }
+    if (readingHeightRaf) {
+      cancelAnimationFrame(readingHeightRaf);
+      readingHeightRaf = null;
+    }
     isArticleReading = false;
     stopArticleLayoutObserver();
     unbindArticleInnerScroll();
@@ -1755,33 +1838,29 @@
       readingOuterLockRaf = null;
     }
 
-    // 1) 锁住当前阅读高度作为倒放起点
     const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || getReadingBoxTargetHeight();
-    readingHeightAnimating = true;
     setWhiteBoxHeightPx(startH);
     void blogWhiteBox.offsetHeight;
 
-    // 2) 去掉 reading（左边界开始收），保留 exiting 让正文淡出
-    document.body.classList.remove('is-reading-article');
+    // 先进入 exiting（列表仍收起），再去掉 reading，避免列表瞬间撑开下边界
     document.body.classList.add('is-exiting-article');
-    blogPanel.classList.remove('is-reading-article');
     blogPanel.classList.add('is-exiting-article');
+    document.body.classList.remove('is-reading-article');
+    blogPanel.classList.remove('is-reading-article');
     blogPanel.style.overscrollBehaviorY = '';
+    setWhiteBoxHeightPx(startH);
 
     const endH = readingListBoxHeight > 0
       ? readingListBoxHeight
       : Math.max(280, Math.round(startH * 0.55));
 
-    // 3) 下一帧高度收到列表高度 → 下边界 0.5s 平滑上移
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setWhiteBoxHeightPx(endH);
-        document.documentElement.style.removeProperty('--reading-box-max-h');
-        updateReadingDim(0);
-        updateBlogScroll();
-        updateGlobalAvatarPosition();
-      });
+    // 下边界收回（与左边 CSS 同节奏）
+    animateWhiteBoxHeight(startH, endH, READING_TRANSITION_MS).then(() => {
+      document.documentElement.style.removeProperty('--reading-box-max-h');
     });
+    updateReadingDim(0);
+    updateBlogScroll();
+    updateGlobalAvatarPosition();
 
     readingExitTimer = setTimeout(() => {
       readingExitTimer = null;
@@ -1797,17 +1876,13 @@
         view.style.display = '';
         view.scrollTop = 0;
       }
-      // 动画结束后再放开高度约束
-      if (blogWhiteBox) {
-        blogWhiteBox.style.height = '';
-        blogWhiteBox.style.maxHeight = '';
-      }
+      clearWhiteBoxHeightInline();
       document.body.classList.remove('is-exiting-article');
       if (blogPanel) blogPanel.classList.remove('is-exiting-article');
       setupBlogScrollHeights();
       updateBlogScroll();
       updateGlobalAvatarPosition();
-    }, READING_TRANSITION_MS);
+    }, READING_TRANSITION_MS + 20);
   }
 
   async function openArticleReader(idOrSlug) {
@@ -1840,9 +1915,13 @@
         : '';
     }
     bodyEl.innerHTML = '<p class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载正文…</p>';
+    // 先测纯列表高度，再露出正文（否则列表+正文叠高会让下边界起跑点偏高并瞬跳）
+    const listHeightBeforeRead = blogWhiteBox
+      ? Math.round(blogWhiteBox.getBoundingClientRect().height)
+      : 0;
     view.hidden = false;
     view.style.display = 'flex';
-    enterArticleReadingLayout();
+    enterArticleReadingLayout(listHeightBeforeRead);
 
     let article = local;
     try {

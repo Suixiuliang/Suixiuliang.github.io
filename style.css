@@ -857,13 +857,12 @@ body {
   z-index: 2;
   pointer-events: auto;
   will-change: max-width, width, height, max-height, box-shadow, transform;
-  /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展 */
+  /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展
+     高度由 JS rAF 插值，不要用 CSS transition height（从 auto→px 会瞬跳） */
   transform-origin: right top;
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     border-radius 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -2064,21 +2063,24 @@ body.is-reading-article .reading-dim-layer {
 }
 .panel-blog.is-reading-article .blog-white-box,
 .panel-blog.is-exiting-article .blog-white-box {
+  /* 关掉 flex-grow，否则显式 height 无效，下边界只会瞬跳 */
+  flex: 0 0 auto !important;
+  /* 不要 stretch：父行高度会被主题栏 min-height 撑高，导致下边界瞬跳 */
+  align-self: flex-start !important;
   max-width: 100% !important;
   width: 100% !important;
-  /* 高度由 JS 从列表高度 → 阅读高度逐帧过渡，CSS 不写死 height，避免下边界瞬跳 */
+  /* 左右用 CSS；高度完全由 JS rAF 插值，禁止 CSS 过渡 height/max-height */
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1) !important;
   transform-origin: right top;
   position: relative;
   z-index: 3;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden !important;
+  box-sizing: border-box;
   box-shadow:
     0 28px 56px rgba(0, 0, 0, 0.32),
     inset 0 1px 1px rgba(255, 255, 255, 0.45);
@@ -2112,8 +2114,9 @@ body.is-reading-article .reading-dim-layer {
 .reading-dim-layer.is-active {
   opacity: 1;
 }
-/* 列表文章卡片淡出，再让出空间给阅读视图 */
-.panel-blog.is-reading-article .blog-list {
+/* 列表文章卡片淡出，再让出空间给阅读视图（退出动画期间也保持收起，避免下边界回跳） */
+.panel-blog.is-reading-article .blog-list,
+.panel-blog.is-exiting-article .blog-list {
   opacity: 0 !important;
   pointer-events: none !important;
   max-height: 0 !important;
@@ -2124,7 +2127,8 @@ body.is-reading-article .reading-dim-layer {
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.panel-blog.is-reading-article .blog-list .blog-card {
+.panel-blog.is-reading-article .blog-list .blog-card,
+.panel-blog.is-exiting-article .blog-list .blog-card {
   opacity: 0 !important;
   transform: translateY(-6px);
   transition:
@@ -2132,7 +2136,9 @@ body.is-reading-article .reading-dim-layer {
     transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .panel-blog.is-reading-article .blog-footer,
-.panel-blog.is-reading-article .white-box-header .sub-count {
+.panel-blog.is-reading-article .white-box-header .sub-count,
+.panel-blog.is-exiting-article .blog-footer,
+.panel-blog.is-exiting-article .white-box-header .sub-count {
   opacity: 0 !important;
   pointer-events: none !important;
   max-height: 0 !important;
@@ -2140,7 +2146,8 @@ body.is-reading-article .reading-dim-layer {
   margin: 0 !important;
   transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.panel-blog.is-reading-article .white-box-header {
+.panel-blog.is-reading-article .white-box-header,
+.panel-blog.is-exiting-article .white-box-header {
   opacity: 0 !important;
   pointer-events: none !important;
   max-height: 0 !important;
@@ -2152,6 +2159,20 @@ body.is-reading-article .reading-dim-layer {
   transition:
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* 退出时主题栏保持收起，避免行高回弹带动下边界 */
+.panel-blog.is-exiting-article .blog-theme-rail {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  max-width: 0 !important;
+  flex-basis: 0 !important;
+  margin-right: 0 !important;
+  transform: translate3d(130%, 0, 0) !important;
+  overflow: hidden !important;
+}
+.panel-blog.is-exiting-article .blog-stage-duo {
+  gap: 0 !important;
 }
 
 .blog-list {
