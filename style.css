@@ -773,7 +773,7 @@ body {
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     flex-basis 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     margin-right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  align-self: stretch;
+  align-self: flex-start;
   will-change: transform, opacity, margin-right, width, max-width;
 }
 .blog-theme-rail.is-visible {
@@ -781,8 +781,10 @@ body {
 }
 .theme-rail-inner {
   width: 132px;
-  min-height: min(96vh, 1100px);
+  /* 高度由 JS 与右侧文章列表框同步，不设超大 min-height */
+  min-height: 0;
   height: 100%;
+  box-sizing: border-box;
   padding: var(--radius-pad) 0.75rem;
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.12);
@@ -795,7 +797,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  overflow: visible;
+  overflow: hidden;
   opacity: 1;
 }
 .theme-rail-title {
@@ -857,8 +859,7 @@ body {
   z-index: 2;
   pointer-events: auto;
   will-change: max-width, width, height, max-height, box-shadow, transform;
-  /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展
-     高度由 JS rAF 插值，不要用 CSS transition height（从 auto→px 会瞬跳） */
+  /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展 */
   transform-origin: right top;
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
@@ -883,7 +884,7 @@ body {
   }
   .theme-rail-inner {
     width: 96px;
-    min-height: min(94vh, 900px);
+    min-height: 0;
     padding: 1.1rem 0.5rem 1.2rem;
     border-radius: var(--radius-card);
   }
@@ -906,7 +907,7 @@ body {
   }
   .theme-rail-inner {
     width: 84px;
-    min-height: min(92vh, 820px);
+    min-height: 0;
     border-radius: var(--radius-card);
   }
   .slogan { font-size: clamp(2.2rem, 10vw, 3.2rem); }
@@ -1028,11 +1029,173 @@ a.blog-list .blog-card,
   background: rgba(96, 165, 250, 0.15);
   color: #93c5fd;
 }
-.blog-footer {
+/* —— 文章列表分页（替代底部标语） —— */
+.blog-pagination {
   margin-top: 1rem;
-  text-align: center;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+  min-height: 2.2rem;
+}
+.blog-pagination:empty { display: none; }
+.blog-page-btn {
+  appearance: none;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.55rem;
+  border-radius: var(--radius-btn);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.blog-page-btn:hover:not(:disabled):not(.is-active) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.36);
+  color: #fff;
+}
+.blog-page-btn:active:not(:disabled) { transform: scale(0.96); }
+.blog-page-btn.is-active {
+  background: rgba(0, 113, 227, 0.82);
+  border-color: rgba(255, 255, 255, 0.42);
+  color: #fff;
+  box-shadow:
+    0 4px 12px rgba(0, 113, 227, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45);
+  cursor: default;
+}
+.blog-page-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.blog-page-info {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 0 0.35rem;
+  white-space: nowrap;
+}
+
+/* —— 顶栏：列表工具 / 阅读元信息 —— */
+.blog-toolbar-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: space-between;
+}
+.blog-toolbar-reading {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+body.is-reading-article .blog-toolbar-list,
+.panel-blog.is-reading-article ~ * .blog-toolbar-list {
+  display: none !important;
+}
+/* nav 与 body 同步 class 时切换 */
+body.is-reading-article .glass-nav.blog-mode .blog-toolbar-list {
+  display: none !important;
+}
+body.is-reading-article .glass-nav.blog-mode .blog-toolbar-reading {
+  display: flex !important;
+}
+body.is-exiting-article .glass-nav.blog-mode .blog-toolbar-list {
+  display: none !important;
+}
+body.is-exiting-article .glass-nav.blog-mode .blog-toolbar-reading {
+  display: flex !important;
+}
+.blog-reading-title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 18px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 18px), transparent 100%);
+}
+.blog-reading-title-track {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+}
+.blog-reading-title-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  white-space: nowrap;
+}
+.blog-reading-title-track.is-marquee {
+  animation: blogTitleMarquee var(--marquee-duration, 10s) linear infinite;
+}
+.blog-reading-title-track.is-marquee .blog-reading-title-gap {
+  display: inline-block;
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+@keyframes blogTitleMarquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-1 * var(--marquee-distance, 50%))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blog-reading-title-track.is-marquee { animation: none; }
+}
+.blog-reading-meta {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem 0.75rem;
+  max-width: 48%;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+.blog-reading-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.blog-reading-meta i {
+  opacity: 0.85;
+  font-size: 0.72rem;
+}
+@media (max-width: 640px) {
+  .blog-reading-meta {
+    max-width: 42%;
+    gap: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+  }
+  .blog-reading-title-text { font-size: 0.88rem; }
+}
+
+/* 阅读/退出时分页与列表一并收起 */
+.panel-blog.is-reading-article .blog-pagination,
+.panel-blog.is-exiting-article .blog-pagination {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
 }
 
 .article-reader-modal {
@@ -2065,11 +2228,10 @@ body.is-reading-article .reading-dim-layer {
 .panel-blog.is-exiting-article .blog-white-box {
   /* 关掉 flex-grow，否则显式 height 无效，下边界只会瞬跳 */
   flex: 0 0 auto !important;
-  /* 不要 stretch：父行高度会被主题栏 min-height 撑高，导致下边界瞬跳 */
   align-self: flex-start !important;
   max-width: 100% !important;
   width: 100% !important;
-  /* 左右用 CSS；高度完全由 JS rAF 插值，禁止 CSS 过渡 height/max-height */
+  /* 左右用 CSS；高度完全由 JS rAF 插值 */
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
@@ -2114,7 +2276,7 @@ body.is-reading-article .reading-dim-layer {
 .reading-dim-layer.is-active {
   opacity: 1;
 }
-/* 列表文章卡片淡出，再让出空间给阅读视图（退出动画期间也保持收起，避免下边界回跳） */
+/* 列表文章卡片淡出，再让出空间给阅读视图 */
 .panel-blog.is-reading-article .blog-list,
 .panel-blog.is-exiting-article .blog-list {
   opacity: 0 !important;
@@ -2127,18 +2289,15 @@ body.is-reading-article .reading-dim-layer {
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.panel-blog.is-reading-article .blog-list .blog-card,
-.panel-blog.is-exiting-article .blog-list .blog-card {
+.panel-blog.is-reading-article .blog-list .blog-card {
   opacity: 0 !important;
   transform: translateY(-6px);
   transition:
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.panel-blog.is-reading-article .blog-footer,
-.panel-blog.is-reading-article .white-box-header .sub-count,
-.panel-blog.is-exiting-article .blog-footer,
-.panel-blog.is-exiting-article .white-box-header .sub-count {
+.panel-blog.is-reading-article .blog-pagination,
+.panel-blog.is-reading-article .white-box-header .sub-count {
   opacity: 0 !important;
   pointer-events: none !important;
   max-height: 0 !important;
@@ -2146,8 +2305,7 @@ body.is-reading-article .reading-dim-layer {
   margin: 0 !important;
   transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.panel-blog.is-reading-article .white-box-header,
-.panel-blog.is-exiting-article .white-box-header {
+.panel-blog.is-reading-article .white-box-header {
   opacity: 0 !important;
   pointer-events: none !important;
   max-height: 0 !important;
@@ -2159,20 +2317,6 @@ body.is-reading-article .reading-dim-layer {
   transition:
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-/* 退出时主题栏保持收起，避免行高回弹带动下边界 */
-.panel-blog.is-exiting-article .blog-theme-rail {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  width: 0 !important;
-  max-width: 0 !important;
-  flex-basis: 0 !important;
-  margin-right: 0 !important;
-  transform: translate3d(130%, 0, 0) !important;
-  overflow: hidden !important;
-}
-.panel-blog.is-exiting-article .blog-stage-duo {
-  gap: 0 !important;
 }
 
 .blog-list {
