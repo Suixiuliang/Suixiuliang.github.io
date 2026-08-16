@@ -644,6 +644,11 @@
   let stage3Extra = 0;
   let isBlogActive = false;
   let activeCategory = '';
+  const BLOG_PAGE_SIZE = 5;
+  let blogCurrentPage = 1;
+  let blogFilteredCache = [];
+  let blogFilterKeyword = '';
+  let blogFilterDate = null;
 
   const blogSearchInput = document.getElementById('blogSearchInput');
   const calendarBtn = document.getElementById('calendarBtn');
@@ -776,33 +781,85 @@
     });
   }
 
-  function filterAndRenderBlogs(keyword = '', dateStr = null) {
+  function getBlogTotalPages(total) {
+    return Math.max(1, Math.ceil((total || 0) / BLOG_PAGE_SIZE));
+  }
+
+  function renderBlogPagination(total) {
+    const pager = document.getElementById('blogPagination');
+    if (!pager) return;
+    const totalPages = getBlogTotalPages(total);
+    if (!total || totalPages <= 1) {
+      pager.innerHTML = total
+        ? `<div class="blog-page-info">共 ${total} 篇 · 每页 ${BLOG_PAGE_SIZE} 篇</div>`
+        : '';
+      return;
+    }
+
+    const page = Math.min(Math.max(1, blogCurrentPage), totalPages);
+    blogCurrentPage = page;
+
+    const buttons = [];
+    buttons.push(`<button type="button" class="blog-page-btn" data-page="prev" ${page <= 1 ? 'disabled' : ''} title="上一页"><i class="fas fa-chevron-left"></i></button>`);
+
+    const pushPage = (n) => {
+      buttons.push(`<button type="button" class="blog-page-btn${n === page ? ' is-active' : ''}" data-page="${n}" ${n === page ? 'aria-current="page"' : ''}>${n}</button>`);
+    };
+
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pushPage(i);
+    } else {
+      pushPage(1);
+      if (page > 3) buttons.push('<span class="blog-page-ellipsis">…</span>');
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+      for (let i = start; i <= end; i++) pushPage(i);
+      if (page < totalPages - 2) buttons.push('<span class="blog-page-ellipsis">…</span>');
+      pushPage(totalPages);
+    }
+
+    buttons.push(`<button type="button" class="blog-page-btn" data-page="next" ${page >= totalPages ? 'disabled' : ''} title="下一页"><i class="fas fa-chevron-right"></i></button>`);
+    buttons.push(`<div class="blog-page-info">第 ${page} / ${totalPages} 页 · 共 ${total} 篇</div>`);
+    pager.innerHTML = buttons.join('');
+
+    pager.querySelectorAll('.blog-page-btn[data-page]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-page');
+        let next = page;
+        if (key === 'prev') next = page - 1;
+        else if (key === 'next') next = page + 1;
+        else next = parseInt(key, 10) || page;
+        if (next === page || next < 1 || next > totalPages) return;
+        blogCurrentPage = next;
+        renderBlogPage();
+      });
+    });
+  }
+
+  function renderBlogPage() {
     const list = document.getElementById('blogList');
     const countEl = document.getElementById('postCount');
     if (!list) return;
 
-    let filtered = blogPosts.filter(post => {
-      const titleMatch = (post.title || '').toLowerCase().includes(keyword);
-      const summaryMatch = (post.summary || post.content || '').toLowerCase().includes(keyword);
-      const matchesKeyword = !keyword || titleMatch || summaryMatch;
-      let matchesDate = true;
-      if (dateStr) {
-        const postDate = dateOnlyUTC8(post.rawDate || post.date) || (post.date || '').split(' ')[0];
-        matchesDate = postDate === dateStr;
-      }
-      const matchesCat = !activeCategory || (post.category || '') === activeCategory;
-      return matchesKeyword && matchesDate && matchesCat;
-    });
+    const filtered = blogFilteredCache;
+    const total = filtered.length;
+    const totalPages = getBlogTotalPages(total);
+    if (blogCurrentPage > totalPages) blogCurrentPage = totalPages;
+    if (blogCurrentPage < 1) blogCurrentPage = 1;
 
-    if (!filtered.length) {
+    if (!total) {
       list.innerHTML = '<p class="loading-placeholder">没有找到匹配的文章</p>';
       if (countEl) countEl.textContent = '0 篇文章';
+      renderBlogPagination(0);
       setupBlogScrollHeights();
       return;
     }
 
+    const startIdx = (blogCurrentPage - 1) * BLOG_PAGE_SIZE;
+    const pageItems = filtered.slice(startIdx, startIdx + BLOG_PAGE_SIZE);
+
     let html = '';
-    filtered.forEach(post => {
+    pageItems.forEach(post => {
       const displayDate = post.date || formatDateUTC8(post.rawDate) || '';
       const slug = post.slug || post.id;
       const id = escapeHtml(slug);
@@ -821,7 +878,8 @@
       `;
     });
     list.innerHTML = html;
-    if (countEl) countEl.textContent = `${filtered.length} 篇文章`;
+    if (countEl) countEl.textContent = `${total} 篇文章`;
+    renderBlogPagination(total);
 
     list.querySelectorAll('.blog-card[data-id]').forEach(card => {
       const open = (e) => {
@@ -842,6 +900,78 @@
       updateBlogScroll();
       updateGlobalAvatarPosition();
     });
+  }
+
+  function filterAndRenderBlogs(keyword = '', dateStr = null, resetPage = true) {
+    blogFilterKeyword = keyword || '';
+    blogFilterDate = dateStr || null;
+
+    blogFilteredCache = blogPosts.filter(post => {
+      const titleMatch = (post.title || '').toLowerCase().includes(blogFilterKeyword);
+      const summaryMatch = (post.summary || post.content || '').toLowerCase().includes(blogFilterKeyword);
+      const matchesKeyword = !blogFilterKeyword || titleMatch || summaryMatch;
+      let matchesDate = true;
+      if (blogFilterDate) {
+        const postDate = dateOnlyUTC8(post.rawDate || post.date) || (post.date || '').split(' ')[0];
+        matchesDate = postDate === blogFilterDate;
+      }
+      const matchesCat = !activeCategory || (post.category || '') === activeCategory;
+      return matchesKeyword && matchesDate && matchesCat;
+    });
+
+    if (resetPage) blogCurrentPage = 1;
+    renderBlogPage();
+  }
+
+  function setReadingToolbarMeta(title, metaHtml) {
+    const titleEl = document.getElementById('blogReadingTitle');
+    const track = document.getElementById('blogReadingTitleTrack');
+    const metaEl = document.getElementById('blogReadingMeta');
+    const t = String(title || '无标题');
+    if (titleEl) titleEl.textContent = t;
+    if (metaEl) metaEl.innerHTML = metaHtml || '';
+    if (track) {
+      track.classList.remove('is-marquee');
+      track.style.removeProperty('--marquee-duration');
+      track.innerHTML = `<span class="blog-reading-title">${escapeHtml(t)}</span>`;
+    }
+    requestAnimationFrame(() => {
+      updateReadingTitleMarquee();
+    });
+  }
+
+  function updateReadingTitleMarquee() {
+    const track = document.getElementById('blogReadingTitleTrack');
+    const wrap = document.getElementById('blogReadingTitleWrap');
+    if (!track || !wrap) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    track.classList.remove('is-marquee');
+    const titleSpan = track.querySelector('.blog-reading-title');
+    if (!titleSpan) return;
+    track.querySelectorAll('.blog-reading-title').forEach((el, idx) => {
+      if (idx > 0) el.remove();
+    });
+    if (reduce) return;
+    const need = titleSpan.scrollWidth > wrap.clientWidth + 4;
+    if (!need) return;
+    const clone = titleSpan.cloneNode(true);
+    track.appendChild(clone);
+    const distance = titleSpan.scrollWidth;
+    const duration = Math.max(6, Math.min(22, distance / 40));
+    track.style.setProperty('--marquee-duration', duration + 's');
+    track.classList.add('is-marquee');
+  }
+
+  function showReadingToolbar(on) {
+    if (!nav) return;
+    nav.classList.toggle('is-reading-toolbar', !!on);
+    const list = document.getElementById('blogToolbarList');
+    const reading = document.getElementById('blogToolbarReading');
+    if (list) list.hidden = !!on;
+    if (reading) reading.hidden = !on;
+    if (on) {
+      requestAnimationFrame(() => updateReadingTitleMarquee());
+    }
   }
 
   function detectContentType(article) {
@@ -1790,6 +1920,7 @@
     blogPanel.classList.remove('is-exiting-article');
     blogPanel.classList.add('is-reading-article');
     nav && nav.classList.add('blog-mode');
+    showReadingToolbar(true);
     railGapLocked = true;
 
     setupBlogScrollHeights();
@@ -1837,6 +1968,7 @@
       cancelAnimationFrame(readingOuterLockRaf);
       readingOuterLockRaf = null;
     }
+    showReadingToolbar(false);
 
     const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || getReadingBoxTargetHeight();
     setWhiteBoxHeightPx(startH);
@@ -1906,14 +2038,15 @@
       scrollContainer.scrollTo({ left: blogEl.offsetLeft, behavior: 'smooth' });
     }
 
-    titleEl.textContent = (local && local.title) || '加载中…';
-    if (metaEl) {
-      metaEl.innerHTML = local
-        ? `<span><i class="far fa-calendar"></i> ${escapeHtml(local.date || '')} UTC+8</span>` +
-          (local.category ? `<span><i class="fas fa-tag"></i> ${escapeHtml(local.category)}</span>` : '') +
-          `<span><i class="far fa-clock"></i> ${escapeHtml(local.readTime || '')}</span>`
-        : '';
-    }
+    const loadingTitle = (local && local.title) || '加载中…';
+    titleEl.textContent = loadingTitle;
+    const loadingMeta = local
+      ? `<span><i class="far fa-calendar"></i> ${escapeHtml(local.date || '')} UTC+8</span>` +
+        (local.category ? `<span><i class="fas fa-tag"></i> ${escapeHtml(local.category)}</span>` : '') +
+        `<span><i class="far fa-clock"></i> ${escapeHtml(local.readTime || '')}</span>`
+      : '';
+    if (metaEl) metaEl.innerHTML = loadingMeta;
+    setReadingToolbarMeta(loadingTitle, loadingMeta);
     bodyEl.innerHTML = '<p class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载正文…</p>';
     // 先测纯列表高度，再露出正文（否则列表+正文叠高会让下边界起跑点偏高并瞬跳）
     const listHeightBeforeRead = blogWhiteBox
@@ -1939,21 +2072,22 @@
       return;
     }
 
-    titleEl.textContent = article.title || (local && local.title) || '无标题';
+    const finalTitle = article.title || (local && local.title) || '无标题';
+    titleEl.textContent = finalTitle;
     const finalSlug = article.slug || (local && local.slug) || idOrSlug;
     if (finalSlug) setArticleUrl(finalSlug, { replace: true });
     const rawDate = article.published_at || article.created_at || article.date || (local && local.rawDate) || '';
     const displayDate = formatDateUTC8(rawDate) || (local && local.date) || '';
-    if (metaEl) {
-      metaEl.innerHTML =
-        `<span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} UTC+8</span>` +
-        (article.category || (local && local.category)
-          ? `<span><i class="fas fa-tag"></i> ${escapeHtml(article.category || local.category)}</span>`
-          : '') +
-        (article.reading_time || (local && local.readTime)
-          ? `<span><i class="far fa-clock"></i> ${escapeHtml(article.reading_time ? article.reading_time + ' min' : local.readTime)}</span>`
-          : '');
-    }
+    const finalMeta =
+      `<span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} UTC+8</span>` +
+      (article.category || (local && local.category)
+        ? `<span><i class="fas fa-tag"></i> ${escapeHtml(article.category || local.category)}</span>`
+        : '') +
+      (article.reading_time || (local && local.readTime)
+        ? `<span><i class="far fa-clock"></i> ${escapeHtml(article.reading_time ? article.reading_time + ' min' : local.readTime)}</span>`
+        : '');
+    if (metaEl) metaEl.innerHTML = finalMeta;
+    setReadingToolbarMeta(finalTitle, finalMeta);
     const content = article.content || article.body || (local && local.content) || article.summary || article.excerpt || '';
     const ctype = detectContentType(article) || detectContentType(local) || 'markdown';
     bodyEl.innerHTML = renderArticleBodyHtml(content, ctype) || '<p>（无正文）</p>';
@@ -3034,6 +3168,7 @@
     if (isArticleReading) {
       applyReadingBoxMetrics();
       lockOuterScrollToBase();
+      updateReadingTitleMarquee();
     }
     updateBlogScroll();
     updateGlobalAvatarPosition();
