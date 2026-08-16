@@ -935,6 +935,8 @@
       track.style.removeProperty('--marquee-duration');
       track.innerHTML = `<span class="blog-reading-title">${escapeHtml(t)}</span>`;
     }
+    const wrapEl = document.getElementById('blogReadingTitleWrap');
+    if (wrapEl) wrapEl.classList.remove('is-marquee');
     requestAnimationFrame(() => {
       updateReadingTitleMarquee();
     });
@@ -946,11 +948,13 @@
     if (!track || !wrap) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     track.classList.remove('is-marquee');
+    wrap.classList.remove('is-marquee');
     const titleSpan = track.querySelector('.blog-reading-title');
     if (!titleSpan) return;
     track.querySelectorAll('.blog-reading-title').forEach((el, idx) => {
       if (idx > 0) el.remove();
     });
+    // 正常长度：不启用滚动、不加左右渐隐，避免左边被挡住
     if (reduce) return;
     const need = titleSpan.scrollWidth > wrap.clientWidth + 4;
     if (!need) return;
@@ -960,6 +964,7 @@
     const duration = Math.max(6, Math.min(22, distance / 40));
     track.style.setProperty('--marquee-duration', duration + 's');
     track.classList.add('is-marquee');
+    wrap.classList.add('is-marquee');
   }
 
   function showReadingToolbar(on) {
@@ -1246,6 +1251,14 @@
       audio.dataset.glassPlayer = '1';
       buildGlassAudioPlayer(audio);
     });
+    // 文章内图片 / iframe 懒加载
+    root.querySelectorAll('img').forEach((img) => {
+      if (!img.getAttribute('loading')) img.setAttribute('loading', 'lazy');
+      if (!img.getAttribute('decoding')) img.setAttribute('decoding', 'async');
+    });
+    root.querySelectorAll('iframe').forEach((iframe) => {
+      if (!iframe.getAttribute('loading')) iframe.setAttribute('loading', 'lazy');
+    });
   }
 
   function simpleMarkdownToHtml(md) {
@@ -1331,14 +1344,14 @@
     s = s.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
       const tAttr = title ? ` title="${esc(title)}"` : '';
       return hold(
-        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="eager" decoding="async">`
+        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="lazy" decoding="async">`
       );
     });
     // 相对路径 / 同站图片
     s = s.replace(/!\[([^\]]*)\]\((\/[^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) => {
       const tAttr = title ? ` title="${esc(title)}"` : '';
       return hold(
-        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="eager" decoding="async">`
+        `<img class="md-img" src="${esc(url)}" alt="${esc(alt)}"${tAttr} loading="lazy" decoding="async">`
       );
     });
 
@@ -2023,6 +2036,8 @@
     const bodyEl = document.getElementById('blogArticleBody');
     const view = document.getElementById('blogArticleView');
     if (!titleEl || !bodyEl || !view) return;
+    // 深链/直接打开文章时，先懒加载博客列表（标题元信息本地缓存）
+    try { await loadBlogRoute(); } catch (_) {}
 
     // 旧弹窗若还在，关掉
     const legacyModal = document.getElementById('articleReaderModal');
@@ -2162,6 +2177,9 @@
         if (home && scrollContainer) scrollContainer.scrollTo({ left: home.offsetLeft, behavior: 'smooth' });
         return;
       }
+      const sectionId = (link.getAttribute('data-section') || link.getAttribute('href') || '').replace(/^#/, '');
+      // 点击导航时预热对应路由数据（懒加载）
+      if (sectionId) ensureRouteLoaded(sectionId);
       const target = document.getElementById(link.getAttribute('href').substring(1));
       if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
     });
@@ -3055,6 +3073,8 @@
           updateBlogScroll();
         }
       }
+      // 路由懒加载：进入对应面板时再拉数据/渲染
+      if (activeId) ensureRouteLoaded(activeId);
       rafId = null;
     });
   }
@@ -3571,62 +3591,156 @@
     grid.innerHTML = html;
   }
 
-  async function fetchAllData() {
-    try {
-      const profileRes = await fetch(`${API_BASE_URL}/profile`, { credentials: 'include' });
-      if (profileRes.ok) {
-        const data = await profileRes.json();
-        const payload = data.profile || data;
-        if (payload && typeof payload === 'object' && Object.keys(payload).length) {
-          profileData = { ...defaultProfile, ...payload };
-          // 后端返回 snake_case：status_type / status_text
-          profileData.status = String(
-            payload.status_text ?? payload.status ?? profileData.status ?? '在线'
-          );
-          profileData.statusType = String(
-            payload.status_type ?? payload.statusType ?? profileData.statusType ?? 'online'
-          ).toLowerCase();
-        }
-      }
-    } catch (e) {}
+  // ---------- 路由懒加载：各面板数据首次进入时再拉取 ----------
+  const routeLoadState = {
+    profile: false,
+    blog: false,
+    works: false,
+    contact: false,
+    categories: false
+  };
+  const routeLoadPromises = {};
 
+  async function loadProfileRoute(force = false) {
+    if (routeLoadState.profile && !force) return profileData;
+    if (routeLoadPromises.profile && !force) return routeLoadPromises.profile;
+    routeLoadPromises.profile = (async () => {
+      try {
+        const profileRes = await fetch(`${API_BASE_URL}/profile`, { credentials: 'include' });
+        if (profileRes.ok) {
+          const data = await profileRes.json();
+          const payload = data.profile || data;
+          if (payload && typeof payload === 'object' && Object.keys(payload).length) {
+            profileData = { ...defaultProfile, ...payload };
+            profileData.status = String(
+              payload.status_text ?? payload.status ?? profileData.status ?? '在线'
+            );
+            profileData.statusType = String(
+              payload.status_type ?? payload.statusType ?? profileData.statusType ?? 'online'
+            ).toLowerCase();
+          }
+        }
+      } catch (e) {}
+      routeLoadState.profile = true;
+      renderProfile();
+      return profileData;
+    })();
     try {
-      const blogRes = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
-      if (blogRes.ok) {
-        const data = await blogRes.json();
-        const list = Array.isArray(data) ? data : (data.articles || data.posts || []);
-        if (Array.isArray(list) && list.length) {
-          blogPosts = list.map(post => {
-            const raw = post.published_at || post.created_at || post.date || '';
-            return {
-              id: post.id ?? post.slug,
-              title: post.title || '无标题',
-              summary: post.excerpt || post.summary || '',
-              content: post.content || '',
-              rawDate: raw,
-              date: formatDateUTC8(raw),
-              readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
-              icon: post.icon || 'fa-pen',
-              slug: post.slug,
-              category: post.category || ''
-            };
-          });
+      return await routeLoadPromises.profile;
+    } finally {
+      delete routeLoadPromises.profile;
+    }
+  }
+
+  async function loadBlogRoute(force = false) {
+    if (routeLoadState.blog && !force) return blogPosts;
+    if (routeLoadPromises.blog && !force) return routeLoadPromises.blog;
+    const listEl = document.getElementById('blogList');
+    if (listEl && !routeLoadState.blog) {
+      listEl.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载文章...</div>';
+    }
+    routeLoadPromises.blog = (async () => {
+      try {
+        const blogRes = await fetch(`${API_BASE_URL}/articles?limit=50`, { credentials: 'include' });
+        if (blogRes.ok) {
+          const data = await blogRes.json();
+          const list = Array.isArray(data) ? data : (data.articles || data.posts || []);
+          if (Array.isArray(list) && list.length) {
+            blogPosts = list.map(post => {
+              const raw = post.published_at || post.created_at || post.date || '';
+              return {
+                id: post.id ?? post.slug,
+                title: post.title || '无标题',
+                summary: post.excerpt || post.summary || '',
+                content: post.content || '',
+                rawDate: raw,
+                date: formatDateUTC8(raw),
+                readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
+                icon: post.icon || 'fa-pen',
+                slug: post.slug,
+                category: post.category || ''
+              };
+            });
+          }
+        }
+      } catch (e) {
+        try {
+          const legacy = await fetch(`${API_BASE_URL}/blog`);
+          if (legacy.ok) {
+            const posts = await legacy.json();
+            if (Array.isArray(posts)) blogPosts = posts;
+          }
+        } catch (_) {}
+      }
+
+      // 分类可与文章并行，但按路由懒加载
+      if (!routeLoadState.categories || force) {
+        try {
+          const catRes = await fetch(`${API_BASE_URL}/categories`, { credentials: 'include' });
+          if (catRes.ok) {
+            const catData = await catRes.json();
+            if (catData && Array.isArray(catData.categories)) {
+              renderThemeRail(catData.categories);
+              routeLoadState.categories = true;
+            } else {
+              renderThemeRail(blogPosts.map(p => p.category).filter(Boolean));
+            }
+          } else {
+            renderThemeRail(blogPosts.map(p => p.category).filter(Boolean));
+          }
+        } catch (_) {
           renderThemeRail(blogPosts.map(p => p.category).filter(Boolean));
         }
       }
-    } catch (e) {
-      try {
-        const legacy = await fetch(`${API_BASE_URL}/blog`);
-        if (legacy.ok) {
-          const posts = await legacy.json();
-          if (Array.isArray(posts)) blogPosts = posts;
-        }
-      } catch (_) {}
-    }
 
-    renderProfile();
-    filterAndRenderBlogs('', null);
-    renderWorks();
+      routeLoadState.blog = true;
+      filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false);
+      requestAnimationFrame(() => {
+        setupBlogScrollHeights();
+        updateBlogScroll();
+      });
+      return blogPosts;
+    })();
+    try {
+      return await routeLoadPromises.blog;
+    } finally {
+      delete routeLoadPromises.blog;
+    }
+  }
+
+  async function loadWorksRoute(force = false) {
+    if (routeLoadState.works && !force) return;
+    if (routeLoadPromises.works && !force) return routeLoadPromises.works;
+    routeLoadPromises.works = (async () => {
+      // 作品目前是本地静态数据；仍按路由首次进入再渲染
+      renderWorks();
+      routeLoadState.works = true;
+    })();
+    try {
+      await routeLoadPromises.works;
+    } finally {
+      delete routeLoadPromises.works;
+    }
+  }
+
+  async function loadContactRoute(force = false) {
+    if (routeLoadState.contact && !force) return;
+    routeLoadState.contact = true;
+    // 联系页为静态 DOM，无需额外请求；预留扩展点
+  }
+
+  async function ensureRouteLoaded(sectionId) {
+    const id = String(sectionId || '');
+    if (id === 'home') return loadProfileRoute();
+    if (id === 'blog') return loadBlogRoute();
+    if (id === 'works') return loadWorksRoute();
+    if (id === 'contact') return loadContactRoute();
+  }
+
+  /** 兼容旧调用：仍可一次性刷新，但默认拆成路由懒加载 */
+  async function fetchAllData() {
+    await loadProfileRoute(true);
+    await Promise.all([loadBlogRoute(true), loadWorksRoute(true)]);
   }
 
   function onHorizontalScrollForNav() {
@@ -4582,8 +4696,11 @@
     const apiOk = !(bootResult && bootResult.apiOk === false);
 
     renderProfile();
-    filterAndRenderBlogs('', null);
-    renderWorks();
+    // 博客/作品改为路由懒加载，初始化只放占位
+    const worksGrid = document.getElementById('worksGrid');
+    if (worksGrid) worksGrid.innerHTML = '<div class="loading-placeholder">滑动进入后加载作品...</div>';
+    const blogList = document.getElementById('blogList');
+    if (blogList) blogList.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 进入博客后加载...</div>';
     setupBlogToolbarInteractions();
     setupArticleReaderUI();
     ensureNavCapsule();
@@ -4602,20 +4719,19 @@
     }
 
     await checkAdminSession();
-    await fetchAllData();
-
-    try {
-      const catRes = await fetch(`${API_BASE_URL}/categories`, { credentials: 'include' });
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        if (catData && Array.isArray(catData.categories)) renderThemeRail(catData.categories);
-      }
-    } catch (_) {}
+    // 首页只懒加载 profile；博客/作品等进入路由后再加载
+    await loadProfileRoute();
 
     // 深链 /blog/{slug} 或返回键
     const bootSlug = parseBlogSlugFromLocation();
     if (bootSlug) {
+      // 深链会触发 blog 路由加载 + 文章正文懒加载
       openArticleReader(bootSlug);
+    } else {
+      // 若当前已停在 blog/works 面板，补一次懒加载
+      const active = document.querySelector('.nav-btn.active');
+      const sec = active && active.getAttribute('data-section');
+      if (sec && sec !== 'home') ensureRouteLoaded(sec);
     }
     window.addEventListener('popstate', () => {
       const slug = (history.state && history.state.blogSlug) || parseBlogSlugFromLocation();

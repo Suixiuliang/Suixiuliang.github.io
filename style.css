@@ -173,8 +173,11 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+/* 仅标题需要滚动时才左右渐隐；正常长度不挡左边 */
+.blog-reading-title-wrap.is-marquee {
+  mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
 }
 .blog-reading-title-track {
   display: inline-flex;
@@ -199,7 +202,7 @@ body {
   .blog-reading-title-track.is-marquee {
     animation: none;
   }
-  .blog-reading-title-wrap {
+  .blog-reading-title-wrap.is-marquee {
     mask-image: none;
     -webkit-mask-image: none;
   }
