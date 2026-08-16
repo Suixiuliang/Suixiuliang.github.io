@@ -599,6 +599,9 @@
   let adminUnlocked = false;
   let authRole = null;
   let authedCreateSecret = null;
+  let guestCodeTimer = null;
+  let guestCodeExpireAt = 0;
+  let guestCodeValue = '';
 
   const defaultProfile = {
     name: "MaxSui",
@@ -871,12 +874,14 @@
           <div class="blog-icon"><i class="fas ${post.icon || 'fa-pen'}"></i></div>
           <h3>${escapeHtml(post.title || '无标题')}</h3>
           <p>${escapeHtml(post.summary || '')}</p>
-          ${post.status === 'hidden' ? '<span class="blog-hidden-badge"><i class="fas fa-lock"></i> 需认证</span>' : ''}
           <div class="blog-meta">
             <span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} <small style="opacity:.7">UTC+8</small></span>
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
-          <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
+          <div class="blog-card-actions">
+            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="私密文章，您已被授权阅读"><i class="fas fa-lock"></i> 私密文章，您已被授权阅读</span>' : ''}
+            <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
+          </div>
         </a>
       `;
     });
@@ -2206,10 +2211,20 @@
     lockAdminPanel();
   }
 
+  function stopGuestCodeTimer() {
+    if (guestCodeTimer) {
+      clearInterval(guestCodeTimer);
+      guestCodeTimer = null;
+    }
+    guestCodeExpireAt = 0;
+    guestCodeValue = '';
+  }
+
   function lockAdminPanel() {
     if (!adminUnlocked) return;
     adminUnlocked = false;
     authRole = null;
+    stopGuestCodeTimer();
     const adminNav = document.querySelector('.nav-btn[data-section="admin"]');
     if (adminNav) adminNav.remove();
     const adminSection = document.getElementById('admin');
@@ -2367,10 +2382,13 @@
             <div class="glass-card admin-card">
               <h3><i class="fas fa-shield-alt"></i> 会话</h3>
               <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">已通过 API Session Cookie 登录。退出后需重新验证。</p>
-              <div class="admin-guest-code-card">
+              <div class="admin-guest-code-card" id="adminGuestCodeCard">
                 <div><strong><i class="fas fa-ticket-alt"></i> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
                 <code id="adminGuestCode">加载中…</code>
-                <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn"><i class="fas fa-sync"></i> 刷新</button>
+                <div class="admin-guest-code-actions">
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminCopyGuestCodeBtn" title="复制邀请码"><i class="fas fa-copy"></i> 复制</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn" title="手动刷新邀请码"><i class="fas fa-sync"></i> 刷新</button>
+                </div>
               </div>
               <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
                 <i class="fas fa-sign-out-alt"></i> 退出登录
@@ -2482,7 +2500,8 @@
     });
 
     section.querySelector('#adminLogoutBtn')?.addEventListener('click', adminLogout);
-    section.querySelector('#adminRefreshGuestCodeBtn')?.addEventListener('click', loadGuestCode);
+    section.querySelector('#adminCopyGuestCodeBtn')?.addEventListener('click', copyGuestCode);
+    section.querySelector('#adminRefreshGuestCodeBtn')?.addEventListener('click', () => loadGuestCode());
     loadGuestCode();
     section.querySelector('#adminRefreshArticlesBtn')?.addEventListener('click', loadAdminArticles);
     section.querySelector('#adminArticlesSearch')?.addEventListener('input', (e) => {
@@ -2575,20 +2594,82 @@
     });
   }
 
-  async function loadGuestCode() {
+  function updateGuestCodeMetaDisplay() {
+    const metaEl = document.getElementById('adminGuestCodeMeta');
+    if (!metaEl) return;
+    if (!guestCodeExpireAt) {
+      metaEl.textContent = '每 10 分钟自动更新';
+      return;
+    }
+    const left = Math.max(0, Math.ceil((guestCodeExpireAt - Date.now()) / 1000));
+    const mins = Math.floor(left / 60);
+    const secs = left % 60;
+    metaEl.textContent = `本轮剩余 ${mins} 分 ${String(secs).padStart(2, '0')} 秒 · 到期后自动刷新`;
+  }
+
+  function startGuestCodeCountdown() {
+    if (guestCodeTimer) {
+      clearInterval(guestCodeTimer);
+      guestCodeTimer = null;
+    }
+    updateGuestCodeMetaDisplay();
+    guestCodeTimer = setInterval(() => {
+      if (!guestCodeExpireAt) return;
+      const left = Math.ceil((guestCodeExpireAt - Date.now()) / 1000);
+      updateGuestCodeMetaDisplay();
+      if (left <= 0) {
+        loadGuestCode({ silent: true });
+      }
+    }, 1000);
+  }
+
+  async function copyGuestCode() {
+    const code = guestCodeValue || (document.getElementById('adminGuestCode')?.textContent || '').trim();
+    if (!code || code === '加载中…' || code === '获取失败' || code === '暂不可用') return;
+    const ok = await copyTextToClipboard(code);
+    const btn = document.getElementById('adminCopyGuestCodeBtn');
+    if (btn) {
+      const prev = btn.innerHTML;
+      btn.innerHTML = ok ? '<i class="fas fa-check"></i> 已复制' : '<i class="fas fa-times"></i> 失败';
+      setTimeout(() => { btn.innerHTML = prev; }, 1400);
+    }
+  }
+
+  async function loadGuestCode(options = {}) {
+    const { silent = false } = options;
     const codeEl = document.getElementById('adminGuestCode');
     const metaEl = document.getElementById('adminGuestCodeMeta');
+    const card = document.getElementById('adminGuestCodeCard');
     if (!codeEl) return;
+    if (!silent) codeEl.textContent = '加载中…';
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/guest-code`, { credentials:'include', cache:'no-store' });
-      const data = await res.json().catch(()=>null);
+      const res = await fetch(`${API_BASE_URL}/admin/guest-code`, { credentials: 'include', cache: 'no-store' });
+      const data = await res.json().catch(() => null);
       if (!res.ok || !data?.code) throw new Error(data?.error || '获取失败');
-      codeEl.textContent = data.code;
+      guestCodeValue = String(data.code);
+      codeEl.textContent = guestCodeValue;
+      if (card) card.hidden = false;
       const sec = Number(data.valid_for_seconds || 0);
-      const mins = Math.floor(sec / 60);
-      const secs = sec % 60;
-      if (metaEl) metaEl.textContent = `本轮剩余 ${mins} 分 ${String(secs).padStart(2,'0')} 秒；每 10 分钟自动更新`;
-    } catch (e) { codeEl.textContent = '获取失败'; if (metaEl) metaEl.textContent = String(e.message || e); }
+      if (sec > 0) {
+        guestCodeExpireAt = Date.now() + sec * 1000;
+      } else if (data.expires_at) {
+        const t = new Date(data.expires_at).getTime();
+        guestCodeExpireAt = Number.isFinite(t) ? t : Date.now() + 10 * 60 * 1000;
+      } else {
+        guestCodeExpireAt = Date.now() + 10 * 60 * 1000;
+      }
+      startGuestCodeCountdown();
+    } catch (e) {
+      // Authed User 等角色若无权限：隐藏卡片，不打扰会话页
+      if (authRole && authRole !== 'admin') {
+        if (card) card.hidden = true;
+        stopGuestCodeTimer();
+        return;
+      }
+      codeEl.textContent = '获取失败';
+      guestCodeValue = '';
+      if (metaEl) metaEl.textContent = String(e.message || e);
+    }
   }
 
   async function loadAdminArticles() {
@@ -2865,11 +2946,72 @@
     }
   }
 
+  function normalizeAuthRole(role) {
+    const r = String(role || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (r === 'admin' || r === 'administrator') return 'admin';
+    if (r === 'guest') return 'guest';
+    if (r === 'authed_user' || r === 'authed' || r === 'user' || r === 'member') return 'authed_user';
+    return r || 'authed_user';
+  }
+
+  function accountPanelTitle(role) {
+    if (role === 'admin') return { icon: 'fa-user-shield', label: '管理员' };
+    if (role === 'guest') return { icon: 'fa-user', label: 'Guest' };
+    return { icon: 'fa-user-check', label: 'Authed User' };
+  }
+
+  function buildUserAccountPanelHTML(role) {
+    const info = accountPanelTitle(role);
+    const showInvite = role === 'authed_user'; // Guest 仅会话；Authed 可尝试查看邀请码
+    return `
+      <div class="panel-content">
+        <div class="section-title"><i class="fas ${info.icon}"></i><span>${info.label}</span></div>
+        <div class="admin-panel-wrap">
+          <div class="admin-tabs" role="tablist">
+            <button type="button" class="admin-tab-btn active" data-tab="session"><i class="fas fa-sign-out-alt"></i> 会话</button>
+          </div>
+          <div class="admin-tab-panel active" data-panel="session">
+            <div class="glass-card admin-card">
+              <h3><i class="fas fa-shield-alt"></i> 会话</h3>
+              <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">当前身份：${escapeHtml(info.label)}。已通过 API Session Cookie 登录，退出后需重新验证。</p>
+              ${showInvite ? `
+              <div class="admin-guest-code-card" id="adminGuestCodeCard" hidden>
+                <div><strong><i class="fas fa-ticket-alt"></i> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
+                <code id="adminGuestCode">加载中…</code>
+                <div class="admin-guest-code-actions">
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminCopyGuestCodeBtn" title="复制邀请码"><i class="fas fa-copy"></i> 复制</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn" title="手动刷新邀请码"><i class="fas fa-sync"></i> 刷新</button>
+                </div>
+              </div>` : ''}
+              <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
+                <i class="fas fa-sign-out-alt"></i> 退出登录
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindUserAccountPanelEvents(section, role) {
+    section.querySelector('#adminLogoutBtn')?.addEventListener('click', adminLogout);
+    if (role === 'authed_user') {
+      section.querySelector('#adminCopyGuestCodeBtn')?.addEventListener('click', copyGuestCode);
+      section.querySelector('#adminRefreshGuestCodeBtn')?.addEventListener('click', () => loadGuestCode());
+      // 后端若无权限会自动隐藏卡片
+      loadGuestCode();
+    }
+  }
+
   function unlockAdminPanel(options = {}) {
     const { scrollToAdmin = true } = options;
     if (adminUnlocked) return;
     adminUnlocked = true;
     closeAdminLoginModal();
+
+    const role = normalizeAuthRole(authRole);
+    authRole = role;
+    const info = accountPanelTitle(role);
 
     const linksWrap = document.querySelector('.nav-links');
     if (linksWrap && !document.querySelector('.nav-btn[data-section="admin"]')) {
@@ -2877,7 +3019,7 @@
       a.href = '#admin';
       a.className = 'nav-btn';
       a.dataset.section = 'admin';
-      a.innerHTML = '<i class="fas fa-user-shield"></i><span>管理员</span>';
+      a.innerHTML = `<i class="fas ${info.icon}"></i><span>${info.label}</span>`;
       linksWrap.insertBefore(a, linksWrap.firstChild);
       bindNavLinkClick(a);
     }
@@ -2886,9 +3028,15 @@
       const section = document.createElement('section');
       section.id = 'admin';
       section.className = 'panel';
-      section.innerHTML = buildAdminPanelHTML();
-      scrollContainer.insertBefore(section, scrollContainer.firstChild);
-      bindAdminPanelEvents(section);
+      if (role === 'admin') {
+        section.innerHTML = buildAdminPanelHTML();
+        scrollContainer.insertBefore(section, scrollContainer.firstChild);
+        bindAdminPanelEvents(section);
+      } else {
+        section.innerHTML = buildUserAccountPanelHTML(role);
+        scrollContainer.insertBefore(section, scrollContainer.firstChild);
+        bindUserAccountPanelEvents(section, role);
+      }
     }
 
     requestAnimationFrame(() => {
@@ -2906,9 +3054,12 @@
       const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials:'include', cache:'no-store' });
       const data = await res.json().catch(()=>null);
       if (res.ok && data?.authenticated) {
-        authRole = data.role || (data.admin ? 'admin' : 'authed_user');
-        if (authRole === 'admin') unlockAdminPanel({scrollToAdmin:false});
-        else { await loadBlogRoute(true); filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false); }
+        authRole = normalizeAuthRole(data.role || (data.admin ? 'admin' : 'authed_user'));
+        unlockAdminPanel({ scrollToAdmin: false });
+        if (authRole !== 'admin') {
+          await loadBlogRoute(true);
+          filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false);
+        }
         return true;
       }
     } catch (_) {}
@@ -2982,10 +3133,13 @@
         const data = await res.json().catch(()=>null);
         if (res.ok && data?.registration_mode) { enterRegisterMode(username); return; }
         if (res.ok && data?.success !== false) {
-          authRole = data.role || (data.admin ? 'admin' : 'authed_user');
+          authRole = normalizeAuthRole(data.role || (data.admin ? 'admin' : 'authed_user'));
           closeAdminLoginModal();
-          if (authRole === 'admin') unlockAdminPanel({scrollToAdmin:true});
-          else { await loadBlogRoute(true); filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false); }
+          unlockAdminPanel({ scrollToAdmin: true });
+          if (authRole !== 'admin') {
+            await loadBlogRoute(true);
+            filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false);
+          }
           return;
         }
         showError(data?.error || (res.status === 401 ? '用户名或密码错误' : '登录失败'));
