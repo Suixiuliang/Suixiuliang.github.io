@@ -766,9 +766,15 @@ body {
   pointer-events: none;
   transform: translate3d(calc(-100% - var(--blog-gap)), 0, 0);
   margin-right: -132px;
-  transition: none;
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s cubic-bezier(0.25, 1, 0.5, 1),
+    width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    max-width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    flex-basis 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    margin-right 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   align-self: stretch;
-  will-change: transform, opacity, margin-right;
+  will-change: transform, opacity, margin-right, width, max-width;
 }
 .blog-theme-rail.is-visible {
   pointer-events: auto;
@@ -850,16 +856,16 @@ body {
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: auto;
-  will-change: max-width, width, height, max-height, box-shadow;
-  /* 平滑放大为主，尾段略带回弹（不是硬弹簧乱弹） */
+  will-change: max-width, width, height, max-height, box-shadow, transform;
+  /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展 */
+  transform-origin: right top;
   transition:
-    max-width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    max-height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-    border-radius 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-  transform-origin: center top;
+    max-width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1),
+    border-radius 0.45s cubic-bezier(0.25, 1, 0.5, 1);
 }
 @media (max-width: 720px) {
   :root {
@@ -2022,6 +2028,7 @@ textarea,
   pointer-events: none !important;
   visibility: hidden;
 }
+/* 主题栏：向右划出并淡出，把空间让给玻璃框向左扩展 */
 .panel-blog.is-reading-article .blog-theme-rail {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -2029,7 +2036,7 @@ textarea,
   max-width: 0 !important;
   flex-basis: 0 !important;
   margin-right: 0 !important;
-  transform: translate3d(-120%, 0, 0) !important;
+  transform: translate3d(130%, 0, 0) !important;
   overflow: hidden !important;
 }
 /* 阅读时背景变暗 + 模糊（随框内滚动加深） */
@@ -2058,12 +2065,14 @@ body.is-reading-article .reading-dim-layer {
 .panel-blog.is-reading-article .blog-white-box {
   max-width: 100% !important;
   width: 100% !important;
+  /* 左边界向左、下边界向下：贝塞尔平滑扩展 */
   transition:
-    max-width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    width 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    max-height 0.48s cubic-bezier(0.25, 0.9, 0.35, 1.05),
-    box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    max-width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+  transform-origin: right top;
   position: relative;
   z-index: 3;
   display: flex;
@@ -2104,19 +2113,63 @@ body.is-reading-article .reading-dim-layer {
 .reading-dim-layer.is-active {
   opacity: 1;
 }
-.panel-blog.is-reading-article .blog-list,
+/* 列表文章卡片淡出，再让出空间给阅读视图 */
+.panel-blog.is-reading-article .blog-list {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  transition:
+    opacity 0.28s cubic-bezier(0.25, 1, 0.5, 1),
+    max-height 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
+}
+.panel-blog.is-reading-article .blog-list .blog-card {
+  opacity: 0 !important;
+  transform: translateY(-6px);
+  transition:
+    opacity 0.28s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .panel-blog.is-reading-article .blog-footer,
 .panel-blog.is-reading-article .white-box-header .sub-count {
-  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  transition: opacity 0.25s ease;
 }
 .panel-blog.is-reading-article .white-box-header {
-  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border: 0 !important;
+  transition:
+    opacity 0.25s ease,
+    max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.blog-list {
+  transition: opacity 0.28s ease;
+}
+.blog-list .blog-card {
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s ease,
+    background 0.25s ease;
 }
 
 .blog-article-view {
   display: none;
   flex-direction: column;
   gap: 0.85rem;
+  opacity: 0;
 }
 .panel-blog.is-reading-article .blog-article-view {
   display: flex;
@@ -2128,11 +2181,25 @@ body.is-reading-article .reading-dim-layer {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
-  /* 去掉顶部 mask 虚化，避免无内容区域发脏 */
   -webkit-mask-image: none;
   mask-image: none;
   padding-top: 0;
   padding-bottom: 16px;
+  opacity: 0;
+  animation: blog-reading-view-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.12s forwards;
+}
+@keyframes blog-reading-view-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-blog.is-reading-article .blog-article-view {
+    animation: none;
+    opacity: 1;
+  }
+  .blog-theme-rail {
+    transition: none !important;
+  }
 }
 .panel-blog.is-reading-article .blog-article-view::-webkit-scrollbar {
   width: 6px;
@@ -2263,11 +2330,11 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 液态玻璃音乐播放器（播放钮与左端圆头同心，上下左 3px） —— */
+/* —— 液态玻璃音乐播放器（播放钮与左端圆头同心，上下左 8px） —— */
 .blog-article-body .md-audio-player,
 .blog-article-body .glass-audio-player {
-  --gap-pad: 3px;
-  --gap-btn: 44px; /* 按钮直径；外壳高度 = 按钮 + 上下各 3px */
+  --gap-pad: 8px;
+  --gap-btn: 34px; /* 略小一点的按钮；外壳高度 = 按钮 + 上下各 8px */
   margin: 1em 0;
   padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
   height: calc(var(--gap-btn) + var(--gap-pad) * 2);
@@ -2308,7 +2375,7 @@ body.is-reading-article .reading-dim-layer {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.82rem;
   transition: background 0.15s ease, transform 0.12s ease;
 }
 .glass-audio-player .gap-play:hover {
