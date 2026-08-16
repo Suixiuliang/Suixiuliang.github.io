@@ -55,13 +55,23 @@
     <a href="#works" class="nav-btn" data-section="works"><i class="fas fa-laptop-code"></i><span>我的作品</span></a>
     <a href="#contact" class="nav-btn" data-section="contact"><i class="fas fa-envelope"></i><span>联系我</span></a>
   </div>
-  <!-- 博客模式下展开的头部工具栏：左搜索框 + 右日历图标 -->
+  <!-- 博客模式下展开的头部工具栏：列表=搜索+日历；阅读=标题+元信息 -->
   <div class="blog-toolbar" id="blogToolbar">
-    <div class="blog-search-box">
-      <i class="fas fa-search"></i>
-      <input type="text" id="blogSearchInput" placeholder="搜索文章...">
+    <div class="blog-toolbar-list" id="blogToolbarList">
+      <div class="blog-search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="blogSearchInput" placeholder="搜索文章...">
+      </div>
+      <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
     </div>
-    <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
+    <div class="blog-toolbar-reading" id="blogToolbarReading" hidden>
+      <div class="blog-reading-title-wrap" id="blogReadingTitleWrap">
+        <div class="blog-reading-title-track" id="blogReadingTitleTrack">
+          <span class="blog-reading-title" id="blogReadingTitle">文章标题</span>
+        </div>
+      </div>
+      <div class="blog-reading-meta" id="blogReadingMeta"></div>
+    </div>
   </div>
 </nav>
 
@@ -175,9 +185,7 @@
             <div class="blog-list" id="blogList">
               <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>
             </div>
-            <div class="blog-footer">
-              <i class="fas fa-heart"></i> 用文字记录代码间的点滴
-            </div>
+            <div class="blog-pagination" id="blogPagination" aria-label="文章分页"></div>
             <!-- 框内阅读：向左扩展后在此展示正文 -->
             <div class="blog-article-view" id="blogArticleView" hidden>
               <div class="blog-article-toolbar">
@@ -185,8 +193,8 @@
                   <i class="fas fa-arrow-left"></i><span>返回列表</span>
                 </button>
               </div>
-              <h2 class="blog-article-title" id="blogArticleTitle">文章标题</h2>
-              <div class="blog-article-meta" id="blogArticleMeta"></div>
+              <h2 class="blog-article-title" id="blogArticleTitle" hidden>文章标题</h2>
+              <div class="blog-article-meta" id="blogArticleMeta" hidden></div>
               <div class="blog-article-body" id="blogArticleBody"></div>
             </div>
           </div>
