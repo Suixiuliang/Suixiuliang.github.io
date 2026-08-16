@@ -435,8 +435,6 @@
   function applyApiOfflineHomeMode() {
     apiOfflineLocked = true;
     document.body.classList.add('api-offline-lock');
-
-    // 顶栏 → 灵动岛消息
     const nav = document.getElementById('mainNav');
     if (nav) {
       nav.classList.add('is-api-island');
@@ -451,8 +449,6 @@
         nav.appendChild(island);
       }
     }
-
-    // 去掉个人简介等，只留居中头像
     const profile = document.getElementById('profileContainer');
     if (profile) {
       profile.setAttribute('hidden', '');
@@ -464,8 +460,6 @@
       el.setAttribute('hidden', '');
       el.classList.add('is-offline-hidden');
     });
-
-    // 强制停在首页
     const home = document.getElementById('home');
     if (scrollContainer && home) {
       scrollContainer.scrollTo({ left: home.offsetLeft, behavior: 'auto' });
@@ -506,7 +500,6 @@
       const path = String(location.pathname || '');
       let m = path.match(/\/blog\/([^/]+)\/?$/i);
       if (m) return decodeURIComponent(m[1]);
-      // 兼容 hash 路由 #/blog/slug
       const hash = String(location.hash || '');
       m = hash.match(/#\/?blog\/([^/]+)\/?/i);
       if (m) return decodeURIComponent(m[1]);
@@ -520,7 +513,6 @@
       if (replace) history.replaceState({ blogSlug: slug }, '', path);
       else history.pushState({ blogSlug: slug }, '', path);
     } catch (_) {
-      // file:// 等环境可能无法改 path，退回 hash
       try {
         if (replace) history.replaceState({ blogSlug: slug }, '', `#/blog/${encodeURIComponent(slug)}`);
         else history.pushState({ blogSlug: slug }, '', `#/blog/${encodeURIComponent(slug)}`);
@@ -536,7 +528,6 @@
   }
 
   function showBootApiIsland() {
-    // 兼容旧调用：改为离线首页模式（不再卡门禁）
     applyApiOfflineHomeMode();
   }
 
@@ -759,7 +750,6 @@
     const raw = categories && categories.length
       ? categories
       : blogPosts.map(p => p.category).filter(Boolean);
-    // 按显示名去重，避免文章分类与 /categories 接口叠出重复主题
     const seen = new Set();
     const cats = [];
     raw.forEach(c => {
@@ -879,7 +869,7 @@
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
           <div class="blog-card-actions">
-            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="私密文章，您已被授权阅读"><i class="fas fa-lock"></i> 私密文章，您已被授权阅读</span>' : ''}
+            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以读"><i class="fas fa-lock"></i> 同志，这个你可以读</span>' : ''}
             <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
           </div>
         </a>
@@ -962,7 +952,6 @@
     track.querySelectorAll('.blog-reading-title').forEach((el, idx) => {
       if (idx > 0) el.remove();
     });
-    // 正常长度：不启用滚动、不加左右渐隐，避免左边被挡住
     if (reduce) return;
     const need = titleSpan.scrollWidth > wrap.clientWidth + 4;
     if (!need) return;
@@ -1677,7 +1666,6 @@
     const el = getArticleScrollEl();
     const maxScroll = el ? Math.max(1, el.scrollHeight - el.clientHeight) : 1;
     const top = el ? el.scrollTop : (typeof scrollHint === 'number' ? scrollHint : 0);
-    // 更快变暗：约半屏 / 短距离内拉满进度
     const progress = Math.min(1, Math.max(0, top / Math.max(70, maxScroll * 0.18, window.innerHeight * 0.16)));
     const opacity = 0.22 + progress * 0.58;
     const blur = 3 + progress * 16;
@@ -1695,7 +1683,7 @@
   function getReadingBoxTargetHeight() {
     if (!blogPanel) return Math.max(240, window.innerHeight - 96);
     const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : 72;
-    const bottomPad = 20;
+    const bottomPad = getBlogGapPx();
     return Math.max(240, Math.round((blogPanel.clientHeight || window.innerHeight) - topMargin - bottomPad));
   }
 
@@ -1706,7 +1694,6 @@
     blogWhiteBox.style.overflow = 'hidden';
     blogWhiteBox.style.flex = '0 0 auto';
     blogWhiteBox.style.alignSelf = 'flex-start';
-    // 高度只走内联，避免被 flex stretch / 内容回弹带走
     blogWhiteBox.style.height = h + 'px';
     blogWhiteBox.style.maxHeight = h + 'px';
     blogWhiteBox.style.minHeight = h + 'px';
@@ -1719,6 +1706,7 @@
     blogWhiteBox.style.minHeight = '';
     blogWhiteBox.style.flex = '';
     blogWhiteBox.style.overflow = '';
+    blogWhiteBox.style.overflowY = '';
     blogWhiteBox.style.alignSelf = '';
   }
 
@@ -2413,8 +2401,6 @@
         if (tab === 'editor') updateAdminArticlePreview();
       });
     });
-
-    // 进入管理面板时同步当前状态（不要总是从「在线」开始）
     syncAdminStatusFormFromProfile();
 
     const statusText = section.querySelector('#adminStatusText');
@@ -2482,7 +2468,6 @@
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          // 与 worker.js 对齐：status_type / status_text
           body: JSON.stringify({ status_type: type, status_text: text })
         });
         const data = await res.json().catch(() => ({}));
@@ -2515,7 +2500,6 @@
       clearTimeout(previewTimer);
       previewTimer = setTimeout(updateAdminArticlePreview, 180);
     });
-    // 切换格式时刷新预览
     wireAppleSelect(section.querySelector('#adminArticleFormatSelect'), {
       onChange: () => {
         syncAdminFormatUI();
@@ -2660,7 +2644,6 @@
       }
       startGuestCodeCountdown();
     } catch (e) {
-      // Authed User 等角色若无权限：隐藏卡片，不打扰会话页
       if (authRole && authRole !== 'admin') {
         if (card) card.hidden = true;
         stopGuestCodeTimer();
@@ -2998,7 +2981,6 @@
     if (role === 'authed_user') {
       section.querySelector('#adminCopyGuestCodeBtn')?.addEventListener('click', copyGuestCode);
       section.querySelector('#adminRefreshGuestCodeBtn')?.addEventListener('click', () => loadGuestCode());
-      // 后端若无权限会自动隐藏卡片
       loadGuestCode();
     }
   }
@@ -3290,7 +3272,6 @@
           updateBlogScroll();
         }
       }
-      // 路由懒加载：进入对应面板时再拉数据/渲染
       if (activeId) ensureRouteLoaded(activeId);
       rafId = null;
     });
@@ -3421,16 +3402,18 @@
     const gapPx = getBlogGapPx();
     const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : (gapPx + 56);
 
-    // 阅读模式：正文在框内滚动，外层只需保留到阅读基线的高度
     if (isArticleReading) {
       stage3Extra = 0;
       blogContent.style.height = (vh + stage1Height + stage2Height + 8) + 'px';
+      blogWhiteBox.style.maxHeight = '';
+      blogWhiteBox.style.overflowY = '';
       return;
     }
-
-    const inner = blogWhiteBox.querySelector('.white-box-inner');
-    const contentH = inner ? Math.max(inner.offsetHeight || inner.scrollHeight, 500) : 600;
-    stage3Extra = Math.max(0, contentH + topMargin * 2 - vh + 80);
+    const bottomPad = gapPx;
+    const pinnedMax = Math.max(240, Math.round(vh - topMargin - bottomPad));
+    blogWhiteBox.style.maxHeight = pinnedMax + 'px';
+    blogWhiteBox.style.overflowY = 'auto';
+    stage3Extra = Math.round(vh * 0.35);
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
 
@@ -3444,7 +3427,7 @@
     if (!navEl || !blogPanel) return gapPx + 56;
     const navRect = navEl.getBoundingClientRect();
     const panelRect = blogPanel.getBoundingClientRect();
-    return Math.max(gapPx, (navRect.bottom - panelRect.top) + gapPx);
+    return Math.max(gapPx, Math.round(navRect.bottom - panelRect.top) + gapPx);
   }
 
   let railGapLocked = false;
@@ -3455,8 +3438,6 @@
     const vh = blogPanel.clientHeight || window.innerHeight;
     const gapPx = getBlogGapPx();
     const topMargin = getBlogTopMargin();
-
-    // 阅读模式：外层钉死在基线，玻璃框固定在视口内；正文在框内滚动
     if (isArticleReading) {
       railGapLocked = true;
       const base = readingBaseScroll || ((stage1Height || 0) + (stage2Height || 0));
@@ -3514,7 +3495,7 @@
     } else if (p2 < 1) {
       desiredY = midY * (1 - p2) + topMargin * p2;
     } else {
-      desiredY = topMargin - p3 * stage3Extra;
+      desiredY = topMargin;
     }
 
     blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
@@ -4070,8 +4051,6 @@
     const urls = CRITICAL_IMAGE_URLS.slice();
     let done = 0;
     const total = Math.max(1, urls.length);
-
-    // 图片预载 + API /health 并行；失败不卡门禁，仅标记离线首页模式
     const healthPromise = resolveApiBase();
 
     await Promise.all(urls.map(async (url) => {
@@ -4296,8 +4275,6 @@
 
     ensureTrailCanvas();
     if (!trailCtx) return;
-
-    // 转向角：画圆/急转时加密线性补点，减少弦线多边形感
     let turnBoost = 0;
     const plen = Math.hypot(trailPrevDx, trailPrevDy);
     if (plen > 0.1 && dist > 0.1) {
@@ -4307,8 +4284,6 @@
     }
     trailPrevDx = dx;
     trailPrevDy = dy;
-
-    // 快扫：按 ~6px 一段补点；急转再加段数
     const steps = Math.min(16, Math.max(1, Math.ceil(dist / 6) + turnBoost));
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
@@ -4322,8 +4297,6 @@
     trimTrailByLength();
     if (!trailAnimId) trailAnimId = requestAnimationFrame(drawTrailFrame);
   }
-
-  // Catmull-Rom → 三次贝塞尔；按曲率自适应细分，画圆不易出多边形
   function sampleTrailCenterline(pts) {
     const out = [];
     const n = pts.length;
@@ -4344,7 +4317,6 @@
       const c2y = p2.y - (p3.y - p1.y) / 6;
 
       const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      // 用控制点偏离弦线的程度估曲率
       const midX = (p1.x + p2.x) * 0.5;
       const midY = (p1.y + p2.y) * 0.5;
       const curveX = (c1x + c2x) * 0.5;
@@ -4384,16 +4356,12 @@
       trailAnimId = trailPoints.length === 0 ? null : requestAnimationFrame(drawTrailFrame);
       return;
     }
-
-    // 贝塞尔细分中心线
     const smooth = sampleTrailCenterline(trailPoints);
     const n = Math.min(smooth.length, TRAIL_BUF - 1);
     if (n < 2) {
       trailAnimId = requestAnimationFrame(drawTrailFrame);
       return;
     }
-
-    // 累计弧长（从头部）
     const distFromHead = new Float32Array(n);
     distFromHead[n - 1] = 0;
     for (let i = n - 2; i >= 0; i--) {
@@ -4403,8 +4371,6 @@
       );
     }
     const span = Math.max(distFromHead[0], 1);
-
-    // 法线连续：与上一帧同向，避免急转时左右翻面造成断层
     let prevNx = 0;
     let prevNy = 1;
     for (let i = 0; i < n; i++) {
@@ -4427,7 +4393,6 @@
         nx = -nx;
         ny = -ny;
       }
-      // 轻微混合上一法线，急转更顺
       if (i > 0) {
         nx = nx * 0.65 + prevNx * 0.35;
         ny = ny * 0.65 + prevNy * 0.35;
@@ -4498,8 +4463,6 @@
     pointerDownTarget = target || null;
     isPointerDown = true;
     setCursorDown(true, isRight);
-
-    // 输入框 / 已有选区：只标记按下，不启动连续点击特效
     if (shouldSkipClickEffects(target)) {
       return;
     }
@@ -4528,7 +4491,6 @@
     moveCustomCursor(e.clientX, e.clientY);
     setCursorVisible(true);
     setCursorTextMode(isTextEditingTarget(e.target));
-    // 自由划动流畅曳尾（不要求按下）
     pushTrailPoint(e.clientX, e.clientY);
   }, { passive: true });
 
@@ -4687,7 +4649,6 @@
   }
 
   function scrollPageToTop() {
-    // 阅读模式：滚到文章框顶部；否则滚当前面板 / 水平页到顶
     if (isArticleReading) {
       const view = typeof getArticleScrollEl === 'function' ? getArticleScrollEl() : document.getElementById('blogArticleView');
       if (view) view.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4716,7 +4677,6 @@
     a.download = (img.alt || 'image').replace(/[^\w\u4e00-\u9fff.-]+/g, '_') || 'image';
     a.target = '_blank';
     a.rel = 'noopener';
-    // 跨域图床可能无法真正 download，仍尝试打开
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -4791,8 +4751,6 @@
         action: () => saveImageAs(img)
       });
     }
-
-    // 代码块：复制代码
     const codeWin = target && target.closest ? target.closest('.md-code-window') : null;
     if (codeWin) {
       const codeEl = codeWin.querySelector('pre code');
@@ -4845,7 +4803,6 @@
 
     menu.hidden = false;
     menu.classList.add('is-open');
-    // 先显示再量尺寸，避免溢出视口
     const pad = 8;
     const mw = menu.offsetWidth || 220;
     const mh = menu.offsetHeight || 200;
@@ -4858,7 +4815,6 @@
   }
 
   document.addEventListener('contextmenu', function(e) {
-    // 输入框保留系统菜单更方便编辑
     if (isTextEditingTarget(e.target)) {
       hideContextMenu();
       return;
@@ -4908,8 +4864,6 @@
   // ---------- 初始化 ----------
   async function init() {
     loadSpriteImage();
-
-    // 门禁只负责资源；API 失败不拦截门禁，进入首页离线模式
     const bootResult = await runBootLoader();
     const apiOk = !(bootResult && bootResult.apiOk === false);
 
@@ -4931,22 +4885,16 @@
 
     if (!apiOk) {
       applyApiOfflineHomeMode();
-      // 离线仍保留点击特效 / 右键菜单；不拉后台数据
       setTimeout(() => centerAvatarForOffline(), 80);
       return;
     }
 
     await checkAdminSession();
-    // 首页只懒加载 profile；博客/作品等进入路由后再加载
     await loadProfileRoute();
-
-    // 深链 /blog/{slug} 或返回键
     const bootSlug = parseBlogSlugFromLocation();
     if (bootSlug) {
-      // 深链会触发 blog 路由加载 + 文章正文懒加载
       openArticleReader(bootSlug);
     } else {
-      // 若当前已停在 blog/works 面板，补一次懒加载
       const active = document.querySelector('.nav-btn.active');
       const sec = active && active.getAttribute('data-section');
       if (sec && sec !== 'home') ensureRouteLoaded(sec);

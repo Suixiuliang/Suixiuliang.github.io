@@ -157,11 +157,14 @@ body {
 }
 .blog-toolbar-reading {
   display: none;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 2px;
   width: 100%;
   min-width: 0;
-  justify-content: space-between;
+  height: 100%;
+  text-align: center;
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-list {
   display: none !important;
@@ -170,11 +173,14 @@ body {
   display: flex !important;
 }
 .blog-reading-title-wrap {
-  flex: 1 1 auto;
+  flex: 3 1 0;
   min-width: 0;
+  width: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-/* 仅标题需要滚动时才左右渐隐；正常长度不挡左边 */
 .blog-reading-title-wrap.is-marquee {
   mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
@@ -183,9 +189,12 @@ body {
   display: inline-flex;
   white-space: nowrap;
   will-change: transform;
+  max-width: 100%;
+  justify-content: center;
 }
 .blog-reading-title-track.is-marquee {
   animation: blogTitleMarquee var(--marquee-duration, 8s) linear infinite;
+  justify-content: flex-start;
 }
 .blog-reading-title {
   font-size: 0.95rem;
@@ -193,6 +202,7 @@ body {
   color: #fff;
   letter-spacing: -0.01em;
   padding-right: 2.5rem;
+  text-align: center;
 }
 @keyframes blogTitleMarquee {
   0% { transform: translateX(0); }
@@ -214,16 +224,19 @@ body {
   }
 }
 .blog-reading-meta {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: nowrap;
   gap: 0.55rem 0.85rem;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.72);
   white-space: nowrap;
-  max-width: 52%;
+  max-width: 100%;
+  width: 100%;
   overflow: hidden;
+  min-height: 0;
 }
 .blog-reading-meta span {
   display: inline-flex;
@@ -319,6 +332,17 @@ body {
 .glass-nav.blog-mode.is-reading-toolbar {
   width: min(820px, 94vw);
   max-width: 920px;
+  min-height: 3.35rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  align-items: stretch;
+}
+.glass-nav.blog-mode.is-reading-toolbar .blog-toolbar {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  transform: translate(-50%, 0) scale(1);
+  align-items: stretch;
 }
 .glass-nav.blog-mode .logo,
 .glass-nav.blog-mode .nav-links {
@@ -948,9 +972,7 @@ body {
   z-index: 2;
   pointer-events: auto;
   will-change: max-width, width, height, max-height, box-shadow, transform;
-  /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展
-     高度由 JS rAF 插值，不要用 CSS transition height（从 auto→px 会瞬跳） */
-  transform-origin: right top;
+    transform-origin: right top;
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
@@ -1105,12 +1127,14 @@ a.blog-list .blog-card,
   grid-column: 3;
   grid-row: 1 / span 2;
   align-self: center;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.45rem;
-  max-width: 15rem;
+  max-width: 14rem;
   flex-wrap: wrap;
+  height: 100%;
 }
 .blog-list .read-more {
   color: #60a5fa;
@@ -2194,7 +2218,6 @@ textarea,
   pointer-events: none !important;
   visibility: hidden;
 }
-/* 主题栏：向右划出并淡出，把空间让给玻璃框向左扩展 */
 .panel-blog.is-reading-article .blog-theme-rail {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -2205,7 +2228,6 @@ textarea,
   transform: translate3d(130%, 0, 0) !important;
   overflow: hidden !important;
 }
-/* 阅读时背景变暗 + 模糊（随框内滚动加深） */
 .reading-dim-layer {
   position: fixed;
   inset: 0;
@@ -2220,8 +2242,7 @@ textarea,
 }
 .panel-blog.is-reading-article ~ .reading-dim-layer,
 body.is-reading-article .reading-dim-layer {
-  /* 由 JS 控制具体透明度与 blur */
-}
+  }
 .panel-blog.is-reading-article .blog-stage-duo {
   gap: 0 !important;
   max-width: min(1180px, 100%) !important;
@@ -2230,14 +2251,11 @@ body.is-reading-article .reading-dim-layer {
 }
 .panel-blog.is-reading-article .blog-white-box,
 .panel-blog.is-exiting-article .blog-white-box {
-  /* 关掉 flex-grow，否则显式 height 无效，下边界只会瞬跳 */
-  flex: 0 0 auto !important;
-  /* 不要 stretch：父行高度会被主题栏 min-height 撑高，导致下边界瞬跳 */
-  align-self: flex-start !important;
+    flex: 0 0 auto !important;
+    align-self: flex-start !important;
   max-width: 100% !important;
   width: 100% !important;
-  /* 左右用 CSS；高度完全由 JS rAF 插值，禁止 CSS 过渡 height/max-height */
-  transition:
+    transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -2269,6 +2287,7 @@ body.is-reading-article .reading-dim-layer {
   margin: 0 !important;
   height: 100%;
   box-sizing: border-box;
+    padding: var(--radius-pad) !important;
 }
 .panel-blog.is-reading-article .blog-article-view,
 .panel-blog.is-reading-article .blog-article-body,
@@ -2281,7 +2300,6 @@ body.is-reading-article .reading-dim-layer {
 .reading-dim-layer.is-active {
   opacity: 1;
 }
-/* 列表文章卡片淡出，再让出空间给阅读视图（退出动画期间也保持收起，避免下边界回跳） */
 .panel-blog.is-reading-article .blog-list,
 .panel-blog.is-exiting-article .blog-list {
   opacity: 0 !important;
@@ -2327,7 +2345,6 @@ body.is-reading-article .reading-dim-layer {
     opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* 退出时主题栏保持收起，避免行高回弹带动下边界 */
 .panel-blog.is-exiting-article .blog-theme-rail {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -2374,12 +2391,11 @@ body.is-reading-article .reading-dim-layer {
   scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
   -webkit-mask-image: none;
   mask-image: none;
-  padding-top: 0;
-  padding-bottom: 16px;
+  padding: 0;
+  margin: 0;
   opacity: 1;
   transform: translateY(0);
 }
-/* 退出阅读时短暂保持 flex，便于倒放淡出 */
 .panel-blog.is-exiting-article .blog-article-view {
   display: flex;
   flex: 1 1 auto;
@@ -2409,7 +2425,6 @@ body.is-reading-article .reading-dim-layer {
 .panel-blog.is-reading-article .blog-article-view::-webkit-scrollbar-track {
   background: transparent;
 }
-/* 仅底部保留极轻遮罩，顶部不再铺模糊带 */
 .panel-blog.is-reading-article .blog-white-box::before {
   content: none;
 }
@@ -2435,12 +2450,11 @@ body.is-reading-article .reading-dim-layer {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 0.25rem 0 0.55rem;
+  padding: 0 0 0.55rem;
   border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 6;
-  /* 去掉整条黑长方形底，只保留按钮本身的玻璃感 */
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -3185,15 +3199,15 @@ body.api-offline-lock #homeAvatarPlaceholder {
   align-items: center;
   gap: .3rem;
   width: fit-content;
-  max-width: 9.5rem;
+  max-width: 8.5rem;
   padding: .22rem .5rem;
   border-radius: 999px;
   font-size: .68rem;
   font-weight: 600;
   line-height: 1.25;
-  color: rgba(255, 220, 140, 0.95);
-  background: rgba(255, 193, 7, .14);
-  border: 1px solid rgba(255, 193, 7, .28);
+  color: rgba(200, 255, 210, 0.96);
+  background: rgba(52, 199, 89, 0.18);
+  border: 1px solid rgba(52, 199, 89, 0.38);
   white-space: normal;
   text-align: left;
 }
