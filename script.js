@@ -597,6 +597,8 @@
   function getNavLinks() { return document.querySelectorAll('.nav-btn[data-section]'); }
 
   let adminUnlocked = false;
+  let authRole = null;
+  let authedCreateSecret = null;
 
   const defaultProfile = {
     name: "MaxSui",
@@ -869,6 +871,7 @@
           <div class="blog-icon"><i class="fas ${post.icon || 'fa-pen'}"></i></div>
           <h3>${escapeHtml(post.title || '无标题')}</h3>
           <p>${escapeHtml(post.summary || '')}</p>
+          ${post.status === 'hidden' ? '<span class="blog-hidden-badge"><i class="fas fa-lock"></i> 需认证</span>' : ''}
           <div class="blog-meta">
             <span><i class="far fa-calendar"></i> ${escapeHtml(displayDate)} <small style="opacity:.7">UTC+8</small></span>
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
@@ -2156,9 +2159,17 @@
     const err = document.getElementById('adminLoginError');
     const user = document.getElementById('adminUsername');
     const pass = document.getElementById('adminPassword');
-    if (err) { err.hidden = true; err.textContent = '密码错误'; }
+    const fields = document.getElementById('authedRegisterFields');
+    const hint = document.getElementById('adminLoginHint');
+    const submit = document.getElementById('adminLoginSubmit');
+    authedCreateSecret = null;
+    if (err) { err.hidden = true; err.textContent = ''; }
+    if (hint) { hint.hidden = true; hint.textContent = ''; }
+    if (fields) fields.hidden = true;
+    if (submit) submit.textContent = '登录';
     if (user) user.value = '';
     if (pass) pass.value = '';
+    ['authedRegisterUsername','authedRegisterPassword','authedRegisterConfirm'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
     if (modal) modal.classList.add('active');
     setTimeout(() => user && user.focus(), 50);
   }
@@ -2198,6 +2209,7 @@
   function lockAdminPanel() {
     if (!adminUnlocked) return;
     adminUnlocked = false;
+    authRole = null;
     const adminNav = document.querySelector('.nav-btn[data-section="admin"]');
     if (adminNav) adminNav.remove();
     const adminSection = document.getElementById('admin');
@@ -2336,6 +2348,7 @@
                     </button>
                     <div class="apple-select-menu" role="listbox">
                       <button type="button" class="apple-select-option" data-value="published" data-label="发布"><span class="home-status-dot online"></span><span>发布</span></button>
+                      <button type="button" class="apple-select-option" data-value="hidden" data-label="隐藏（需认证）"><span class="home-status-dot busy"></span><span>隐藏（需认证）</span></button>
                       <button type="button" class="apple-select-option" data-value="draft" data-label="草稿"><span class="home-status-dot away"></span><span>草稿</span></button>
                       <button type="button" class="apple-select-option" data-value="archived" data-label="归档"><span class="home-status-dot offline"></span><span>归档</span></button>
                     </div>
@@ -2354,6 +2367,11 @@
             <div class="glass-card admin-card">
               <h3><i class="fas fa-shield-alt"></i> 会话</h3>
               <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">已通过 API Session Cookie 登录。退出后需重新验证。</p>
+              <div class="admin-guest-code-card">
+                <div><strong><i class="fas fa-ticket-alt"></i> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
+                <code id="adminGuestCode">加载中…</code>
+                <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn"><i class="fas fa-sync"></i> 刷新</button>
+              </div>
               <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
                 <i class="fas fa-sign-out-alt"></i> 退出登录
               </button>
@@ -2464,6 +2482,8 @@
     });
 
     section.querySelector('#adminLogoutBtn')?.addEventListener('click', adminLogout);
+    section.querySelector('#adminRefreshGuestCodeBtn')?.addEventListener('click', loadGuestCode);
+    loadGuestCode();
     section.querySelector('#adminRefreshArticlesBtn')?.addEventListener('click', loadAdminArticles);
     section.querySelector('#adminArticlesSearch')?.addEventListener('input', (e) => {
       renderAdminArticlesTable(filterAdminArticles(e.target.value));
@@ -2525,6 +2545,7 @@
         <td>${escapeHtml(a.title)}</td>
         <td><code>${escapeHtml(a.slug)}</code></td>
         <td>${escapeHtml(a.category || '—')}</td>
+        <td>${escapeHtml(a.status || 'draft')}</td>
         <td>${escapeHtml(dateOnlyUTC8(a.published_at || a.created_at || '') || (a.published_at || a.created_at || '').slice(0, 10))}</td>
         <td class="admin-article-actions">
           <button type="button" class="admin-mini-btn" data-edit-id="${a.id}" data-slug="${escapeHtml(a.slug)}">编辑</button>
@@ -2534,7 +2555,7 @@
     `).join('');
     box.innerHTML = `
       <table class="admin-article-table">
-        <thead><tr><th>标题</th><th>Slug</th><th>分类</th><th>日期</th><th>操作</th></tr></thead>
+        <thead><tr><th>标题</th><th>Slug</th><th>分类</th><th>状态</th><th>日期</th><th>操作</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     box.querySelectorAll('[data-edit-id]').forEach(btn => {
@@ -2554,17 +2575,33 @@
     });
   }
 
+  async function loadGuestCode() {
+    const codeEl = document.getElementById('adminGuestCode');
+    const metaEl = document.getElementById('adminGuestCodeMeta');
+    if (!codeEl) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/guest-code`, { credentials:'include', cache:'no-store' });
+      const data = await res.json().catch(()=>null);
+      if (!res.ok || !data?.code) throw new Error(data?.error || '获取失败');
+      codeEl.textContent = data.code;
+      const sec = Number(data.valid_for_seconds || 0);
+      const mins = Math.floor(sec / 60);
+      const secs = sec % 60;
+      if (metaEl) metaEl.textContent = `本轮剩余 ${mins} 分 ${String(secs).padStart(2,'0')} 秒；每 10 分钟自动更新`;
+    } catch (e) { codeEl.textContent = '获取失败'; if (metaEl) metaEl.textContent = String(e.message || e); }
+  }
+
   async function loadAdminArticles() {
     const box = document.getElementById('adminArticlesList');
     const msg = document.getElementById('adminArticlesMsg');
     if (!box) return;
     box.innerHTML = '<p class="admin-msg">加载中…</p>';
     try {
-      const res = await fetch(`${API_BASE_URL}/articles?limit=100`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE_URL}/admin/articles?limit=200`, { credentials: 'include' });
       const data = await res.json().catch(() => null);
       adminArticlesCache = data?.articles || [];
       if (!adminArticlesCache.length) {
-        box.innerHTML = '<p class="admin-msg">暂无已发布文章（草稿需后端管理列表接口）</p>';
+        box.innerHTML = '<p class="admin-msg">暂无文章</p>';
         return;
       }
       const kw = document.getElementById('adminArticlesSearch')?.value || '';
@@ -2866,16 +2903,16 @@
 
   async function checkAdminSession() {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/me`, {
-        credentials: 'include',
-        cache: 'no-store'
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && (data.authenticated === true || (data.success === true && data.admin))) {
-        unlockAdminPanel({ scrollToAdmin: false });
+      const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials:'include', cache:'no-store' });
+      const data = await res.json().catch(()=>null);
+      if (res.ok && data?.authenticated) {
+        authRole = data.role || (data.admin ? 'admin' : 'authed_user');
+        if (authRole === 'admin') unlockAdminPanel({scrollToAdmin:false});
+        else { await loadBlogRoute(true); filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false); }
         return true;
       }
-    } catch (e) { /* silent */ }
+    } catch (_) {}
+    authRole = null;
     return false;
   }
 
@@ -2885,50 +2922,76 @@
     const closeBtn = document.getElementById('closeAdminLoginBtn');
     const cancelBtn = document.getElementById('adminLoginCancel');
     const err = document.getElementById('adminLoginError');
-
+    const hint = document.getElementById('adminLoginHint');
+    const fields = document.getElementById('authedRegisterFields');
+    const submit = document.getElementById('adminLoginSubmit');
+    const userInput = document.getElementById('adminUsername');
+    const passInput = document.getElementById('adminPassword');
+    const showError = (text) => { if (err) { err.hidden = false; err.textContent = text; } };
+    const enterRegisterMode = (secret) => {
+      authedCreateSecret = secret;
+      if (userInput) userInput.value = '';
+      if (passInput) passInput.value = '';
+      if (fields) fields.hidden = false;
+      if (hint) { hint.hidden = false; hint.textContent = '创建 Authed User：最多 20 个账户。请设置用户名和密码。'; }
+      if (submit) submit.textContent = '创建账户';
+      setTimeout(() => document.getElementById('authedRegisterUsername')?.focus(), 30);
+    };
+    const leaveRegisterMode = () => {
+      authedCreateSecret = null;
+      if (fields) fields.hidden = true;
+      if (hint) hint.hidden = true;
+      if (submit) submit.textContent = '登录';
+    };
     if (closeBtn) closeBtn.addEventListener('click', closeAdminLoginModal);
     if (cancelBtn) cancelBtn.addEventListener('click', closeAdminLoginModal);
-    if (modal) {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeAdminLoginModal();
-      });
-    }
-
-    if (form) {
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = (document.getElementById('adminUsername')?.value || '').trim();
-        const password = document.getElementById('adminPassword')?.value || '';
-        if (!username || !password) {
-          if (err) { err.hidden = false; err.textContent = '请输入用户名和密码'; }
+    if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeAdminLoginModal(); });
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (err) err.hidden = true;
+      if (authedCreateSecret) {
+        const username = (document.getElementById('authedRegisterUsername')?.value || '').trim();
+        const password = document.getElementById('authedRegisterPassword')?.value || '';
+        const confirm = document.getElementById('authedRegisterConfirm')?.value || '';
+        if (!username || !password || !confirm) return showError('请完整填写三个字段');
+        if (password !== confirm) return showError('两次密码不一致');
+        if (password.length < 8) return showError('密码至少需要 8 位');
+        if (submit) { submit.disabled = true; submit.textContent = '创建中…'; }
+        try {
+          const res = await fetch(`${API_BASE_URL}/auth/register-authed-user`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ secret: authedCreateSecret, username, password }) });
+          const data = await res.json().catch(()=>null);
+          if (!res.ok || data?.success === false) throw new Error(data?.error || '创建失败');
+          leaveRegisterMode();
+          if (hint) { hint.hidden = false; hint.textContent = `创建成功：${data.username}。现在可以使用新账户登录。`; }
+          if (userInput) userInput.value = data.username || username;
+          if (passInput) passInput.value = '';
+          if (submit) submit.textContent = '登录';
+          if (err) err.hidden = true;
+          setTimeout(() => passInput?.focus(), 30);
+        } catch (ex) { showError(String(ex.message || ex)); }
+        finally { if (submit) submit.disabled = false; }
+        return;
+      }
+      const username = (userInput?.value || '').trim();
+      const password = passInput?.value || '';
+      if (!username || !password) return showError('请输入用户名和密码');
+      if (submit) { submit.disabled = true; submit.textContent = '校验中…'; }
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/login`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ username, password }) });
+        const data = await res.json().catch(()=>null);
+        if (res.ok && data?.registration_mode) { enterRegisterMode(username); return; }
+        if (res.ok && data?.success !== false) {
+          authRole = data.role || (data.admin ? 'admin' : 'authed_user');
+          closeAdminLoginModal();
+          if (authRole === 'admin') unlockAdminPanel({scrollToAdmin:true});
+          else { await loadBlogRoute(true); filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false); }
           return;
         }
-
-        const submitBtn = document.getElementById('adminLoginSubmit');
-        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '校验中…'; }
-
-        try {
-          const res = await fetch(`${API_BASE_URL}/auth/login`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-          });
-          const data = await res.json().catch(() => null);
-
-          if (res.ok && data && data.success !== false) {
-            unlockAdminPanel({ scrollToAdmin: true });
-          } else {
-            const msg = (data && data.error) ? data.error : (res.status === 401 ? '用户名或密码错误' : '登录失败');
-            if (err) { err.hidden = false; err.textContent = msg; }
-          }
-        } catch (ex) {
-          if (err) { err.hidden = false; err.textContent = '网络错误，请稍后重试'; }
-        } finally {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '登录'; }
-        }
-      });
-    }
+        showError(data?.error || (res.status === 401 ? '用户名或密码错误' : '登录失败'));
+      } catch (ex) { showError('网络错误，请稍后重试'); }
+      finally { if (submit) { submit.disabled = false; if (!authedCreateSecret) submit.textContent = '登录'; } }
+    });
   }
 
   function setupAvatarSecret() {
@@ -3658,7 +3721,8 @@
                 readTime: post.reading_time ? `${post.reading_time} min` : (post.readTime || '3 min'),
                 icon: post.icon || 'fa-pen',
                 slug: post.slug,
-                category: post.category || ''
+                category: post.category || '',
+                status: post.status || 'published'
               };
             });
           }

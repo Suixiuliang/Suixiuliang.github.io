@@ -113,7 +113,7 @@
 <div class="calendar-modal" id="adminLoginModal">
   <div class="calendar-modal-content glass-card admin-login-content">
     <div class="calendar-header">
-      <h3><i class="fas fa-shield-alt"></i> 管理员登录</h3>
+      <h3><i class="fas fa-shield-alt"></i> 安全登录</h3>
       <button class="close-calendar" id="closeAdminLoginBtn" type="button"><i class="fas fa-times"></i></button>
     </div>
     <div class="calendar-body">
@@ -126,6 +126,21 @@
           <span>密码</span>
           <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
         </label>
+        <div id="authedRegisterFields" hidden>
+          <label class="admin-field">
+            <span>用户名</span>
+            <input type="text" id="authedRegisterUsername" placeholder="设置 Authed User 用户名" autocomplete="username">
+          </label>
+          <label class="admin-field">
+            <span>密码</span>
+            <input type="password" id="authedRegisterPassword" placeholder="至少 8 位密码" autocomplete="new-password">
+          </label>
+          <label class="admin-field">
+            <span>确认密码</span>
+            <input type="password" id="authedRegisterConfirm" placeholder="再次输入密码" autocomplete="new-password">
+          </label>
+        </div>
+        <p class="admin-login-hint" id="adminLoginHint" hidden></p>
         <p class="admin-login-error" id="adminLoginError" hidden>密码错误</p>
         <div class="calendar-actions">
           <button type="submit" class="nav-btn apple-primary-btn" id="adminLoginSubmit">登录</button>
