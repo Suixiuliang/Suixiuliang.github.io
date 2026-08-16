@@ -57,23 +57,11 @@
   </div>
   <!-- 博客模式下展开的头部工具栏：左搜索框 + 右日历图标 -->
   <div class="blog-toolbar" id="blogToolbar">
-    <!-- 列表模式：搜索 + 日历 -->
-    <div class="blog-toolbar-list" id="blogToolbarList">
-      <div class="blog-search-box">
-        <i class="fas fa-search"></i>
-        <input type="text" id="blogSearchInput" placeholder="搜索文章...">
-      </div>
-      <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
+    <div class="blog-search-box">
+      <i class="fas fa-search"></i>
+      <input type="text" id="blogSearchInput" placeholder="搜索文章...">
     </div>
-    <!-- 阅读模式：标题（可横向滚动）+ 元信息 -->
-    <div class="blog-toolbar-reading" id="blogToolbarReading" hidden>
-      <div class="blog-reading-title-wrap" id="blogReadingTitleWrap">
-        <div class="blog-reading-title-track" id="blogReadingTitleTrack">
-          <span class="blog-reading-title-text" id="blogReadingTitleText"></span>
-        </div>
-      </div>
-      <div class="blog-reading-meta" id="blogReadingMeta"></div>
-    </div>
+    <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
   </div>
 </nav>
 
@@ -187,7 +175,9 @@
             <div class="blog-list" id="blogList">
               <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>
             </div>
-            <div class="blog-pagination" id="blogPagination" aria-label="文章分页"></div>
+            <div class="blog-footer">
+              <i class="fas fa-heart"></i> 用文字记录代码间的点滴
+            </div>
             <!-- 框内阅读：向左扩展后在此展示正文 -->
             <div class="blog-article-view" id="blogArticleView" hidden>
               <div class="blog-article-toolbar">
