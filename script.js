@@ -1668,21 +1668,47 @@
     requestAnimationFrame(recalc);
   }
 
+  let readingExitTimer = null;
+  const READING_TRANSITION_MS = 500;
+
   function enterArticleReadingLayout() {
     if (!blogPanel) return;
+    if (readingExitTimer) {
+      clearTimeout(readingExitTimer);
+      readingExitTimer = null;
+    }
     isArticleReading = true;
+    document.body.classList.remove('is-exiting-article');
     document.body.classList.add('is-reading-article');
+    blogPanel.classList.remove('is-exiting-article');
     blogPanel.classList.add('is-reading-article');
     nav && nav.classList.add('blog-mode');
     railGapLocked = true;
 
-    // 外层钉在阅读基线；正文改在玻璃框内滚动（宽高由 CSS 平滑过渡）
+    // 外层钉在阅读基线；正文改在玻璃框内滚动（宽高由 CSS 0.5s 过渡）
     setupBlogScrollHeights();
     readingBaseScroll = (stage1Height || 0) + (stage2Height || 0);
     blogPanel.scrollTop = readingBaseScroll;
     blogPanel.style.overscrollBehaviorY = 'none';
 
+    // 从当前列表高度过渡到阅读高度，避免下边界突变
+    if (blogWhiteBox) {
+      const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
+      if (startH > 0) {
+        blogWhiteBox.style.height = startH + 'px';
+        blogWhiteBox.style.maxHeight = startH + 'px';
+      }
+    }
     applyReadingBoxMetrics();
+    requestAnimationFrame(() => {
+      if (!isArticleReading || !blogWhiteBox) return;
+      const endH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--reading-box-max-h')) || 0;
+      if (endH > 0) {
+        blogWhiteBox.style.height = endH + 'px';
+        blogWhiteBox.style.maxHeight = endH + 'px';
+      }
+    });
+
     const view = getArticleScrollEl();
     if (view) view.scrollTop = 0;
     bindArticleInnerScroll();
@@ -1695,6 +1721,11 @@
   }
 
   function exitArticleReadingLayout() {
+    if (!blogPanel) return;
+    if (readingExitTimer) {
+      clearTimeout(readingExitTimer);
+      readingExitTimer = null;
+    }
     isArticleReading = false;
     stopArticleLayoutObserver();
     unbindArticleInnerScroll();
@@ -1703,34 +1734,55 @@
       readingOuterLockRaf = null;
     }
 
-    // 清正文，避免异常 HTML 残留污染列表布局
-    const bodyEl = document.getElementById('blogArticleBody');
-    if (bodyEl) bodyEl.innerHTML = '';
-    const titleEl = document.getElementById('blogArticleTitle');
-    const metaEl = document.getElementById('blogArticleMeta');
-    if (titleEl) titleEl.textContent = '';
-    if (metaEl) metaEl.innerHTML = '';
-
-    document.body.classList.remove('is-reading-article');
-    document.documentElement.style.removeProperty('--reading-box-max-h');
+    // 固定当前高度，再反向过渡回列表高度
     if (blogWhiteBox) {
-      blogWhiteBox.style.maxHeight = '';
-      blogWhiteBox.style.height = '';
+      const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
+      if (startH > 0) {
+        blogWhiteBox.style.height = startH + 'px';
+        blogWhiteBox.style.maxHeight = startH + 'px';
+      }
     }
-    if (blogPanel) {
-      blogPanel.classList.remove('is-reading-article');
-      blogPanel.style.overscrollBehaviorY = '';
-    }
-    const view = document.getElementById('blogArticleView');
-    if (view) {
-      view.hidden = true;
-      view.style.display = '';
-      view.scrollTop = 0;
-    }
-    updateReadingDim(0);
-    setupBlogScrollHeights();
-    updateBlogScroll();
-    updateGlobalAvatarPosition();
+
+    // 倒放：去掉 reading，加 exiting（正文先淡出，主题栏/列表回来）
+    document.body.classList.remove('is-reading-article');
+    document.body.classList.add('is-exiting-article');
+    blogPanel.classList.remove('is-reading-article');
+    blogPanel.classList.add('is-exiting-article');
+    blogPanel.style.overscrollBehaviorY = '';
+
+    requestAnimationFrame(() => {
+      if (blogWhiteBox) {
+        // 清掉固定高度，让框随列表内容收回（配合 CSS 0.5s）
+        blogWhiteBox.style.height = '';
+        blogWhiteBox.style.maxHeight = '';
+      }
+      document.documentElement.style.removeProperty('--reading-box-max-h');
+      updateReadingDim(0);
+      updateBlogScroll();
+      updateGlobalAvatarPosition();
+    });
+
+    readingExitTimer = setTimeout(() => {
+      readingExitTimer = null;
+      // 动画结束后再清正文，避免倒放中途内容瞬间消失
+      const bodyEl = document.getElementById('blogArticleBody');
+      if (bodyEl) bodyEl.innerHTML = '';
+      const titleEl = document.getElementById('blogArticleTitle');
+      const metaEl = document.getElementById('blogArticleMeta');
+      if (titleEl) titleEl.textContent = '';
+      if (metaEl) metaEl.innerHTML = '';
+      const view = document.getElementById('blogArticleView');
+      if (view) {
+        view.hidden = true;
+        view.style.display = '';
+        view.scrollTop = 0;
+      }
+      document.body.classList.remove('is-exiting-article');
+      if (blogPanel) blogPanel.classList.remove('is-exiting-article');
+      setupBlogScrollHeights();
+      updateBlogScroll();
+      updateGlobalAvatarPosition();
+    }, READING_TRANSITION_MS);
   }
 
   async function openArticleReader(idOrSlug) {
@@ -2640,7 +2692,7 @@
     });
   }
 
-  /** 连续点 7 次导航 Logo（>_MaxSui）切换鼠标拖尾 */
+  /** 连续点 7 次导航 Logo（终端 FA 图标 + MaxSui）切换鼠标拖尾 */
   function setupLogoTrailToggle() {
     const logo = document.querySelector('.glass-nav .logo');
     if (!logo || logo.dataset.trailToggleBound === '1') return;

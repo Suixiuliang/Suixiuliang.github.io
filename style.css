@@ -277,7 +277,7 @@ body {
   justify-content: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .calendar-modal.active { opacity: 1; pointer-events: auto; }
 .calendar-modal-content {
@@ -767,12 +767,12 @@ body {
   transform: translate3d(calc(-100% - var(--blog-gap)), 0, 0);
   margin-right: -132px;
   transition:
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.32s cubic-bezier(0.25, 1, 0.5, 1),
-    width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    max-width 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    flex-basis 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    margin-right 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    flex-basis 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   align-self: stretch;
   will-change: transform, opacity, margin-right, width, max-width;
 }
@@ -860,12 +860,12 @@ body {
   /* 以右上为锚：左边界向左、下边界向下做贝塞尔扩展 */
   transform-origin: right top;
   transition:
-    max-width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    max-height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1),
-    border-radius 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @media (max-width: 720px) {
   :root {
@@ -2067,11 +2067,11 @@ body.is-reading-article .reading-dim-layer {
   width: 100% !important;
   /* 左边界向左、下边界向下：贝塞尔平滑扩展 */
   transition:
-    max-width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    max-height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   transform-origin: right top;
   position: relative;
   z-index: 3;
@@ -2122,15 +2122,15 @@ body.is-reading-article .reading-dim-layer {
   padding: 0 !important;
   overflow: hidden !important;
   transition:
-    opacity 0.28s cubic-bezier(0.25, 1, 0.5, 1),
-    max-height 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .panel-blog.is-reading-article .blog-list .blog-card {
   opacity: 0 !important;
   transform: translateY(-6px);
   transition:
-    opacity 0.28s cubic-bezier(0.25, 1, 0.5, 1),
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .panel-blog.is-reading-article .blog-footer,
 .panel-blog.is-reading-article .white-box-header .sub-count {
@@ -2139,7 +2139,7 @@ body.is-reading-article .reading-dim-layer {
   max-height: 0 !important;
   overflow: hidden !important;
   margin: 0 !important;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .panel-blog.is-reading-article .white-box-header {
   opacity: 0 !important;
@@ -2151,17 +2151,17 @@ body.is-reading-article .reading-dim-layer {
   padding-bottom: 0 !important;
   border: 0 !important;
   transition:
-    opacity 0.25s ease,
-    max-height 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .blog-list {
-  transition: opacity 0.28s ease;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .blog-list .blog-card {
   transition:
-    opacity 0.28s ease,
-    transform 0.28s ease,
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     background 0.25s ease;
 }
 
@@ -2170,6 +2170,10 @@ body.is-reading-article .reading-dim-layer {
   flex-direction: column;
   gap: 0.85rem;
   opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .panel-blog.is-reading-article .blog-article-view {
   display: flex;
@@ -2185,19 +2189,26 @@ body.is-reading-article .reading-dim-layer {
   mask-image: none;
   padding-top: 0;
   padding-bottom: 16px;
-  opacity: 0;
-  animation: blog-reading-view-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.12s forwards;
+  opacity: 1;
+  transform: translateY(0);
 }
-@keyframes blog-reading-view-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* 退出阅读时短暂保持 flex，便于倒放淡出 */
+.panel-blog.is-exiting-article .blog-article-view {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel-blog.is-reading-article .blog-article-view {
-    animation: none;
-    opacity: 1;
-  }
-  .blog-theme-rail {
+  .blog-white-box,
+  .panel-blog.is-reading-article .blog-white-box,
+  .blog-theme-rail,
+  .blog-list,
+  .blog-list .blog-card,
+  .blog-article-view {
     transition: none !important;
   }
 }
