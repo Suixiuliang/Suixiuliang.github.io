@@ -2062,10 +2062,11 @@ body.is-reading-article .reading-dim-layer {
   z-index: 3;
   height: auto;
 }
-.panel-blog.is-reading-article .blog-white-box {
+.panel-blog.is-reading-article .blog-white-box,
+.panel-blog.is-exiting-article .blog-white-box {
   max-width: 100% !important;
   width: 100% !important;
-  /* 左边界向左、下边界向下：贝塞尔平滑扩展 */
+  /* 高度由 JS 从列表高度 → 阅读高度逐帧过渡，CSS 不写死 height，避免下边界瞬跳 */
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
@@ -2077,8 +2078,6 @@ body.is-reading-article .reading-dim-layer {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  max-height: var(--reading-box-max-h, calc(100vh - 96px));
-  height: var(--reading-box-max-h, calc(100vh - 96px));
   overflow: hidden;
   box-shadow:
     0 28px 56px rgba(0, 0, 0, 0.32),

@@ -1536,14 +1536,31 @@
     layer.style.webkitBackdropFilter = layer.style.backdropFilter;
   }
 
-  function applyReadingBoxMetrics() {
-    if (!blogPanel || !blogWhiteBox) return;
+  let readingListBoxHeight = 0;
+  let readingHeightAnimating = false;
+
+  function getReadingBoxTargetHeight() {
+    if (!blogPanel) return Math.max(240, window.innerHeight - 96);
     const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : 72;
     const bottomPad = 20;
-    const maxH = Math.max(240, Math.round((blogPanel.clientHeight || window.innerHeight) - topMargin - bottomPad));
+    return Math.max(240, Math.round((blogPanel.clientHeight || window.innerHeight) - topMargin - bottomPad));
+  }
+
+  function applyReadingBoxMetrics() {
+    if (!blogPanel || !blogWhiteBox || !isArticleReading) return;
+    const maxH = getReadingBoxTargetHeight();
     document.documentElement.style.setProperty('--reading-box-max-h', maxH + 'px');
+    // 高度过渡进行中不要改 height，否则会打断下边界动画
+    if (readingHeightAnimating) return;
     blogWhiteBox.style.maxHeight = maxH + 'px';
     blogWhiteBox.style.height = maxH + 'px';
+  }
+
+  function setWhiteBoxHeightPx(px) {
+    if (!blogWhiteBox) return;
+    const h = Math.max(0, Math.round(px));
+    blogWhiteBox.style.height = h + 'px';
+    blogWhiteBox.style.maxHeight = h + 'px';
   }
 
   function lockOuterScrollToBase() {
@@ -1672,11 +1689,19 @@
   const READING_TRANSITION_MS = 500;
 
   function enterArticleReadingLayout() {
-    if (!blogPanel) return;
+    if (!blogPanel || !blogWhiteBox) return;
     if (readingExitTimer) {
       clearTimeout(readingExitTimer);
       readingExitTimer = null;
     }
+
+    // 1) 先锁住「列表时」的像素高度（下边界动画起点）
+    const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
+    readingListBoxHeight = startH || readingListBoxHeight || 360;
+    readingHeightAnimating = true;
+    setWhiteBoxHeightPx(readingListBoxHeight);
+    void blogWhiteBox.offsetHeight;
+
     isArticleReading = true;
     document.body.classList.remove('is-exiting-article');
     document.body.classList.add('is-reading-article');
@@ -1685,28 +1710,24 @@
     nav && nav.classList.add('blog-mode');
     railGapLocked = true;
 
-    // 外层钉在阅读基线；正文改在玻璃框内滚动（宽高由 CSS 0.5s 过渡）
     setupBlogScrollHeights();
     readingBaseScroll = (stage1Height || 0) + (stage2Height || 0);
     blogPanel.scrollTop = readingBaseScroll;
     blogPanel.style.overscrollBehaviorY = 'none';
 
-    // 从当前列表高度过渡到阅读高度，避免下边界突变
-    if (blogWhiteBox) {
-      const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
-      if (startH > 0) {
-        blogWhiteBox.style.height = startH + 'px';
-        blogWhiteBox.style.maxHeight = startH + 'px';
-      }
-    }
-    applyReadingBoxMetrics();
+    const endH = getReadingBoxTargetHeight();
+    document.documentElement.style.setProperty('--reading-box-max-h', endH + 'px');
+
+    // 2) 下一帧再到阅读高度 → CSS transition 驱动下边界在 0.5s 内下移
     requestAnimationFrame(() => {
-      if (!isArticleReading || !blogWhiteBox) return;
-      const endH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--reading-box-max-h')) || 0;
-      if (endH > 0) {
-        blogWhiteBox.style.height = endH + 'px';
-        blogWhiteBox.style.maxHeight = endH + 'px';
-      }
+      requestAnimationFrame(() => {
+        if (!isArticleReading || !blogWhiteBox) return;
+        setWhiteBoxHeightPx(endH);
+        setTimeout(() => {
+          readingHeightAnimating = false;
+          if (isArticleReading) applyReadingBoxMetrics();
+        }, READING_TRANSITION_MS);
+      });
     });
 
     const view = getArticleScrollEl();
@@ -1721,7 +1742,7 @@
   }
 
   function exitArticleReadingLayout() {
-    if (!blogPanel) return;
+    if (!blogPanel || !blogWhiteBox) return;
     if (readingExitTimer) {
       clearTimeout(readingExitTimer);
       readingExitTimer = null;
@@ -1734,37 +1755,36 @@
       readingOuterLockRaf = null;
     }
 
-    // 固定当前高度，再反向过渡回列表高度
-    if (blogWhiteBox) {
-      const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || 0;
-      if (startH > 0) {
-        blogWhiteBox.style.height = startH + 'px';
-        blogWhiteBox.style.maxHeight = startH + 'px';
-      }
-    }
+    // 1) 锁住当前阅读高度作为倒放起点
+    const startH = Math.round(blogWhiteBox.getBoundingClientRect().height) || getReadingBoxTargetHeight();
+    readingHeightAnimating = true;
+    setWhiteBoxHeightPx(startH);
+    void blogWhiteBox.offsetHeight;
 
-    // 倒放：去掉 reading，加 exiting（正文先淡出，主题栏/列表回来）
+    // 2) 去掉 reading（左边界开始收），保留 exiting 让正文淡出
     document.body.classList.remove('is-reading-article');
     document.body.classList.add('is-exiting-article');
     blogPanel.classList.remove('is-reading-article');
     blogPanel.classList.add('is-exiting-article');
     blogPanel.style.overscrollBehaviorY = '';
 
+    const endH = readingListBoxHeight > 0
+      ? readingListBoxHeight
+      : Math.max(280, Math.round(startH * 0.55));
+
+    // 3) 下一帧高度收到列表高度 → 下边界 0.5s 平滑上移
     requestAnimationFrame(() => {
-      if (blogWhiteBox) {
-        // 清掉固定高度，让框随列表内容收回（配合 CSS 0.5s）
-        blogWhiteBox.style.height = '';
-        blogWhiteBox.style.maxHeight = '';
-      }
-      document.documentElement.style.removeProperty('--reading-box-max-h');
-      updateReadingDim(0);
-      updateBlogScroll();
-      updateGlobalAvatarPosition();
+      requestAnimationFrame(() => {
+        setWhiteBoxHeightPx(endH);
+        document.documentElement.style.removeProperty('--reading-box-max-h');
+        updateReadingDim(0);
+        updateBlogScroll();
+        updateGlobalAvatarPosition();
+      });
     });
 
     readingExitTimer = setTimeout(() => {
       readingExitTimer = null;
-      // 动画结束后再清正文，避免倒放中途内容瞬间消失
       const bodyEl = document.getElementById('blogArticleBody');
       if (bodyEl) bodyEl.innerHTML = '';
       const titleEl = document.getElementById('blogArticleTitle');
@@ -1776,6 +1796,11 @@
         view.hidden = true;
         view.style.display = '';
         view.scrollTop = 0;
+      }
+      // 动画结束后再放开高度约束
+      if (blogWhiteBox) {
+        blogWhiteBox.style.height = '';
+        blogWhiteBox.style.maxHeight = '';
       }
       document.body.classList.remove('is-exiting-article');
       if (blogPanel) blogPanel.classList.remove('is-exiting-article');
