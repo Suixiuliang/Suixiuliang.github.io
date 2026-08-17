@@ -635,22 +635,10 @@
 
   const STAGE1_RATIO = 0.72;
   const STAGE2_RATIO = 0.45;
-  const STAGE1_RATIO_MOBILE = 0.50;
-  const STAGE2_RATIO_MOBILE = 0.30;
   let stage1Height = 0;
   let stage2Height = 0;
   let stage3Extra = 0;
   let isBlogActive = false;
-
-  function isMobileBlogLayout() {
-    // 仅手机窄屏；平板走桌面三阶段
-    try {
-      if (document.documentElement.classList.contains('is-phone')) return true;
-      if (typeof isPhoneDevice === 'function') return isPhoneDevice();
-    } catch (_) {}
-    return !!(window.matchMedia && window.matchMedia('(max-width: 480px)').matches
-      && window.matchMedia('(pointer: coarse)').matches);
-  }
   let activeCategory = '';
   const BLOG_PAGE_SIZE = 5;
   let blogCurrentPage = 1;
@@ -881,7 +869,7 @@
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
           <div class="blog-card-actions">
-            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以读"><i class="fas fa-lock"></i><span class="blog-hidden-badge-text">隐私</span></span>' : ''}
+            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以读"><i class="fas fa-lock"></i> 同志，这个你可以读</span>' : ''}
             <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
           </div>
         </a>
@@ -2165,15 +2153,23 @@
     const user = document.getElementById('adminUsername');
     const pass = document.getElementById('adminPassword');
     const fields = document.getElementById('authedRegisterFields');
+    const loginFields = document.getElementById('adminLoginFields');
     const hint = document.getElementById('adminLoginHint');
     const submit = document.getElementById('adminLoginSubmit');
     authedCreateSecret = null;
     if (err) { err.hidden = true; err.textContent = ''; }
     if (hint) { hint.hidden = true; hint.textContent = ''; }
     if (fields) fields.hidden = true;
+    if (loginFields) loginFields.hidden = false;
+    if (user) {
+      user.value = '';
+      user.setAttribute('required', '');
+    }
+    if (pass) {
+      pass.value = '';
+      pass.setAttribute('required', '');
+    }
     if (submit) submit.textContent = '登录';
-    if (user) user.value = '';
-    if (pass) pass.value = '';
     ['authedRegisterUsername','authedRegisterPassword','authedRegisterConfirm'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
     if (modal) modal.classList.add('active');
     setTimeout(() => user && user.focus(), 50);
@@ -3073,10 +3069,24 @@
     const userInput = document.getElementById('adminUsername');
     const passInput = document.getElementById('adminPassword');
     const showError = (text) => { if (err) { err.hidden = false; err.textContent = text; } };
+    const loginFields = document.getElementById('adminLoginFields');
+    const setLoginFieldsVisible = (visible) => {
+      if (loginFields) loginFields.hidden = !visible;
+      // 隐藏时去掉 required，避免挡住「创建账户」提交
+      if (userInput) {
+        if (visible) userInput.setAttribute('required', '');
+        else userInput.removeAttribute('required');
+      }
+      if (passInput) {
+        if (visible) passInput.setAttribute('required', '');
+        else passInput.removeAttribute('required');
+      }
+    };
     const enterRegisterMode = (secret) => {
       authedCreateSecret = secret;
       if (userInput) userInput.value = '';
       if (passInput) passInput.value = '';
+      setLoginFieldsVisible(false);
       if (fields) fields.hidden = false;
       if (hint) { hint.hidden = false; hint.textContent = '创建 Authed User：最多 20 个账户。请设置用户名和密码。'; }
       if (submit) submit.textContent = '创建账户';
@@ -3085,6 +3095,7 @@
     const leaveRegisterMode = () => {
       authedCreateSecret = null;
       if (fields) fields.hidden = true;
+      setLoginFieldsVisible(true);
       if (hint) hint.hidden = true;
       if (submit) submit.textContent = '登录';
     };
@@ -3252,16 +3263,12 @@
 
   let rafId = null;
 
-  /** 水平滑动过程中不切换 active 文案，仅在接近吸附时切换 */
-  let navSettledSectionId = null;
-  let navScrollEndTimer = null;
-
   function updateActiveNavFromScroll() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
       const sections = getSections();
       const scrollLeft = scrollContainer.scrollLeft;
-      const containerWidth = scrollContainer.clientWidth || 1;
+      const containerWidth = scrollContainer.clientWidth;
       const viewportCenter = scrollLeft + containerWidth / 2;
       let closestIndex = 0;
       let closestDist = Infinity;
@@ -3273,65 +3280,22 @@
       const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
       if (scrollLeft <= 5) closestIndex = 0;
       else if (scrollLeft >= maxScroll - 5) closestIndex = sections.length - 1;
+      const activeId = sections[closestIndex]?.getAttribute('id');
 
-      // 只有当面板中心足够接近视口中心时才切换 active（中间态不亮文案）
-      const snapThreshold = containerWidth * 0.22;
-      const nearSnap = closestDist <= snapThreshold
-        || scrollLeft <= 5
-        || scrollLeft >= maxScroll - 5;
+      getNavLinks().forEach(link => { link.classList.toggle('active', link.dataset.section === activeId); });
 
-      if (nearSnap) {
-        const activeId = sections[closestIndex]?.getAttribute('id');
-        if (activeId && activeId !== navSettledSectionId) {
-          navSettledSectionId = activeId;
-          getNavLinks().forEach(link => {
-            link.classList.toggle('active', link.dataset.section === activeId);
-          });
-
-          const wasBlog = isBlogActive;
-          isBlogActive = (activeId === 'blog');
-          if (isBlogActive !== wasBlog) {
-            if (!isBlogActive) {
-              nav.classList.remove('blog-mode');
-              if (isArticleReading) closeArticleReader();
-            } else {
-              if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
-              updateBlogScroll();
-            }
-          }
-          ensureRouteLoaded(activeId);
-        } else if (activeId) {
-          // 已是当前 active，仍保持 class 正确
-          getNavLinks().forEach(link => {
-            link.classList.toggle('active', link.dataset.section === activeId);
-          });
+      const wasBlog = isBlogActive;
+      isBlogActive = (activeId === 'blog');
+      if (isBlogActive !== wasBlog) {
+        if (!isBlogActive) {
+          nav.classList.remove('blog-mode');
+          if (isArticleReading) closeArticleReader();
+        } else {
+          if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
+          updateBlogScroll();
         }
       }
-      // 未接近吸附：保持原 active，不给途经按钮加 active 文案
-
-      if (navScrollEndTimer) clearTimeout(navScrollEndTimer);
-      navScrollEndTimer = setTimeout(() => {
-        // 滚动停稳后再强制对齐一次
-        const id = sections[closestIndex]?.getAttribute('id');
-        if (!id) return;
-        navSettledSectionId = id;
-        getNavLinks().forEach(link => {
-          link.classList.toggle('active', link.dataset.section === id);
-        });
-        const wasBlog = isBlogActive;
-        isBlogActive = (id === 'blog');
-        if (isBlogActive !== wasBlog) {
-          if (!isBlogActive) {
-            nav.classList.remove('blog-mode');
-            if (isArticleReading) closeArticleReader();
-          } else {
-            if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
-            updateBlogScroll();
-          }
-        }
-        ensureRouteLoaded(id);
-      }, 120);
-
+      if (activeId) ensureRouteLoaded(activeId);
       rafId = null;
     });
   }
@@ -3456,13 +3420,10 @@
   function setupBlogScrollHeights() {
     if (!blogPanel || !blogContent || !blogWhiteBox) return;
     const vh = blogPanel.clientHeight || window.innerHeight;
-    const mobile = isMobileBlogLayout();
-    const r1 = mobile ? STAGE1_RATIO_MOBILE : STAGE1_RATIO;
-    const r2 = mobile ? STAGE2_RATIO_MOBILE : STAGE2_RATIO;
-    stage1Height = Math.round(vh * r1);
-    stage2Height = Math.round(vh * r2);
+    stage1Height = Math.round(vh * STAGE1_RATIO);
+    stage2Height = Math.round(vh * STAGE2_RATIO);
     const gapPx = getBlogGapPx();
-    const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : (gapPx + (mobile ? 48 : 56));
+    const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : (gapPx + 56);
 
     if (isArticleReading) {
       stage3Extra = 0;
@@ -3472,10 +3433,10 @@
       return;
     }
     const bottomPad = gapPx;
-    const pinnedMax = Math.max(mobile ? 200 : 240, Math.round(vh - topMargin - bottomPad));
+    const pinnedMax = Math.max(240, Math.round(vh - topMargin - bottomPad));
     blogWhiteBox.style.maxHeight = pinnedMax + 'px';
     blogWhiteBox.style.overflowY = 'auto';
-    stage3Extra = Math.round(vh * (mobile ? 0.30 : 0.35));
+    stage3Extra = Math.round(vh * 0.35);
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
 
@@ -3549,9 +3510,8 @@
     if (p2 >= 0.98) railGapLocked = true;
     if (p1 < 0.55) railGapLocked = false;
 
-    const mobile = isMobileBlogLayout();
-    const startY = vh + (mobile ? 16 : 28);
-    const midY = vh * (mobile ? 0.42 : 0.48);
+    const startY = vh + 28;
+    const midY = vh * 0.48;
     let desiredY;
     if (p1 < 1) {
       desiredY = startY * (1 - p1) + midY * p1;
@@ -3564,46 +3524,19 @@
     blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
     blogStageDuo.style.pointerEvents = 'none';
     if (blogWhiteBox) blogWhiteBox.style.pointerEvents = 'auto';
+    if (blogThemeRail) blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
 
+    const railW = window.matchMedia('(max-width: 480px)').matches
+      ? 84
+      : (window.matchMedia('(max-width: 720px)').matches ? 96 : 132);
     const gap = gapPx;
     let t = easeOutCubic(p2);
     if (railGapLocked) t = 1;
 
-    if (mobile) {
-      if (blogWhiteBox) blogWhiteBox.style.maxWidth = '100%';
-      if (blogThemeRail) {
-        blogThemeRail.style.flex = '';
-        blogThemeRail.style.width = '';
-        blogThemeRail.style.maxWidth = '';
-        blogThemeRail.style.marginRight = '';
-        const inner = blogThemeRail.querySelector('.theme-rail-inner');
-        if (inner) {
-          inner.style.minHeight = '';
-          inner.style.height = '';
-        }
-        const t3 = easeOutCubic(p3);
-        const railH = Math.max(
-          blogThemeRail.offsetHeight || 0,
-          (inner && inner.offsetHeight) || 48,
-          48
-        );
-        const slideDist = railH + 12;
-        blogThemeRail.style.transform = `translate3d(0, ${(1 - t3) * -slideDist}px, 0)`;
-        blogThemeRail.style.opacity = String(t3);
-        blogThemeRail.style.marginBottom = `${(1 - t3) * -slideDist}px`;
-        blogThemeRail.classList.toggle('is-visible', t3 > 0.08);
-        blogThemeRail.style.pointerEvents = t3 > 0.45 ? 'auto' : 'none';
-        blogStageDuo.style.gap = (t3 > 0.05 ? gap : 0) + 'px';
-      } else {
-        blogStageDuo.style.gap = gap + 'px';
-      }
-    } else if (blogThemeRail) {
-      blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
-      const railW = window.matchMedia('(max-width: 720px)').matches ? 96 : 132;
+    if (blogThemeRail) {
       blogThemeRail.style.flex = `0 0 ${railW}px`;
       blogThemeRail.style.width = `${railW}px`;
       blogThemeRail.style.maxWidth = `${railW}px`;
-      blogThemeRail.style.marginBottom = '';
       blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
       blogThemeRail.classList.toggle('is-visible', t > 0.12);
 
@@ -3624,9 +3557,9 @@
         inner.style.minHeight = targetH + 'px';
         inner.style.height = targetH + 'px';
       }
-      if (blogWhiteBox) {
-        blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
-      }
+    }
+    if (blogWhiteBox) {
+      blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
     }
 
     const coverMove = p1 * (vh * 0.45);
@@ -4197,35 +4130,6 @@
   const coarsePointer = window.matchMedia('(hover: none), (pointer: coarse)').matches;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /** 手机（非平板）：窄屏 + 粗指针；iPad/平板走桌面布局 */
-  function isPhoneDevice() {
-    try {
-      const ua = navigator.userAgent || '';
-      const isIPad = /iPad/i.test(ua)
-        || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
-      const isTablet = isIPad || /Tablet|Android(?!.*Mobile)/i.test(ua);
-      if (isTablet) return false;
-      const narrow = window.matchMedia('(max-width: 480px)').matches
-        || Math.min(window.innerWidth, window.innerHeight) <= 480;
-      return !!(coarsePointer && narrow);
-    } catch (_) {
-      return !!(coarsePointer && window.innerWidth <= 480);
-    }
-  }
-
-  function applyPhoneChrome() {
-    const phone = isPhoneDevice();
-    document.documentElement.classList.toggle('is-phone', phone);
-    document.body.classList.toggle('is-phone', phone);
-    // 尝试锁定竖屏（多数浏览器仅全屏可用，失败则靠 CSS 提示）
-    if (phone && screen.orientation && typeof screen.orientation.lock === 'function') {
-      screen.orientation.lock('portrait').catch(() => {});
-    }
-  }
-  applyPhoneChrome();
-  window.addEventListener('resize', applyPhoneChrome, { passive: true });
-  window.addEventListener('orientationchange', applyPhoneChrome, { passive: true });
-
   let customCursor = null;
   if (!coarsePointer) {
     customCursor = document.createElement('div');
@@ -4573,11 +4477,8 @@
     suppressEffectsUntil = performance.now() + 120;
   }
 
-  function startPointerEffects(x, y, isRight, target, opts) {
+  function startPointerEffects(x, y, isRight, target) {
     if (performance.now() < suppressEffectsUntil) return;
-    const options = opts || {};
-    // 触屏：不启动连续特效，避免拖动滚动时满屏粒子
-    if (coarsePointer && !options.allowOnCoarse) return;
 
     pointerIsRight = isRight;
     lastPointerX = x;
@@ -4681,42 +4582,12 @@
     } catch (_) {}
   });
 
-  // 触屏：不启用光标/曳尾；拖动不刷特效；长按调出自定义菜单
-  let longPressTimer = null;
-  let longPressOrigin = null;
-  let longPressMoved = false;
-  let longPressFired = false;
-  const LONG_PRESS_MS = 480;
-  const LONG_PRESS_MOVE_MAX = 12;
-
-  function clearLongPress() {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  }
-
   document.addEventListener('touchstart', function(e) {
     const touch = e.touches[0];
     if (!touch) return;
     lastPointerX = touch.clientX;
     lastPointerY = touch.clientY;
-    longPressMoved = false;
-    longPressFired = false;
-    longPressOrigin = { x: touch.clientX, y: touch.clientY, target: e.target };
-    clearLongPress();
-    if (isTextEditingTarget(e.target)) return;
-    longPressTimer = setTimeout(() => {
-      longPressTimer = null;
-      if (longPressMoved || !longPressOrigin) return;
-      longPressFired = true;
-      // 长按：弹出与右键相同的菜单
-      showContextMenu(longPressOrigin.x, longPressOrigin.y, longPressOrigin.target);
-      // 轻微震动反馈（若支持）
-      try {
-        if (navigator.vibrate) navigator.vibrate(12);
-      } catch (_) {}
-    }, LONG_PRESS_MS);
+    startPointerEffects(touch.clientX, touch.clientY, false, e.target);
   }, { passive: true });
 
   document.addEventListener('touchmove', function(e) {
@@ -4724,41 +4595,18 @@
     if (!touch) return;
     lastPointerX = touch.clientX;
     lastPointerY = touch.clientY;
-    if (longPressOrigin) {
-      const dx = touch.clientX - longPressOrigin.x;
-      const dy = touch.clientY - longPressOrigin.y;
-      if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_MAX) {
-        longPressMoved = true;
-        clearLongPress();
-      }
-    }
-    // 触屏不画曳尾
+    pushTrailPoint(touch.clientX, touch.clientY);
   }, { passive: true });
 
-  window.addEventListener('touchend', function(e) {
-    clearLongPress();
+  window.addEventListener('touchend', function() {
     if (isPointerDown) forceReleasePointer();
-    // 长按已弹出菜单时，抑制随后的 click 特效
-    if (longPressFired) {
-      suppressEffectsUntil = performance.now() + 400;
-      longPressFired = false;
-      if (e && e.cancelable) {
-        try { e.preventDefault(); } catch (_) {}
-      }
-    }
-    longPressOrigin = null;
   }, true);
 
   window.addEventListener('touchcancel', function() {
-    clearLongPress();
-    longPressOrigin = null;
-    longPressFired = false;
     forceReleasePointer();
   }, true);
 
   document.addEventListener('click', function(e) {
-    // 触屏不在 click 上刷粒子（避免与滚动/点按冲突）
-    if (coarsePointer) return;
     if (e.button === 0 && !isPointerDown && performance.now() >= suppressEffectsUntil) {
       if (!shouldSkipClickEffects(e.target)) {
         triggerAnimation(e.clientX, e.clientY, false);

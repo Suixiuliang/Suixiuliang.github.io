@@ -165,22 +165,17 @@ body {
   min-width: 0;
   height: 100%;
   text-align: center;
-  margin: 0 auto;
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-list {
   display: none !important;
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-reading {
   display: flex !important;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
 }
 .blog-reading-title-wrap {
-  flex: 0 1 auto;
+  flex: 3 1 0;
   min-width: 0;
   width: 100%;
-  max-width: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -196,25 +191,18 @@ body {
   will-change: transform;
   max-width: 100%;
   justify-content: center;
-  margin: 0 auto;
 }
 .blog-reading-title-track.is-marquee {
   animation: blogTitleMarquee var(--marquee-duration, 8s) linear infinite;
   justify-content: flex-start;
-  max-width: none;
-  margin: 0;
 }
 .blog-reading-title {
   font-size: 1.2rem;
   font-weight: 600;
   color: #fff;
   letter-spacing: -0.01em;
-  padding-right: 0;
-  text-align: center;
-}
-/* 仅跑马灯时为复制标题留间距，避免静止态被挤偏 */
-.blog-reading-title-track.is-marquee .blog-reading-title {
   padding-right: 2.5rem;
+  text-align: center;
 }
 @keyframes blogTitleMarquee {
   0% { transform: translateX(0); }
@@ -236,7 +224,7 @@ body {
   }
 }
 .blog-reading-meta {
-  flex: 0 0 auto;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,8 +237,6 @@ body {
   width: 100%;
   overflow: hidden;
   min-height: 0;
-  margin: 0 auto;
-  text-align: center;
 }
 .blog-reading-meta span {
   display: inline-flex;
@@ -349,19 +335,14 @@ body {
   min-height: 3.35rem;
   padding-top: 0.35rem;
   padding-bottom: 0.35rem;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
 }
 .glass-nav.blog-mode.is-reading-toolbar .blog-toolbar {
   top: 0;
   bottom: 0;
   height: auto;
-  left: 50%;
-  width: 100%;
-  padding: 0;
   transform: translate(-50%, 0) scale(1);
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
 }
 .glass-nav.blog-mode .logo,
 .glass-nav.blog-mode .nav-links {
@@ -1030,7 +1011,19 @@ body {
   }
   .white-box-header h2 { font-size: 1.15rem; }
 }
-/* 旧的窄侧栏规则由下方 is-phone / 480px 完整适配覆盖 */
+@media (max-width: 480px) {
+  .blog-theme-rail {
+    flex-basis: 84px;
+    width: 84px;
+    max-width: 84px;
+  }
+  .theme-rail-inner {
+    width: 84px;
+    min-height: min(92vh, 820px);
+    border-radius: var(--radius-card);
+  }
+  .slogan { font-size: clamp(2.2rem, 10vw, 3.2rem); }
+}
 .panel-blog {
   touch-action: pan-y;
 }
@@ -3171,30 +3164,24 @@ body.api-offline-lock #homeAvatarPlaceholder {
 }
 
 #authedRegisterFields[hidden] { display: none; }
+#adminLoginFields[hidden] { display: none; }
 
 .blog-hidden-badge {
   display: inline-flex;
   align-items: center;
-  gap: .25rem;
+  gap: .3rem;
   width: fit-content;
-  max-width: 100%;
-  padding: .18rem .45rem;
+  max-width: 8.5rem;
+  padding: .22rem .5rem;
   border-radius: 999px;
-  font-size: .62rem;
+  font-size: .68rem;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.25;
   color: rgba(200, 255, 210, 0.96);
   background: rgba(52, 199, 89, 0.18);
   border: 1px solid rgba(52, 199, 89, 0.38);
-  white-space: nowrap;
-  text-align: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.blog-list .blog-card-actions {
-  flex-wrap: nowrap;
-  align-items: center;
+  white-space: normal;
+  text-align: left;
 }
 
 .admin-guest-code-card {
@@ -3252,225 +3239,5 @@ body.api-offline-lock #homeAvatarPlaceholder {
   }
   .blog-list .blog-card-actions {
     max-width: 11rem;
-  }
-}
-
-/* ============================================================
-   手机端适配（is-phone / max-width:480px）
-   平板不走这里，统一桌面布局
-   ============================================================ */
-
-/* 横屏强制提示（仅手机 is-phone） */
-@media screen and (max-width: 480px) and (orientation: landscape) {
-  html.is-phone body::before {
-    content: "请竖屏使用以获得最佳体验";
-    position: fixed;
-    inset: 0;
-    z-index: 2147483646;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    text-align: center;
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-  html.is-phone body > *:not(.boot-loader) {
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
-}
-
-@media (max-width: 480px) {
-  :root {
-    --blog-gap: 10px;
-    --radius-card: 20px;
-    --radius-pad: 12px;
-  }
-
-  /* —— 导航：Logo 保留；未选中仅图标，选中显示文字 —— */
-  .glass-nav {
-    top: max(8px, env(safe-area-inset-top, 0px));
-    max-width: calc(100vw - 12px);
-    width: calc(100vw - 12px);
-    margin: 0 auto;
-    padding: 0.28rem 0.45rem;
-    justify-content: space-between;
-    gap: 0.2rem;
-  }
-  .logo {
-    font-size: 0.98rem;
-    padding-right: 0.35rem;
-    gap: 5px;
-    flex-shrink: 0;
-  }
-  .logo span { display: inline; font-weight: 600; }
-  .logo i { font-size: 1.05rem; }
-  .nav-links {
-    gap: 0.08rem;
-    flex: 1 1 auto;
-    justify-content: flex-end;
-    min-width: 0;
-  }
-  .nav-btn {
-    padding: 0.4rem 0.45rem;
-    font-size: 0.72rem;
-    gap: 5px;
-    flex: 0 0 auto;
-    justify-content: center;
-    transition: padding 0.22s ease, color 0.2s ease;
-  }
-  .nav-btn span {
-    display: none;
-  }
-  .nav-btn.active span {
-    display: inline;
-  }
-  .nav-btn.active {
-    padding: 0.4rem 0.65rem;
-  }
-  .nav-btn i {
-    font-size: 1.05rem;
-    color: inherit;
-  }
-
-  .glass-nav.blog-mode,
-  .glass-nav.blog-mode.is-reading-toolbar {
-    width: calc(100vw - 12px);
-    max-width: calc(100vw - 12px);
-  }
-  .glass-nav.blog-mode.is-reading-toolbar {
-    min-height: 3rem;
-    padding: 0.3rem 0.55rem;
-    align-items: center;
-    justify-content: center;
-  }
-  .glass-nav.blog-mode.is-reading-toolbar .blog-toolbar {
-    align-items: center;
-    justify-content: center;
-    left: 50%;
-    width: 100%;
-    transform: translate(-50%, 0) scale(1);
-  }
-  .blog-toolbar-reading {
-    align-items: center;
-    text-align: center;
-  }
-  .blog-reading-title {
-    font-size: 1rem;
-    padding-right: 0 !important;
-    text-align: center;
-  }
-  .blog-reading-title-track.is-marquee .blog-reading-title {
-    padding-right: 2rem !important;
-  }
-  .blog-reading-meta {
-    font-size: 0.65rem;
-    justify-content: center;
-  }
-  .blog-search-box { height: 34px; padding: 0 0.75rem; }
-  .calendar-btn { width: 34px; height: 34px; }
-
-  .horizontal-scroll-container {
-    height: calc(100vh - 64px);
-    height: calc(100dvh - 64px);
-  }
-  .panel { padding: 1.1rem 0.85rem 1.4rem; }
-
-  /* 封面第一阶段：一屏高度 + 内容上移 */
-  .blog-cover {
-    height: 100vh;
-    height: 100dvh;
-    min-height: 0;
-  }
-  .cover-inner {
-    transform: translateY(calc(-12vh - 12px));
-    padding: 0.5rem 1.1rem 0.75rem;
-  }
-  .cover-avatar-placeholder {
-    width: 96px;
-    height: 96px;
-    margin: 0 auto 0.85rem;
-  }
-  .slogan { font-size: clamp(2rem, 9.5vw, 2.8rem); }
-  .slogan-sub { font-size: 0.88rem; letter-spacing: 0.08em; }
-
-  /* 三阶段：主题栏横滑，第三阶段下滑 */
-  .blog-stage-duo {
-    flex-direction: column;
-    align-items: stretch;
-    max-width: 100%;
-    padding: 0 var(--blog-gap);
-    gap: 8px;
-  }
-  .blog-theme-rail {
-    order: -1;
-    flex: 0 0 auto !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-right: 0 !important;
-    align-self: stretch;
-    will-change: transform, opacity;
-  }
-  .theme-rail-inner {
-    width: 100% !important;
-    min-height: 0 !important;
-    height: auto !important;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.5rem 0.55rem;
-    border-radius: 16px;
-  }
-  .theme-rail-title { display: none; }
-  .theme-rail-list {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 0.35rem;
-    width: 100%;
-    scrollbar-width: none;
-  }
-  .theme-rail-list::-webkit-scrollbar { display: none; }
-  .theme-chip {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    font-size: 0.72rem;
-    padding: 0.34rem 0.7rem;
-  }
-  .blog-white-box {
-    max-width: 100% !important;
-    width: 100%;
-  }
-
-  /* 隐私标签：不撑高卡片 */
-  .blog-list .blog-card-actions {
-    max-width: 5.5rem;
-    flex-wrap: nowrap;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.3rem;
-    height: auto;
-    align-self: start;
-  }
-  .blog-hidden-badge {
-    max-width: 5.2rem;
-    font-size: 0.6rem;
-    padding: 0.12rem 0.38rem;
-    white-space: nowrap;
-  }
-  .blog-list .read-more {
-    font-size: 0.78rem;
-    padding: 0.28rem 0.45rem;
-  }
-
-  /* 触屏隐藏自定义光标与曳尾（双保险） */
-  .custom-cursor,
-  .cursor-trail-canvas {
-    display: none !important;
   }
 }

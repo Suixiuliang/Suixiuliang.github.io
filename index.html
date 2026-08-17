@@ -118,14 +118,16 @@
     </div>
     <div class="calendar-body">
       <form id="adminLoginForm" class="admin-login-form" autocomplete="off">
-        <label class="admin-field">
-          <span>用户名</span>
-          <input type="text" id="adminUsername" name="username" required placeholder="请输入用户名" autocomplete="username">
-        </label>
-        <label class="admin-field">
-          <span>密码</span>
-          <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
-        </label>
+        <div id="adminLoginFields">
+          <label class="admin-field">
+            <span>用户名</span>
+            <input type="text" id="adminUsername" name="username" required placeholder="请输入用户名" autocomplete="username">
+          </label>
+          <label class="admin-field">
+            <span>密码</span>
+            <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
+          </label>
+        </div>
         <div id="authedRegisterFields" hidden>
           <label class="admin-field">
             <span>用户名</span>
