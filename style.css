@@ -165,7 +165,6 @@ body {
   min-width: 0;
   height: 100%;
   text-align: center;
-  margin: 0 auto;
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-list {
   display: none !important;
@@ -174,10 +173,9 @@ body {
   display: flex !important;
 }
 .blog-reading-title-wrap {
-  flex: 0 1 auto;
+  flex: 3 1 0;
   min-width: 0;
   width: 100%;
-  max-width: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -193,25 +191,18 @@ body {
   will-change: transform;
   max-width: 100%;
   justify-content: center;
-  margin: 0 auto;
 }
 .blog-reading-title-track.is-marquee {
   animation: blogTitleMarquee var(--marquee-duration, 8s) linear infinite;
   justify-content: flex-start;
-  max-width: none;
-  margin: 0;
 }
 .blog-reading-title {
   font-size: 1.2rem;
   font-weight: 600;
   color: #fff;
   letter-spacing: -0.01em;
-  padding-right: 0;
-  text-align: center;
-}
-/* 仅跑马灯时为复制标题留间距，避免静止态被 padding 挤偏 */
-.blog-reading-title-track.is-marquee .blog-reading-title {
   padding-right: 2.5rem;
+  text-align: center;
 }
 @keyframes blogTitleMarquee {
   0% { transform: translateX(0); }
@@ -233,7 +224,7 @@ body {
   }
 }
 .blog-reading-meta {
-  flex: 0 0 auto;
+  flex: 1 1 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -246,8 +237,6 @@ body {
   width: 100%;
   overflow: hidden;
   min-height: 0;
-  margin: 0 auto;
-  text-align: center;
 }
 .blog-reading-meta span {
   display: inline-flex;
@@ -346,19 +335,14 @@ body {
   min-height: 3.35rem;
   padding-top: 0.35rem;
   padding-bottom: 0.35rem;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
 }
 .glass-nav.blog-mode.is-reading-toolbar .blog-toolbar {
   top: 0;
   bottom: 0;
   height: auto;
   transform: translate(-50%, 0) scale(1);
-  align-items: center;
-  justify-content: center;
-  left: 50%;
-  width: 100%;
-  padding: 0;
+  align-items: stretch;
 }
 .glass-nav.blog-mode .logo,
 .glass-nav.blog-mode .nav-links {
@@ -3254,5 +3238,244 @@ body.api-offline-lock #homeAvatarPlaceholder {
   }
   .blog-list .blog-card-actions {
     max-width: 11rem;
+  }
+}
+
+/* ============================================================
+   移动端适配（目标参考：414×896）
+   1) 顶部选项卡栏压缩 + 图标优先
+   2) 博客三阶段：侧栏改顶栏横滑 chips，缩短阶段行程
+   ============================================================ */
+@media (max-width: 480px) {
+  :root {
+    --blog-gap: 10px;
+    --radius-card: 20px;
+    --radius-pad: 12px;
+  }
+
+  /* —— 顶部导航 —— */
+  .glass-nav {
+    top: max(8px, env(safe-area-inset-top, 0px));
+    max-width: calc(100vw - 12px);
+    width: calc(100vw - 12px);
+    margin: 0 auto;
+    padding: 0.28rem 0.4rem;
+    justify-content: center;
+    gap: 0.15rem;
+  }
+  .logo {
+    font-size: 1.05rem;
+    padding-right: 0.2rem;
+    gap: 0;
+  }
+  .logo span {
+    display: none;
+  }
+  .logo i {
+    font-size: 1.1rem;
+  }
+  .nav-links {
+    gap: 0.1rem;
+    flex: 1 1 auto;
+    justify-content: space-evenly;
+    min-width: 0;
+  }
+  .nav-btn {
+    padding: 0.42rem 0.48rem;
+    font-size: 0.72rem;
+    gap: 0;
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+  }
+  /* 图标为主，隐藏文字标签，避免 414 宽溢出 */
+  .nav-btn span {
+    display: none;
+  }
+  .nav-btn i {
+    font-size: 1.08rem;
+    color: inherit;
+  }
+  .nav-capsule {
+    min-width: 36px;
+  }
+
+  /* 博客模式工具栏 */
+  .glass-nav.blog-mode {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    padding: 0.28rem 0.55rem;
+  }
+  .glass-nav.blog-mode.is-reading-toolbar {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    min-height: 3rem;
+    padding: 0.3rem 0.55rem;
+  }
+  .blog-search-box {
+    height: 34px;
+    padding: 0 0.75rem;
+  }
+  .blog-search-box input {
+    font-size: 0.88rem;
+  }
+  .calendar-btn {
+    width: 34px;
+    height: 34px;
+  }
+  .blog-reading-title {
+    font-size: 1rem;
+  }
+  .blog-reading-meta {
+    font-size: 0.65rem;
+    gap: 0.35rem 0.55rem;
+  }
+
+  /* —— 水平面板 —— */
+  .horizontal-scroll-container {
+    height: calc(100vh - 64px);
+    height: calc(100dvh - 64px);
+  }
+  .panel {
+    padding: 1.1rem 0.85rem 1.4rem;
+  }
+  .section-title {
+    font-size: 1.55rem;
+    margin-bottom: 1.2rem;
+    padding-left: 0.85rem;
+  }
+
+  /* —— 博客封面 —— */
+  .blog-cover {
+    height: 100%;
+    min-height: 100%;
+  }
+  .cover-inner {
+    padding: 0.75rem 1.1rem;
+    transform: translateY(-12px);
+  }
+  .slogan {
+    font-size: clamp(2rem, 9.5vw, 2.8rem);
+  }
+  .slogan-sub {
+    font-size: 0.88rem;
+    letter-spacing: 0.08em;
+  }
+  .scroll-down-hint {
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+  }
+
+  /* —— 三阶段：侧栏 → 顶栏横滑 chips —— */
+  .blog-stage-duo {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    max-width: 100%;
+    padding: 0 var(--blog-gap);
+    gap: 8px !important;
+  }
+  .blog-theme-rail {
+    order: -1;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-right: 0 !important;
+    transform: none !important;
+    align-self: stretch;
+    overflow: visible;
+  }
+  .blog-theme-rail.is-visible {
+    pointer-events: auto;
+  }
+  .theme-rail-inner {
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.55rem;
+    border-radius: 16px;
+  }
+  .theme-rail-title {
+    display: none;
+  }
+  .theme-rail-list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0.35rem;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .theme-rail-list::-webkit-scrollbar {
+    display: none;
+  }
+  .theme-chip {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    padding: 0.34rem 0.7rem;
+  }
+  .blog-white-box {
+    max-width: 100% !important;
+    width: 100%;
+    border-radius: var(--radius-card);
+  }
+  .white-box-inner {
+    padding: var(--radius-pad);
+    max-width: none;
+  }
+  .white-box-header h2 {
+    font-size: 1.05rem;
+  }
+  .sub-count {
+    font-size: 0.78rem;
+  }
+  .blog-list .blog-card {
+    padding: 0.9rem;
+  }
+  .blog-list .blog-card h3 {
+    font-size: 1rem;
+  }
+
+  /* 阅读模式：全宽框 + 更贴顶 */
+  .panel-blog.is-reading-article .blog-stage-duo {
+    padding: 0 var(--blog-gap);
+    max-width: 100% !important;
+  }
+  .panel-blog.is-reading-article .blog-white-box {
+    border-radius: var(--radius-card);
+  }
+  .panel-blog.is-reading-article .white-box-inner {
+    padding: 0.75rem !important;
+  }
+  .blog-back-btn {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+  }
+  .blog-article-body {
+    font-size: 0.92rem;
+  }
+}
+
+/* 略宽的小屏（如 430），仍压缩导航文字，保留图标+短标签可选 */
+@media (min-width: 481px) and (max-width: 600px) {
+  .glass-nav {
+    max-width: calc(100vw - 16px);
+    width: fit-content;
+    padding: 0.32rem 0.55rem;
+  }
+  .nav-btn {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8rem;
+    gap: 5px;
+  }
+  .logo {
+    font-size: 1.15rem;
+    padding-right: 0.45rem;
   }
 }

@@ -635,10 +635,17 @@
 
   const STAGE1_RATIO = 0.72;
   const STAGE2_RATIO = 0.45;
+  /** 移动端缩短三阶段行程，减少无效滚动 */
+  const STAGE1_RATIO_MOBILE = 0.50;
+  const STAGE2_RATIO_MOBILE = 0.30;
   let stage1Height = 0;
   let stage2Height = 0;
   let stage3Extra = 0;
   let isBlogActive = false;
+
+  function isMobileBlogLayout() {
+    return !!(window.matchMedia && window.matchMedia('(max-width: 480px)').matches);
+  }
   let activeCategory = '';
   const BLOG_PAGE_SIZE = 5;
   let blogCurrentPage = 1;
@@ -1280,7 +1287,6 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      // Tab 展开为 4 空格，避免 pre 里 tab-size 过窄或各浏览器不一致
       const body = esc(code.replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
@@ -1407,13 +1413,10 @@
     // 嵌套无序/有序列表（支持缩进子列表）
     s = convertMarkdownLists(s);
 
-    // Tab → 4 空格（代码块已 hold，不受影响；正文里 Tab 不再被 HTML 压成单空格）
+    // Tab → 4 空格（代码块已 hold）
     s = s.replace(/\t/g, '    ');
 
-    // 段落与换行：
-    // - 段落内单个 \n → <br>
-    // - 连续两个 \n（一个空行）→ 段落分隔（可见换行）
-    // - 更多连续空行 → 额外保留为空行，避免被折叠掉
+    // 段落与换行：单 \n → <br>；连续空行保留可见间隔
     s = convertMarkdownParagraphs(s);
 
     s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
@@ -1422,7 +1425,6 @@
 
   /**
    * 按空行切段落；保留多余空行，避免「连续换行被吃掉」。
-   * 连续两个换行 = 段与段之间一个可见间隔；再多的空行各渲染一个空段落。
    */
   function convertMarkdownParagraphs(text) {
     const lines = String(text).split('\n');
@@ -1445,7 +1447,6 @@
         htmlParts.push(t);
         return;
       }
-      // 整段已是块级 HTML（可能多行）
       if (/^<\/?(h[1-6]|ul|ol|pre|blockquote|div|table|hr)\b/i.test(t)) {
         htmlParts.push(block);
         return;
@@ -1461,8 +1462,6 @@
         continue;
       }
       if (blankRun > 0) {
-        // blankRun===1：仅段落分隔，靠 <p> 外边距形成一次换行感
-        // blankRun>=2：额外空行显式保留，避免被折叠
         for (let b = 1; b < blankRun; b++) {
           htmlParts.push('<p class="md-blank-line"><br></p>');
         }
@@ -1476,16 +1475,11 @@
 
   /**
    * 将连续的 Markdown 引用行（&gt; ...）合并为一个 <blockquote>。
-   * 支持空引用行（仅 >）作为段落分隔，例如：
-   * >1
-   * >
-   * >2
    */
   function convertMarkdownBlockquotes(text) {
     const lines = String(text).split('\n');
     const out = [];
     let i = 0;
-    // 转义后的 > 为 &gt;；可选一个空格后接内容
     const bqRe = /^&gt;[ \t]?(.*)$/;
 
     while (i < lines.length) {
@@ -1504,7 +1498,6 @@
         i += 1;
       }
 
-      // 按空行拆成多个段落
       const paras = [];
       let cur = [];
       for (const part of rawParts) {
@@ -1541,7 +1534,6 @@
     function indentWidth(ws) {
       let n = 0;
       for (let k = 0; k < ws.length; k++) {
-        // Tab 按 4 列计算，避免嵌套列表缩进过窄
         n += ws[k] === '\t' ? 4 : 1;
       }
       return n;
@@ -3515,10 +3507,13 @@
   function setupBlogScrollHeights() {
     if (!blogPanel || !blogContent || !blogWhiteBox) return;
     const vh = blogPanel.clientHeight || window.innerHeight;
-    stage1Height = Math.round(vh * STAGE1_RATIO);
-    stage2Height = Math.round(vh * STAGE2_RATIO);
+    const mobile = isMobileBlogLayout();
+    const r1 = mobile ? STAGE1_RATIO_MOBILE : STAGE1_RATIO;
+    const r2 = mobile ? STAGE2_RATIO_MOBILE : STAGE2_RATIO;
+    stage1Height = Math.round(vh * r1);
+    stage2Height = Math.round(vh * r2);
     const gapPx = getBlogGapPx();
-    const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : (gapPx + 56);
+    const topMargin = typeof getBlogTopMargin === 'function' ? getBlogTopMargin() : (gapPx + (mobile ? 48 : 56));
 
     if (isArticleReading) {
       stage3Extra = 0;
@@ -3528,10 +3523,10 @@
       return;
     }
     const bottomPad = gapPx;
-    const pinnedMax = Math.max(240, Math.round(vh - topMargin - bottomPad));
+    const pinnedMax = Math.max(mobile ? 200 : 240, Math.round(vh - topMargin - bottomPad));
     blogWhiteBox.style.maxHeight = pinnedMax + 'px';
     blogWhiteBox.style.overflowY = 'auto';
-    stage3Extra = Math.round(vh * 0.35);
+    stage3Extra = Math.round(vh * (mobile ? 0.22 : 0.35));
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
 
@@ -3605,8 +3600,9 @@
     if (p2 >= 0.98) railGapLocked = true;
     if (p1 < 0.55) railGapLocked = false;
 
-    const startY = vh + 28;
-    const midY = vh * 0.48;
+    const mobile = isMobileBlogLayout();
+    const startY = vh + (mobile ? 16 : 28);
+    const midY = vh * (mobile ? 0.42 : 0.48);
     let desiredY;
     if (p1 < 1) {
       desiredY = startY * (1 - p1) + midY * p1;
@@ -3621,40 +3617,58 @@
     if (blogWhiteBox) blogWhiteBox.style.pointerEvents = 'auto';
     if (blogThemeRail) blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
 
-    const railW = window.matchMedia('(max-width: 480px)').matches
-      ? 84
-      : (window.matchMedia('(max-width: 720px)').matches ? 96 : 132);
     const gap = gapPx;
     let t = easeOutCubic(p2);
     if (railGapLocked) t = 1;
 
-    if (blogThemeRail) {
-      blogThemeRail.style.flex = `0 0 ${railW}px`;
-      blogThemeRail.style.width = `${railW}px`;
-      blogThemeRail.style.maxWidth = `${railW}px`;
-      blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
-      blogThemeRail.classList.toggle('is-visible', t > 0.12);
-
-      if (t >= 1) {
-        blogThemeRail.style.transform = 'translate3d(0,0,0)';
-        blogThemeRail.style.marginRight = '0';
-        blogStageDuo.style.gap = gap + 'px';
-      } else {
-        blogStageDuo.style.gap = '0px';
-        const slide = (1 - t) * (railW + gap);
-        blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
-        blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
+    if (mobile) {
+      // 移动端：主题栏改为顶栏横滑，不再做侧滑挤入
+      blogStageDuo.style.gap = gap + 'px';
+      if (blogThemeRail) {
+        blogThemeRail.style.flex = '';
+        blogThemeRail.style.width = '';
+        blogThemeRail.style.maxWidth = '';
+        blogThemeRail.style.transform = '';
+        blogThemeRail.style.marginRight = '';
+        blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.28));
+        blogThemeRail.classList.toggle('is-visible', t > 0.1);
+        const inner = blogThemeRail.querySelector('.theme-rail-inner');
+        if (inner) {
+          inner.style.minHeight = '';
+          inner.style.height = '';
+        }
       }
+      if (blogWhiteBox) blogWhiteBox.style.maxWidth = '100%';
+    } else {
+      const railW = window.matchMedia('(max-width: 720px)').matches ? 96 : 132;
+      if (blogThemeRail) {
+        blogThemeRail.style.flex = `0 0 ${railW}px`;
+        blogThemeRail.style.width = `${railW}px`;
+        blogThemeRail.style.maxWidth = `${railW}px`;
+        blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
+        blogThemeRail.classList.toggle('is-visible', t > 0.12);
 
-      const inner = blogThemeRail.querySelector('.theme-rail-inner');
-      if (inner && blogWhiteBox) {
-        const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.72));
-        inner.style.minHeight = targetH + 'px';
-        inner.style.height = targetH + 'px';
+        if (t >= 1) {
+          blogThemeRail.style.transform = 'translate3d(0,0,0)';
+          blogThemeRail.style.marginRight = '0';
+          blogStageDuo.style.gap = gap + 'px';
+        } else {
+          blogStageDuo.style.gap = '0px';
+          const slide = (1 - t) * (railW + gap);
+          blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
+          blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
+        }
+
+        const inner = blogThemeRail.querySelector('.theme-rail-inner');
+        if (inner && blogWhiteBox) {
+          const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.72));
+          inner.style.minHeight = targetH + 'px';
+          inner.style.height = targetH + 'px';
+        }
       }
-    }
-    if (blogWhiteBox) {
-      blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
+      if (blogWhiteBox) {
+        blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
+      }
     }
 
     const coverMove = p1 * (vh * 0.45);
