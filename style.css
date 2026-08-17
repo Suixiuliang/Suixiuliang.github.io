@@ -589,7 +589,6 @@ body {
 .glass-card:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22), inset 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
@@ -1083,7 +1082,7 @@ a.blog-list .blog-card,
   text-decoration: none;
   color: inherit;
 }
-.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-1px); }
+.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.15); }
 .blog-list .blog-card:focus-visible {
   outline: 2px solid rgba(0, 113, 227, 0.7);
   outline-offset: 2px;
@@ -3191,6 +3190,8 @@ body.api-offline-lock #homeAvatarPlaceholder {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.blog-hidden-badge-mobile { display: none; }
+.blog-hidden-badge-desktop { display: inline; }
 
 /* Markdown 扩展：分割线 / 删除线 / 空行 */
 .blog-article-body hr.md-hr,
@@ -3487,6 +3488,8 @@ body.api-offline-lock #homeAvatarPlaceholder {
     padding: 0.12rem 0.38rem;
     white-space: nowrap;
   }
+  .blog-hidden-badge-desktop { display: none; }
+  .blog-hidden-badge-mobile { display: inline; }
   .blog-list .read-more {
     font-size: 0.78rem;
     padding: 0.28rem 0.45rem;
