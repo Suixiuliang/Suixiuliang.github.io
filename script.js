@@ -635,7 +635,6 @@
 
   const STAGE1_RATIO = 0.72;
   const STAGE2_RATIO = 0.45;
-  /** 移动端缩短三阶段行程，减少无效滚动 */
   const STAGE1_RATIO_MOBILE = 0.50;
   const STAGE2_RATIO_MOBILE = 0.30;
   let stage1Height = 0;
@@ -644,7 +643,13 @@
   let isBlogActive = false;
 
   function isMobileBlogLayout() {
-    return !!(window.matchMedia && window.matchMedia('(max-width: 480px)').matches);
+    // 仅手机窄屏；平板走桌面三阶段
+    try {
+      if (document.documentElement.classList.contains('is-phone')) return true;
+      if (typeof isPhoneDevice === 'function') return isPhoneDevice();
+    } catch (_) {}
+    return !!(window.matchMedia && window.matchMedia('(max-width: 480px)').matches
+      && window.matchMedia('(pointer: coarse)').matches);
   }
   let activeCategory = '';
   const BLOG_PAGE_SIZE = 5;
@@ -876,7 +881,7 @@
             <span><i class="far fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
           <div class="blog-card-actions">
-            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以读"><i class="fas fa-lock"></i> 同志，这个你可以读</span>' : ''}
+            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以读"><i class="fas fa-lock"></i><span class="blog-hidden-badge-text">隐私</span></span>' : ''}
             <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
           </div>
         </a>
@@ -1287,7 +1292,7 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      const body = esc(code.replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
+      const body = esc(code.replace(/^\n+|\n+$/g, ''));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -1312,7 +1317,7 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      const body = esc(String(code).replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
+      const body = esc(String(code).replace(/^\n+|\n+$/g, ''));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -1399,126 +1404,23 @@
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // 斜体：避免吃掉列表标记行首的 *
     s = s.replace(/(^|[^*\n])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-    // 删除线：~~text~~
-    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
     s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-
-    // 分割线：独占一行的 --- / *** / ___（至少 3 个）
-    s = s.replace(/^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$/gm, '<hr class="md-hr">');
-
-    // 多行引用：连续 > 行合并为一个 blockquote；空 > 行作为段落分隔
-    s = convertMarkdownBlockquotes(s);
+    s = s.replace(/^&gt;[ \t]+(.+)$/gm, '<blockquote>$1</blockquote>');
 
     // 嵌套无序/有序列表（支持缩进子列表）
     s = convertMarkdownLists(s);
 
-    // Tab → 4 空格（代码块已 hold）
-    s = s.replace(/\t/g, '    ');
-
-    // 段落与换行：单 \n → <br>；连续空行保留可见间隔
-    s = convertMarkdownParagraphs(s);
+    s = s.split(/\n{2,}/).map(block => {
+      const t = block.trim();
+      if (!t) return '';
+      if (/^<(h[1-6]|ul|ol|pre|blockquote|div|img)/.test(t)) return t;
+      if (/^\uE000\d+\uE001$/.test(t)) return t;
+      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+    }).join('\n');
 
     s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
     return s;
-  }
-
-  /**
-   * 按空行切段落；保留多余空行，避免「连续换行被吃掉」。
-   */
-  function convertMarkdownParagraphs(text) {
-    const lines = String(text).split('\n');
-    const htmlParts = [];
-    let paraLines = [];
-    let blankRun = 0;
-
-    function isProtectedBlock(t) {
-      return /^<(h[1-6]|ul|ol|pre|blockquote|div|img|hr)\b/i.test(t)
-        || /^\uE000\d+\uE001$/.test(t);
-    }
-
-    function flushPara() {
-      if (!paraLines.length) return;
-      const block = paraLines.join('\n');
-      paraLines = [];
-      const t = block.trim();
-      if (!t) return;
-      if (isProtectedBlock(t)) {
-        htmlParts.push(t);
-        return;
-      }
-      if (/^<\/?(h[1-6]|ul|ol|pre|blockquote|div|table|hr)\b/i.test(t)) {
-        htmlParts.push(block);
-        return;
-      }
-      htmlParts.push(`<p>${block.replace(/\n/g, '<br>')}</p>`);
-    }
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.trim() === '') {
-        blankRun += 1;
-        if (paraLines.length) flushPara();
-        continue;
-      }
-      if (blankRun > 0) {
-        for (let b = 1; b < blankRun; b++) {
-          htmlParts.push('<p class="md-blank-line"><br></p>');
-        }
-        blankRun = 0;
-      }
-      paraLines.push(line);
-    }
-    flushPara();
-    return htmlParts.join('\n');
-  }
-
-  /**
-   * 将连续的 Markdown 引用行（&gt; ...）合并为一个 <blockquote>。
-   */
-  function convertMarkdownBlockquotes(text) {
-    const lines = String(text).split('\n');
-    const out = [];
-    let i = 0;
-    const bqRe = /^&gt;[ \t]?(.*)$/;
-
-    while (i < lines.length) {
-      const m = lines[i].match(bqRe);
-      if (!m) {
-        out.push(lines[i]);
-        i += 1;
-        continue;
-      }
-
-      const rawParts = [];
-      while (i < lines.length) {
-        const lm = lines[i].match(bqRe);
-        if (!lm) break;
-        rawParts.push(lm[1] != null ? lm[1] : '');
-        i += 1;
-      }
-
-      const paras = [];
-      let cur = [];
-      for (const part of rawParts) {
-        if (String(part).trim() === '') {
-          if (cur.length) {
-            paras.push(cur.join('<br>'));
-            cur = [];
-          }
-        } else {
-          cur.push(part);
-        }
-      }
-      if (cur.length) paras.push(cur.join('<br>'));
-
-      const inner = paras.length
-        ? paras.map((p) => `<p>${p}</p>`).join('')
-        : '<p></p>';
-      out.push(`<blockquote>${inner}</blockquote>`);
-    }
-
-    return out.join('\n');
   }
 
   /**
@@ -1534,7 +1436,7 @@
     function indentWidth(ws) {
       let n = 0;
       for (let k = 0; k < ws.length; k++) {
-        n += ws[k] === '\t' ? 4 : 1;
+        n += ws[k] === '\t' ? 2 : 1;
       }
       return n;
     }
@@ -3350,12 +3252,16 @@
 
   let rafId = null;
 
+  /** 水平滑动过程中不切换 active 文案，仅在接近吸附时切换 */
+  let navSettledSectionId = null;
+  let navScrollEndTimer = null;
+
   function updateActiveNavFromScroll() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
       const sections = getSections();
       const scrollLeft = scrollContainer.scrollLeft;
-      const containerWidth = scrollContainer.clientWidth;
+      const containerWidth = scrollContainer.clientWidth || 1;
       const viewportCenter = scrollLeft + containerWidth / 2;
       let closestIndex = 0;
       let closestDist = Infinity;
@@ -3367,22 +3273,65 @@
       const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
       if (scrollLeft <= 5) closestIndex = 0;
       else if (scrollLeft >= maxScroll - 5) closestIndex = sections.length - 1;
-      const activeId = sections[closestIndex]?.getAttribute('id');
 
-      getNavLinks().forEach(link => { link.classList.toggle('active', link.dataset.section === activeId); });
+      // 只有当面板中心足够接近视口中心时才切换 active（中间态不亮文案）
+      const snapThreshold = containerWidth * 0.22;
+      const nearSnap = closestDist <= snapThreshold
+        || scrollLeft <= 5
+        || scrollLeft >= maxScroll - 5;
 
-      const wasBlog = isBlogActive;
-      isBlogActive = (activeId === 'blog');
-      if (isBlogActive !== wasBlog) {
-        if (!isBlogActive) {
-          nav.classList.remove('blog-mode');
-          if (isArticleReading) closeArticleReader();
-        } else {
-          if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
-          updateBlogScroll();
+      if (nearSnap) {
+        const activeId = sections[closestIndex]?.getAttribute('id');
+        if (activeId && activeId !== navSettledSectionId) {
+          navSettledSectionId = activeId;
+          getNavLinks().forEach(link => {
+            link.classList.toggle('active', link.dataset.section === activeId);
+          });
+
+          const wasBlog = isBlogActive;
+          isBlogActive = (activeId === 'blog');
+          if (isBlogActive !== wasBlog) {
+            if (!isBlogActive) {
+              nav.classList.remove('blog-mode');
+              if (isArticleReading) closeArticleReader();
+            } else {
+              if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
+              updateBlogScroll();
+            }
+          }
+          ensureRouteLoaded(activeId);
+        } else if (activeId) {
+          // 已是当前 active，仍保持 class 正确
+          getNavLinks().forEach(link => {
+            link.classList.toggle('active', link.dataset.section === activeId);
+          });
         }
       }
-      if (activeId) ensureRouteLoaded(activeId);
+      // 未接近吸附：保持原 active，不给途经按钮加 active 文案
+
+      if (navScrollEndTimer) clearTimeout(navScrollEndTimer);
+      navScrollEndTimer = setTimeout(() => {
+        // 滚动停稳后再强制对齐一次
+        const id = sections[closestIndex]?.getAttribute('id');
+        if (!id) return;
+        navSettledSectionId = id;
+        getNavLinks().forEach(link => {
+          link.classList.toggle('active', link.dataset.section === id);
+        });
+        const wasBlog = isBlogActive;
+        isBlogActive = (id === 'blog');
+        if (isBlogActive !== wasBlog) {
+          if (!isBlogActive) {
+            nav.classList.remove('blog-mode');
+            if (isArticleReading) closeArticleReader();
+          } else {
+            if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
+            updateBlogScroll();
+          }
+        }
+        ensureRouteLoaded(id);
+      }, 120);
+
       rafId = null;
     });
   }
@@ -3526,7 +3475,6 @@
     const pinnedMax = Math.max(mobile ? 200 : 240, Math.round(vh - topMargin - bottomPad));
     blogWhiteBox.style.maxHeight = pinnedMax + 'px';
     blogWhiteBox.style.overflowY = 'auto';
-    // 移动端第三阶段略加长，方便主题栏下滑动画完整播完
     stage3Extra = Math.round(vh * (mobile ? 0.30 : 0.35));
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
@@ -3616,12 +3564,12 @@
     blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
     blogStageDuo.style.pointerEvents = 'none';
     if (blogWhiteBox) blogWhiteBox.style.pointerEvents = 'auto';
+
     const gap = gapPx;
     let t = easeOutCubic(p2);
     if (railGapLocked) t = 1;
 
     if (mobile) {
-      // 移动端：主题栏在第三阶段从搜索栏上方平滑下滑进入
       if (blogWhiteBox) blogWhiteBox.style.maxWidth = '100%';
       if (blogThemeRail) {
         blogThemeRail.style.flex = '';
@@ -3633,19 +3581,15 @@
           inner.style.minHeight = '';
           inner.style.height = '';
         }
-
         const t3 = easeOutCubic(p3);
-        // 预估横条高度，用于位移与折叠占位
         const railH = Math.max(
           blogThemeRail.offsetHeight || 0,
           (inner && inner.offsetHeight) || 48,
           48
         );
         const slideDist = railH + 12;
-        // 从上方（靠近搜索栏）滑到白盒上方原位
         blogThemeRail.style.transform = `translate3d(0, ${(1 - t3) * -slideDist}px, 0)`;
         blogThemeRail.style.opacity = String(t3);
-        // 未完全进入时用负 margin 收起空隙，避免白盒被顶开一大截
         blogThemeRail.style.marginBottom = `${(1 - t3) * -slideDist}px`;
         blogThemeRail.classList.toggle('is-visible', t3 > 0.08);
         blogThemeRail.style.pointerEvents = t3 > 0.45 ? 'auto' : 'none';
@@ -3653,34 +3597,32 @@
       } else {
         blogStageDuo.style.gap = gap + 'px';
       }
-    } else {
-      if (blogThemeRail) blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
+    } else if (blogThemeRail) {
+      blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
       const railW = window.matchMedia('(max-width: 720px)').matches ? 96 : 132;
-      if (blogThemeRail) {
-        blogThemeRail.style.flex = `0 0 ${railW}px`;
-        blogThemeRail.style.width = `${railW}px`;
-        blogThemeRail.style.maxWidth = `${railW}px`;
-        blogThemeRail.style.marginBottom = '';
-        blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
-        blogThemeRail.classList.toggle('is-visible', t > 0.12);
+      blogThemeRail.style.flex = `0 0 ${railW}px`;
+      blogThemeRail.style.width = `${railW}px`;
+      blogThemeRail.style.maxWidth = `${railW}px`;
+      blogThemeRail.style.marginBottom = '';
+      blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
+      blogThemeRail.classList.toggle('is-visible', t > 0.12);
 
-        if (t >= 1) {
-          blogThemeRail.style.transform = 'translate3d(0,0,0)';
-          blogThemeRail.style.marginRight = '0';
-          blogStageDuo.style.gap = gap + 'px';
-        } else {
-          blogStageDuo.style.gap = '0px';
-          const slide = (1 - t) * (railW + gap);
-          blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
-          blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
-        }
+      if (t >= 1) {
+        blogThemeRail.style.transform = 'translate3d(0,0,0)';
+        blogThemeRail.style.marginRight = '0';
+        blogStageDuo.style.gap = gap + 'px';
+      } else {
+        blogStageDuo.style.gap = '0px';
+        const slide = (1 - t) * (railW + gap);
+        blogThemeRail.style.transform = `translate3d(${-slide}px, 0, 0)`;
+        blogThemeRail.style.marginRight = `${-railW + (railW + gap) * t}px`;
+      }
 
-        const inner = blogThemeRail.querySelector('.theme-rail-inner');
-        if (inner && blogWhiteBox) {
-          const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.72));
-          inner.style.minHeight = targetH + 'px';
-          inner.style.height = targetH + 'px';
-        }
+      const inner = blogThemeRail.querySelector('.theme-rail-inner');
+      if (inner && blogWhiteBox) {
+        const targetH = Math.max(blogWhiteBox.offsetHeight || 0, Math.round(vh * 0.72));
+        inner.style.minHeight = targetH + 'px';
+        inner.style.height = targetH + 'px';
       }
       if (blogWhiteBox) {
         blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
@@ -4255,6 +4197,35 @@
   const coarsePointer = window.matchMedia('(hover: none), (pointer: coarse)').matches;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /** 手机（非平板）：窄屏 + 粗指针；iPad/平板走桌面布局 */
+  function isPhoneDevice() {
+    try {
+      const ua = navigator.userAgent || '';
+      const isIPad = /iPad/i.test(ua)
+        || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+      const isTablet = isIPad || /Tablet|Android(?!.*Mobile)/i.test(ua);
+      if (isTablet) return false;
+      const narrow = window.matchMedia('(max-width: 480px)').matches
+        || Math.min(window.innerWidth, window.innerHeight) <= 480;
+      return !!(coarsePointer && narrow);
+    } catch (_) {
+      return !!(coarsePointer && window.innerWidth <= 480);
+    }
+  }
+
+  function applyPhoneChrome() {
+    const phone = isPhoneDevice();
+    document.documentElement.classList.toggle('is-phone', phone);
+    document.body.classList.toggle('is-phone', phone);
+    // 尝试锁定竖屏（多数浏览器仅全屏可用，失败则靠 CSS 提示）
+    if (phone && screen.orientation && typeof screen.orientation.lock === 'function') {
+      screen.orientation.lock('portrait').catch(() => {});
+    }
+  }
+  applyPhoneChrome();
+  window.addEventListener('resize', applyPhoneChrome, { passive: true });
+  window.addEventListener('orientationchange', applyPhoneChrome, { passive: true });
+
   let customCursor = null;
   if (!coarsePointer) {
     customCursor = document.createElement('div');
@@ -4602,8 +4573,11 @@
     suppressEffectsUntil = performance.now() + 120;
   }
 
-  function startPointerEffects(x, y, isRight, target) {
+  function startPointerEffects(x, y, isRight, target, opts) {
     if (performance.now() < suppressEffectsUntil) return;
+    const options = opts || {};
+    // 触屏：不启动连续特效，避免拖动滚动时满屏粒子
+    if (coarsePointer && !options.allowOnCoarse) return;
 
     pointerIsRight = isRight;
     lastPointerX = x;
@@ -4707,12 +4681,42 @@
     } catch (_) {}
   });
 
+  // 触屏：不启用光标/曳尾；拖动不刷特效；长按调出自定义菜单
+  let longPressTimer = null;
+  let longPressOrigin = null;
+  let longPressMoved = false;
+  let longPressFired = false;
+  const LONG_PRESS_MS = 480;
+  const LONG_PRESS_MOVE_MAX = 12;
+
+  function clearLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+
   document.addEventListener('touchstart', function(e) {
     const touch = e.touches[0];
     if (!touch) return;
     lastPointerX = touch.clientX;
     lastPointerY = touch.clientY;
-    startPointerEffects(touch.clientX, touch.clientY, false, e.target);
+    longPressMoved = false;
+    longPressFired = false;
+    longPressOrigin = { x: touch.clientX, y: touch.clientY, target: e.target };
+    clearLongPress();
+    if (isTextEditingTarget(e.target)) return;
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      if (longPressMoved || !longPressOrigin) return;
+      longPressFired = true;
+      // 长按：弹出与右键相同的菜单
+      showContextMenu(longPressOrigin.x, longPressOrigin.y, longPressOrigin.target);
+      // 轻微震动反馈（若支持）
+      try {
+        if (navigator.vibrate) navigator.vibrate(12);
+      } catch (_) {}
+    }, LONG_PRESS_MS);
   }, { passive: true });
 
   document.addEventListener('touchmove', function(e) {
@@ -4720,18 +4724,41 @@
     if (!touch) return;
     lastPointerX = touch.clientX;
     lastPointerY = touch.clientY;
-    pushTrailPoint(touch.clientX, touch.clientY);
+    if (longPressOrigin) {
+      const dx = touch.clientX - longPressOrigin.x;
+      const dy = touch.clientY - longPressOrigin.y;
+      if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_MAX) {
+        longPressMoved = true;
+        clearLongPress();
+      }
+    }
+    // 触屏不画曳尾
   }, { passive: true });
 
-  window.addEventListener('touchend', function() {
+  window.addEventListener('touchend', function(e) {
+    clearLongPress();
     if (isPointerDown) forceReleasePointer();
+    // 长按已弹出菜单时，抑制随后的 click 特效
+    if (longPressFired) {
+      suppressEffectsUntil = performance.now() + 400;
+      longPressFired = false;
+      if (e && e.cancelable) {
+        try { e.preventDefault(); } catch (_) {}
+      }
+    }
+    longPressOrigin = null;
   }, true);
 
   window.addEventListener('touchcancel', function() {
+    clearLongPress();
+    longPressOrigin = null;
+    longPressFired = false;
     forceReleasePointer();
   }, true);
 
   document.addEventListener('click', function(e) {
+    // 触屏不在 click 上刷粒子（避免与滚动/点按冲突）
+    if (coarsePointer) return;
     if (e.button === 0 && !isPointerDown && performance.now() >= suppressEffectsUntil) {
       if (!shouldSkipClickEffects(e.target)) {
         triggerAnimation(e.clientX, e.clientY, false);
