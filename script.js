@@ -1280,7 +1280,8 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      const body = esc(code.replace(/^\n+|\n+$/g, ''));
+      // Tab 展开为 4 空格，避免 pre 里 tab-size 过窄或各浏览器不一致
+      const body = esc(code.replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -1305,7 +1306,7 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      const body = esc(String(code).replace(/^\n+|\n+$/g, ''));
+      const body = esc(String(code).replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -1392,23 +1393,139 @@
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // 斜体：避免吃掉列表标记行首的 *
     s = s.replace(/(^|[^*\n])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    // 删除线：~~text~~
+    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
     s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    s = s.replace(/^&gt;[ \t]+(.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // 分割线：独占一行的 --- / *** / ___（至少 3 个）
+    s = s.replace(/^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$/gm, '<hr class="md-hr">');
+
+    // 多行引用：连续 > 行合并为一个 blockquote；空 > 行作为段落分隔
+    s = convertMarkdownBlockquotes(s);
 
     // 嵌套无序/有序列表（支持缩进子列表）
     s = convertMarkdownLists(s);
 
-    s = s.split(/\n{2,}/).map(block => {
-      const t = block.trim();
-      if (!t) return '';
-      if (/^<(h[1-6]|ul|ol|pre|blockquote|div|img)/.test(t)) return t;
-      if (/^\uE000\d+\uE001$/.test(t)) return t;
-      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
-    }).join('\n');
+    // Tab → 4 空格（代码块已 hold，不受影响；正文里 Tab 不再被 HTML 压成单空格）
+    s = s.replace(/\t/g, '    ');
+
+    // 段落与换行：
+    // - 段落内单个 \n → <br>
+    // - 连续两个 \n（一个空行）→ 段落分隔（可见换行）
+    // - 更多连续空行 → 额外保留为空行，避免被折叠掉
+    s = convertMarkdownParagraphs(s);
 
     s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
     return s;
+  }
+
+  /**
+   * 按空行切段落；保留多余空行，避免「连续换行被吃掉」。
+   * 连续两个换行 = 段与段之间一个可见间隔；再多的空行各渲染一个空段落。
+   */
+  function convertMarkdownParagraphs(text) {
+    const lines = String(text).split('\n');
+    const htmlParts = [];
+    let paraLines = [];
+    let blankRun = 0;
+
+    function isProtectedBlock(t) {
+      return /^<(h[1-6]|ul|ol|pre|blockquote|div|img|hr)\b/i.test(t)
+        || /^\uE000\d+\uE001$/.test(t);
+    }
+
+    function flushPara() {
+      if (!paraLines.length) return;
+      const block = paraLines.join('\n');
+      paraLines = [];
+      const t = block.trim();
+      if (!t) return;
+      if (isProtectedBlock(t)) {
+        htmlParts.push(t);
+        return;
+      }
+      // 整段已是块级 HTML（可能多行）
+      if (/^<\/?(h[1-6]|ul|ol|pre|blockquote|div|table|hr)\b/i.test(t)) {
+        htmlParts.push(block);
+        return;
+      }
+      htmlParts.push(`<p>${block.replace(/\n/g, '<br>')}</p>`);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.trim() === '') {
+        blankRun += 1;
+        if (paraLines.length) flushPara();
+        continue;
+      }
+      if (blankRun > 0) {
+        // blankRun===1：仅段落分隔，靠 <p> 外边距形成一次换行感
+        // blankRun>=2：额外空行显式保留，避免被折叠
+        for (let b = 1; b < blankRun; b++) {
+          htmlParts.push('<p class="md-blank-line"><br></p>');
+        }
+        blankRun = 0;
+      }
+      paraLines.push(line);
+    }
+    flushPara();
+    return htmlParts.join('\n');
+  }
+
+  /**
+   * 将连续的 Markdown 引用行（&gt; ...）合并为一个 <blockquote>。
+   * 支持空引用行（仅 >）作为段落分隔，例如：
+   * >1
+   * >
+   * >2
+   */
+  function convertMarkdownBlockquotes(text) {
+    const lines = String(text).split('\n');
+    const out = [];
+    let i = 0;
+    // 转义后的 > 为 &gt;；可选一个空格后接内容
+    const bqRe = /^&gt;[ \t]?(.*)$/;
+
+    while (i < lines.length) {
+      const m = lines[i].match(bqRe);
+      if (!m) {
+        out.push(lines[i]);
+        i += 1;
+        continue;
+      }
+
+      const rawParts = [];
+      while (i < lines.length) {
+        const lm = lines[i].match(bqRe);
+        if (!lm) break;
+        rawParts.push(lm[1] != null ? lm[1] : '');
+        i += 1;
+      }
+
+      // 按空行拆成多个段落
+      const paras = [];
+      let cur = [];
+      for (const part of rawParts) {
+        if (String(part).trim() === '') {
+          if (cur.length) {
+            paras.push(cur.join('<br>'));
+            cur = [];
+          }
+        } else {
+          cur.push(part);
+        }
+      }
+      if (cur.length) paras.push(cur.join('<br>'));
+
+      const inner = paras.length
+        ? paras.map((p) => `<p>${p}</p>`).join('')
+        : '<p></p>';
+      out.push(`<blockquote>${inner}</blockquote>`);
+    }
+
+    return out.join('\n');
   }
 
   /**
@@ -1424,7 +1541,8 @@
     function indentWidth(ws) {
       let n = 0;
       for (let k = 0; k < ws.length; k++) {
-        n += ws[k] === '\t' ? 2 : 1;
+        // Tab 按 4 列计算，避免嵌套列表缩进过窄
+        n += ws[k] === '\t' ? 4 : 1;
       }
       return n;
     }

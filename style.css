@@ -165,6 +165,7 @@ body {
   min-width: 0;
   height: 100%;
   text-align: center;
+  margin: 0 auto;
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-list {
   display: none !important;
@@ -173,9 +174,10 @@ body {
   display: flex !important;
 }
 .blog-reading-title-wrap {
-  flex: 3 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   width: 100%;
+  max-width: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -191,18 +193,25 @@ body {
   will-change: transform;
   max-width: 100%;
   justify-content: center;
+  margin: 0 auto;
 }
 .blog-reading-title-track.is-marquee {
   animation: blogTitleMarquee var(--marquee-duration, 8s) linear infinite;
   justify-content: flex-start;
+  max-width: none;
+  margin: 0;
 }
 .blog-reading-title {
   font-size: 1.2rem;
   font-weight: 600;
   color: #fff;
   letter-spacing: -0.01em;
-  padding-right: 2.5rem;
+  padding-right: 0;
   text-align: center;
+}
+/* 仅跑马灯时为复制标题留间距，避免静止态被 padding 挤偏 */
+.blog-reading-title-track.is-marquee .blog-reading-title {
+  padding-right: 2.5rem;
 }
 @keyframes blogTitleMarquee {
   0% { transform: translateX(0); }
@@ -224,7 +233,7 @@ body {
   }
 }
 .blog-reading-meta {
-  flex: 1 1 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -237,6 +246,8 @@ body {
   width: 100%;
   overflow: hidden;
   min-height: 0;
+  margin: 0 auto;
+  text-align: center;
 }
 .blog-reading-meta span {
   display: inline-flex;
@@ -335,14 +346,19 @@ body {
   min-height: 3.35rem;
   padding-top: 0.35rem;
   padding-bottom: 0.35rem;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
 }
 .glass-nav.blog-mode.is-reading-toolbar .blog-toolbar {
   top: 0;
   bottom: 0;
   height: auto;
   transform: translate(-50%, 0) scale(1);
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
+  left: 50%;
+  width: 100%;
+  padding: 0;
 }
 .glass-nav.blog-mode .logo,
 .glass-nav.blog-mode .nav-links {
