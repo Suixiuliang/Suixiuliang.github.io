@@ -3526,7 +3526,8 @@
     const pinnedMax = Math.max(mobile ? 200 : 240, Math.round(vh - topMargin - bottomPad));
     blogWhiteBox.style.maxHeight = pinnedMax + 'px';
     blogWhiteBox.style.overflowY = 'auto';
-    stage3Extra = Math.round(vh * (mobile ? 0.22 : 0.35));
+    // 移动端第三阶段略加长，方便主题栏下滑动画完整播完
+    stage3Extra = Math.round(vh * (mobile ? 0.30 : 0.35));
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
 
@@ -3615,36 +3616,51 @@
     blogStageDuo.style.top = (scrollTop + desiredY) + 'px';
     blogStageDuo.style.pointerEvents = 'none';
     if (blogWhiteBox) blogWhiteBox.style.pointerEvents = 'auto';
-    if (blogThemeRail) blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
-
     const gap = gapPx;
     let t = easeOutCubic(p2);
     if (railGapLocked) t = 1;
 
     if (mobile) {
-      // 移动端：主题栏改为顶栏横滑，不再做侧滑挤入
-      blogStageDuo.style.gap = gap + 'px';
+      // 移动端：主题栏在第三阶段从搜索栏上方平滑下滑进入
+      if (blogWhiteBox) blogWhiteBox.style.maxWidth = '100%';
       if (blogThemeRail) {
         blogThemeRail.style.flex = '';
         blogThemeRail.style.width = '';
         blogThemeRail.style.maxWidth = '';
-        blogThemeRail.style.transform = '';
         blogThemeRail.style.marginRight = '';
-        blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.28));
-        blogThemeRail.classList.toggle('is-visible', t > 0.1);
         const inner = blogThemeRail.querySelector('.theme-rail-inner');
         if (inner) {
           inner.style.minHeight = '';
           inner.style.height = '';
         }
+
+        const t3 = easeOutCubic(p3);
+        // 预估横条高度，用于位移与折叠占位
+        const railH = Math.max(
+          blogThemeRail.offsetHeight || 0,
+          (inner && inner.offsetHeight) || 48,
+          48
+        );
+        const slideDist = railH + 12;
+        // 从上方（靠近搜索栏）滑到白盒上方原位
+        blogThemeRail.style.transform = `translate3d(0, ${(1 - t3) * -slideDist}px, 0)`;
+        blogThemeRail.style.opacity = String(t3);
+        // 未完全进入时用负 margin 收起空隙，避免白盒被顶开一大截
+        blogThemeRail.style.marginBottom = `${(1 - t3) * -slideDist}px`;
+        blogThemeRail.classList.toggle('is-visible', t3 > 0.08);
+        blogThemeRail.style.pointerEvents = t3 > 0.45 ? 'auto' : 'none';
+        blogStageDuo.style.gap = (t3 > 0.05 ? gap : 0) + 'px';
+      } else {
+        blogStageDuo.style.gap = gap + 'px';
       }
-      if (blogWhiteBox) blogWhiteBox.style.maxWidth = '100%';
     } else {
+      if (blogThemeRail) blogThemeRail.style.pointerEvents = (p2 > 0.2 || railGapLocked) ? 'auto' : 'none';
       const railW = window.matchMedia('(max-width: 720px)').matches ? 96 : 132;
       if (blogThemeRail) {
         blogThemeRail.style.flex = `0 0 ${railW}px`;
         blogThemeRail.style.width = `${railW}px`;
         blogThemeRail.style.maxWidth = `${railW}px`;
+        blogThemeRail.style.marginBottom = '';
         blogThemeRail.style.opacity = t <= 0 ? '0' : String(Math.min(1, t / 0.3));
         blogThemeRail.classList.toggle('is-visible', t > 0.12);
 

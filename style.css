@@ -3253,47 +3253,62 @@ body.api-offline-lock #homeAvatarPlaceholder {
     --radius-pad: 12px;
   }
 
-  /* —— 顶部导航 —— */
+  /* —— 顶部导航：保留 Logo 文字；未选中仅图标，选中显示文字 —— */
   .glass-nav {
     top: max(8px, env(safe-area-inset-top, 0px));
     max-width: calc(100vw - 12px);
     width: calc(100vw - 12px);
     margin: 0 auto;
-    padding: 0.28rem 0.4rem;
-    justify-content: center;
-    gap: 0.15rem;
+    padding: 0.28rem 0.45rem;
+    justify-content: space-between;
+    gap: 0.2rem;
   }
   .logo {
-    font-size: 1.05rem;
-    padding-right: 0.2rem;
-    gap: 0;
+    font-size: 0.98rem;
+    padding-right: 0.35rem;
+    gap: 5px;
+    flex-shrink: 0;
   }
   .logo span {
-    display: none;
+    display: inline;
+    font-weight: 600;
   }
   .logo i {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
   .nav-links {
-    gap: 0.1rem;
+    gap: 0.08rem;
     flex: 1 1 auto;
-    justify-content: space-evenly;
+    justify-content: flex-end;
     min-width: 0;
   }
   .nav-btn {
-    padding: 0.42rem 0.48rem;
+    padding: 0.4rem 0.45rem;
     font-size: 0.72rem;
-    gap: 0;
-    flex: 1 1 0;
+    gap: 5px;
+    flex: 0 0 auto;
     justify-content: center;
     min-width: 0;
+    transition: padding 0.22s ease, gap 0.22s ease, color 0.2s ease;
   }
-  /* 图标为主，隐藏文字标签，避免 414 宽溢出 */
+  /* 未选中：只显示图标 */
   .nav-btn span {
     display: none;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+  }
+  /* 选中：展开文字 */
+  .nav-btn.active span {
+    display: inline;
+    max-width: 5em;
+    opacity: 1;
+  }
+  .nav-btn.active {
+    padding: 0.4rem 0.65rem;
   }
   .nav-btn i {
-    font-size: 1.08rem;
+    font-size: 1.05rem;
     color: inherit;
   }
   .nav-capsule {
@@ -3345,14 +3360,23 @@ body.api-offline-lock #homeAvatarPlaceholder {
     padding-left: 0.85rem;
   }
 
-  /* —— 博客封面 —— */
+  /* —— 博客封面：固定一屏高度，内容偏上（修复标语/头像过低） —— */
   .blog-cover {
-    height: 100%;
-    min-height: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
   }
   .cover-inner {
-    padding: 0.75rem 1.1rem;
-    transform: translateY(-12px);
+    padding: 0.5rem 1.1rem 0.75rem;
+    /* 整体上移，避开视觉中心偏下 */
+    transform: translateY(calc(-12vh - 12px));
+  }
+  .cover-avatar-placeholder {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 0.85rem;
   }
   .slogan {
     font-size: clamp(2rem, 9.5vw, 2.8rem);
@@ -3362,18 +3386,18 @@ body.api-offline-lock #homeAvatarPlaceholder {
     letter-spacing: 0.08em;
   }
   .scroll-down-hint {
-    margin-top: 1.25rem;
+    margin-top: 1.1rem;
     font-size: 0.8rem;
   }
 
-  /* —— 三阶段：侧栏 → 顶栏横滑 chips —— */
+  /* —— 三阶段：主题栏横滑 chips，第三阶段从上滑入 —— */
   .blog-stage-duo {
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
     max-width: 100%;
     padding: 0 var(--blog-gap);
-    gap: 8px !important;
+    gap: 8px;
   }
   .blog-theme-rail {
     order: -1;
@@ -3381,9 +3405,10 @@ body.api-offline-lock #homeAvatarPlaceholder {
     width: 100% !important;
     max-width: 100% !important;
     margin-right: 0 !important;
-    transform: none !important;
+    /* 允许 JS 控制 transform 做下滑动画，勿写 none !important */
     align-self: stretch;
     overflow: visible;
+    will-change: transform, opacity;
   }
   .blog-theme-rail.is-visible {
     pointer-events: auto;
