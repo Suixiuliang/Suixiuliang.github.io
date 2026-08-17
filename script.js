@@ -1410,29 +1410,25 @@
     // 分割线：--- / *** / ___（独占一行）
     s = s.replace(/^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$/gm, '<hr class="md-hr">');
 
-    // 多行引用：连续 > 行（含空 >）合并为同一 blockquote
+    // 多行引用：连续 > 合并；空 > 不产生额外空行
     s = convertMarkdownBlockquotes(s);
 
-    // Tab → 4 空格（渲染间距）
-    s = s.replace(/\t/g, '    ');
+    // Tab：加宽约 5 倍（专用 span，避免空格折叠）
+    s = s.replace(/\t/g, '<span class="md-tab" aria-hidden="true"></span>');
 
     // 嵌套无序/有序列表（支持缩进子列表）
     s = convertMarkdownLists(s);
 
-    // 段落：连续两个换行 → 分段；段内单换行 → <br>
-    s = s.split(/\n{2,}/).map(block => {
-      const t = block.trim();
-      if (!t) return '<div class="md-blank-line" aria-hidden="true"></div>';
-      if (/^<(h[1-6]|ul|ol|pre|blockquote|div|img|hr|table)/.test(t)) return t;
-      if (/^\uE000\d+\uE001$/.test(t)) return t;
-      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
-    }).join('\n');
+    // 换行：
+    //   a\n\nb     → a / b 紧挨（一个换行）
+    //   a\n\n\nb   → a / 空行 / b
+    s = convertMarkdownParagraphs(s);
 
     s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
     return s;
   }
 
-  /** 连续 > 引用（含空行 >）合并为同一 <blockquote> */
+  /** 连续 > 合并；空的 > 行忽略，内容行用 <br> 连接 → | a / | b */
   function convertMarkdownBlockquotes(text) {
     const lines = String(text).split('\n');
     const out = [];
@@ -1449,20 +1445,70 @@
       while (i < lines.length) {
         const lm = lines[i].match(bqRe);
         if (!lm) break;
-        parts.push((lm[1] != null ? lm[1] : '').trim());
+        const content = (lm[1] != null ? lm[1] : '').trim();
+        if (content) parts.push(content);
         i += 1;
       }
-      const body = parts
-        .map(p => (p ? escInline(p) : '<br>'))
-        .join('<br>');
-      out.push(`<blockquote>${body}</blockquote>`);
+      if (parts.length) {
+        out.push(`<blockquote>${parts.join('<br>')}</blockquote>`);
+      }
     }
     return out.join('\n');
   }
 
-  function escInline(t) {
-    // 行内容已经过整体 esc；此处仅保证空串安全
-    return String(t || '');
+  /**
+   * 段落/换行：
+   * - 恰好 2 个连续换行 → 软换行（同一段 <br>，无额外空行）
+   * - 3 个及以上连续换行 → 插入可见空行
+   */
+  function convertMarkdownParagraphs(text) {
+    const chunks = String(text).split(/(\n{2,})/);
+    const out = [];
+    let pending = null;
+
+    const isBlockHtml = (t) =>
+      /^<(h[1-6]|ul|ol|pre|blockquote|div|img|hr|table)/.test(t)
+      || /^\uE000\d+\uE001$/.test(t);
+
+    const flush = () => {
+      if (pending == null) return;
+      const t = pending.trim();
+      if (!t) {
+        pending = null;
+        return;
+      }
+      if (isBlockHtml(t)) {
+        out.push(t);
+      } else {
+        out.push(`<p>${pending.replace(/\n/g, '<br>')}</p>`);
+      }
+      pending = null;
+    };
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      if (/^\n+$/.test(chunk)) {
+        if (chunk.length >= 3) {
+          flush();
+          out.push('<div class="md-blank-line" aria-hidden="true"></div>');
+        } else if (pending != null) {
+          pending += '\n';
+        }
+        continue;
+      }
+      const t = chunk.trim();
+      if (!t) continue;
+      if (isBlockHtml(t)) {
+        flush();
+        out.push(t);
+      } else if (pending != null) {
+        pending += '\n' + chunk;
+      } else {
+        pending = chunk;
+      }
+    }
+    flush();
+    return out.join('\n');
   }
 
   /**
@@ -4600,11 +4646,8 @@
     suppressEffectsUntil = performance.now() + 120;
   }
 
-  function startPointerEffects(x, y, isRight, target, opts) {
+  function startPointerEffects(x, y, isRight, target) {
     if (performance.now() < suppressEffectsUntil) return;
-    const options = opts || {};
-    // 触屏不启动连续特效，避免拖动滚动时满屏粒子
-    if (coarsePointer && !options.allowOnCoarse) return;
 
     pointerIsRight = isRight;
     lastPointerX = x;
@@ -4618,6 +4661,7 @@
 
     triggerAnimation(x, y, isRight);
     if (pointerTimer) clearInterval(pointerTimer);
+    // 触屏拖动也持续刷粒子
     pointerTimer = setInterval(() => {
       if (!isPointerDown) {
         stopPointerTimer();
@@ -4708,7 +4752,7 @@
     } catch (_) {}
   });
 
-  // 触屏：不启用光标/曳尾；拖动不刷特效；长按调出自定义菜单
+  // 触屏：保留点击/拖动粒子；无自定义光标；长按弹出菜单
   let longPressTimer = null;
   let longPressOrigin = null;
   let longPressMoved = false;
@@ -4732,11 +4776,15 @@
     longPressFired = false;
     longPressOrigin = { x: touch.clientX, y: touch.clientY, target: e.target };
     clearLongPress();
+    // 点击粒子 / 拖动连续粒子
+    startPointerEffects(touch.clientX, touch.clientY, false, e.target);
     if (isTextEditingTarget(e.target)) return;
     longPressTimer = setTimeout(() => {
       longPressTimer = null;
       if (longPressMoved || !longPressOrigin) return;
       longPressFired = true;
+      // 长按弹出菜单时停掉连续粒子，避免挡操作
+      forceReleasePointer();
       showContextMenu(longPressOrigin.x, longPressOrigin.y, longPressOrigin.target);
       try { if (navigator.vibrate) navigator.vibrate(12); } catch (_) {}
     }, LONG_PRESS_MS);
@@ -4778,6 +4826,7 @@
   }, true);
 
   document.addEventListener('click', function(e) {
+    // 触屏已由 touchstart 触发粒子，避免重复
     if (coarsePointer) return;
     if (e.button === 0 && !isPointerDown && performance.now() >= suppressEffectsUntil) {
       if (!shouldSkipClickEffects(e.target)) {

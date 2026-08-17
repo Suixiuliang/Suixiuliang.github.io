@@ -3207,7 +3207,22 @@ body.api-offline-lock #homeAvatarPlaceholder {
 }
 .blog-article-body .md-blank-line,
 .article-reader-body .md-blank-line {
-  height: 0.75em;
+  /* 空行高度 = 约 1/2 行高 */
+  height: 0.5em;
+  line-height: 0.5em;
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+/* 文首/行内 Tab：约 5 倍于普通 4 空格宽度 */
+.blog-article-body .md-tab,
+.article-reader-body .md-tab {
+  display: inline-block;
+  width: 5em;
+  min-width: 5em;
+}
+.blog-article-body p {
+  margin: 0.35em 0;
 }
 .blog-article-body blockquote,
 .article-reader-body blockquote {
@@ -3216,6 +3231,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
   border-left: 3px solid rgba(96, 165, 250, 0.55);
   background: rgba(255,255,255,0.05);
   border-radius: 0 12px 12px 0;
+  line-height: 1.55;
 }
 
 .admin-guest-code-card {
