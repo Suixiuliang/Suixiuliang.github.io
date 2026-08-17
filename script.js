@@ -643,10 +643,8 @@
   let isBlogActive = false;
 
   function isMobileBlogLayout() {
-    // 仅手机窄屏；平板走桌面三阶段
     try {
       if (document.documentElement.classList.contains('is-phone')) return true;
-      if (typeof isPhoneDevice === 'function') return isPhoneDevice();
     } catch (_) {}
     return !!(window.matchMedia && window.matchMedia('(max-width: 480px)').matches
       && window.matchMedia('(pointer: coarse)').matches);
@@ -1292,7 +1290,7 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      const body = esc(code.replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
+      const body = esc(code.replace(/^\n+|\n+$/g, ''));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -1317,7 +1315,7 @@
       const langClean = (lang || '').trim().toLowerCase();
       const langLabel = langClean || 'text';
       const cls = langClean ? `language-${esc(langClean)}` : 'language-text';
-      const body = esc(String(code).replace(/^\n+|\n+$/g, '').replace(/\t/g, '    '));
+      const body = esc(String(code).replace(/^\n+|\n+$/g, ''));
       return hold(
         `<div class="md-code-window" data-lang="${esc(langLabel)}">` +
           `<div class="md-code-titlebar">` +
@@ -1404,83 +1402,42 @@
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // 斜体：避免吃掉列表标记行首的 *
     s = s.replace(/(^|[^*\n])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-    // 删除线：~~text~~
+    // 删除线 ~~text~~
     s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
     s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-    // 分割线：独占一行的 --- / *** / ___（至少 3 个）
+    // 分割线：--- / *** / ___（独占一行）
     s = s.replace(/^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$/gm, '<hr class="md-hr">');
 
-    // 多行引用：连续 > 行合并为一个 blockquote
+    // 多行引用：连续 > 行（含空 >）合并为同一 blockquote
     s = convertMarkdownBlockquotes(s);
+
+    // Tab → 4 空格（渲染间距）
+    s = s.replace(/\t/g, '    ');
 
     // 嵌套无序/有序列表（支持缩进子列表）
     s = convertMarkdownLists(s);
 
-    // Tab → 4 空格（代码块已 hold）
-    s = s.replace(/\t/g, '    ');
-
-    // 段落与换行
-    s = convertMarkdownParagraphs(s);
+    // 段落：连续两个换行 → 分段；段内单换行 → <br>
+    s = s.split(/\n{2,}/).map(block => {
+      const t = block.trim();
+      if (!t) return '<div class="md-blank-line" aria-hidden="true"></div>';
+      if (/^<(h[1-6]|ul|ol|pre|blockquote|div|img|hr|table)/.test(t)) return t;
+      if (/^\uE000\d+\uE001$/.test(t)) return t;
+      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+    }).join('\n');
 
     s = s.replace(/\uE000(\d+)\uE001/g, (_, i) => slots[+i] || '');
     return s;
   }
 
-  function convertMarkdownParagraphs(text) {
-    const lines = String(text).split('\n');
-    const htmlParts = [];
-    let paraLines = [];
-    let blankRun = 0;
-
-    function isProtectedBlock(t) {
-      return /^<(h[1-6]|ul|ol|pre|blockquote|div|img|hr)\b/i.test(t)
-        || /^\uE000\d+\uE001$/.test(t);
-    }
-
-    function flushPara() {
-      if (!paraLines.length) return;
-      const block = paraLines.join('\n');
-      paraLines = [];
-      const t = block.trim();
-      if (!t) return;
-      if (isProtectedBlock(t)) {
-        htmlParts.push(t);
-        return;
-      }
-      if (/^<\/?(h[1-6]|ul|ol|pre|blockquote|div|table|hr)\b/i.test(t)) {
-        htmlParts.push(block);
-        return;
-      }
-      htmlParts.push(`<p>${block.replace(/\n/g, '<br>')}</p>`);
-    }
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.trim() === '') {
-        blankRun += 1;
-        if (paraLines.length) flushPara();
-        continue;
-      }
-      if (blankRun > 0) {
-        for (let b = 1; b < blankRun; b++) {
-          htmlParts.push('<p class="md-blank-line"><br></p>');
-        }
-        blankRun = 0;
-      }
-      paraLines.push(line);
-    }
-    flushPara();
-    return htmlParts.join('\n');
-  }
-
+  /** 连续 > 引用（含空行 >）合并为同一 <blockquote> */
   function convertMarkdownBlockquotes(text) {
     const lines = String(text).split('\n');
     const out = [];
     let i = 0;
-    const bqRe = /^&gt;[ \t]?(.*)$/;
-
+    const bqRe = /^&gt;(?:[ \t]+(.*))?$/;
     while (i < lines.length) {
       const m = lines[i].match(bqRe);
       if (!m) {
@@ -1488,32 +1445,24 @@
         i += 1;
         continue;
       }
-      const rawParts = [];
+      const parts = [];
       while (i < lines.length) {
         const lm = lines[i].match(bqRe);
         if (!lm) break;
-        rawParts.push(lm[1] != null ? lm[1] : '');
+        parts.push((lm[1] != null ? lm[1] : '').trim());
         i += 1;
       }
-      const paras = [];
-      let cur = [];
-      for (const part of rawParts) {
-        if (String(part).trim() === '') {
-          if (cur.length) {
-            paras.push(cur.join('<br>'));
-            cur = [];
-          }
-        } else {
-          cur.push(part);
-        }
-      }
-      if (cur.length) paras.push(cur.join('<br>'));
-      const inner = paras.length
-        ? paras.map((p) => `<p>${p}</p>`).join('')
-        : '<p></p>';
-      out.push(`<blockquote>${inner}</blockquote>`);
+      const body = parts
+        .map(p => (p ? escInline(p) : '<br>'))
+        .join('<br>');
+      out.push(`<blockquote>${body}</blockquote>`);
     }
     return out.join('\n');
+  }
+
+  function escInline(t) {
+    // 行内容已经过整体 esc；此处仅保证空串安全
+    return String(t || '');
   }
 
   /**
@@ -1529,7 +1478,7 @@
     function indentWidth(ws) {
       let n = 0;
       for (let k = 0; k < ws.length; k++) {
-        n += ws[k] === '\t' ? 4 : 1;
+        n += ws[k] === '\t' ? 2 : 1;
       }
       return n;
     }
@@ -3171,15 +3120,8 @@
     const loginFields = document.getElementById('adminLoginFields');
     const enterRegisterMode = (secret) => {
       authedCreateSecret = secret;
-      if (userInput) {
-        userInput.value = '';
-        userInput.removeAttribute('required');
-      }
-      if (passInput) {
-        passInput.value = '';
-        passInput.removeAttribute('required');
-      }
-      // 创建模式：隐藏上方登录框，只保留下方三个注册框
+      if (userInput) { userInput.value = ''; userInput.removeAttribute('required'); }
+      if (passInput) { passInput.value = ''; passInput.removeAttribute('required'); }
       if (loginFields) loginFields.hidden = true;
       if (fields) fields.hidden = false;
       if (hint) { hint.hidden = false; hint.textContent = '创建 Authed User：最多 20 个账户。请设置用户名和密码。'; }
@@ -3359,7 +3301,7 @@
 
   let rafId = null;
 
-  /** 水平滑动过程中不切换 active 文案，仅在接近吸附时切换 */
+  /** 水平滑动途中不切换文案，仅接近吸附或停稳后切换 active */
   let navSettledSectionId = null;
   let navScrollEndTimer = null;
 
@@ -3381,52 +3323,19 @@
       if (scrollLeft <= 5) closestIndex = 0;
       else if (scrollLeft >= maxScroll - 5) closestIndex = sections.length - 1;
 
-      // 只有当面板中心足够接近视口中心时才切换 active（中间态不亮文案）
       const snapThreshold = containerWidth * 0.22;
       const nearSnap = closestDist <= snapThreshold
         || scrollLeft <= 5
         || scrollLeft >= maxScroll - 5;
 
-      if (nearSnap) {
-        const activeId = sections[closestIndex]?.getAttribute('id');
-        if (activeId && activeId !== navSettledSectionId) {
-          navSettledSectionId = activeId;
-          getNavLinks().forEach(link => {
-            link.classList.toggle('active', link.dataset.section === activeId);
-          });
-
-          const wasBlog = isBlogActive;
-          isBlogActive = (activeId === 'blog');
-          if (isBlogActive !== wasBlog) {
-            if (!isBlogActive) {
-              nav.classList.remove('blog-mode');
-              if (isArticleReading) closeArticleReader();
-            } else {
-              if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
-              updateBlogScroll();
-            }
-          }
-          ensureRouteLoaded(activeId);
-        } else if (activeId) {
-          // 已是当前 active，仍保持 class 正确
-          getNavLinks().forEach(link => {
-            link.classList.toggle('active', link.dataset.section === activeId);
-          });
-        }
-      }
-      // 未接近吸附：保持原 active，不给途经按钮加 active 文案
-
-      if (navScrollEndTimer) clearTimeout(navScrollEndTimer);
-      navScrollEndTimer = setTimeout(() => {
-        // 滚动停稳后再强制对齐一次
-        const id = sections[closestIndex]?.getAttribute('id');
-        if (!id) return;
-        navSettledSectionId = id;
+      const applyActive = (activeId) => {
+        if (!activeId) return;
+        navSettledSectionId = activeId;
         getNavLinks().forEach(link => {
-          link.classList.toggle('active', link.dataset.section === id);
+          link.classList.toggle('active', link.dataset.section === activeId);
         });
         const wasBlog = isBlogActive;
-        isBlogActive = (id === 'blog');
+        isBlogActive = (activeId === 'blog');
         if (isBlogActive !== wasBlog) {
           if (!isBlogActive) {
             nav.classList.remove('blog-mode');
@@ -3436,7 +3345,16 @@
             updateBlogScroll();
           }
         }
-        ensureRouteLoaded(id);
+        ensureRouteLoaded(activeId);
+      };
+
+      if (nearSnap) {
+        applyActive(sections[closestIndex]?.getAttribute('id'));
+      }
+
+      if (navScrollEndTimer) clearTimeout(navScrollEndTimer);
+      navScrollEndTimer = setTimeout(() => {
+        applyActive(sections[closestIndex]?.getAttribute('id'));
       }, 120);
 
       rafId = null;
@@ -3688,6 +3606,7 @@
           inner.style.minHeight = '';
           inner.style.height = '';
         }
+        // 第三阶段：主题栏从搜索栏上方平滑滑下
         const t3 = easeOutCubic(p3);
         const railH = Math.max(
           blogThemeRail.offsetHeight || 0,
@@ -3734,6 +3653,8 @@
       if (blogWhiteBox) {
         blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
       }
+    } else if (blogWhiteBox) {
+      blogWhiteBox.style.maxWidth = window.matchMedia('(max-width: 720px)').matches ? '100%' : '1050px';
     }
 
     const coverMove = p1 * (vh * 0.45);
@@ -4324,7 +4245,6 @@
     const phone = isPhoneDevice();
     document.documentElement.classList.toggle('is-phone', phone);
     document.body.classList.toggle('is-phone', phone);
-    // 尝试锁定竖屏（多数浏览器仅全屏可用，失败则靠 CSS 提示）
     if (phone && screen.orientation && typeof screen.orientation.lock === 'function') {
       screen.orientation.lock('portrait').catch(() => {});
     }
@@ -4683,7 +4603,7 @@
   function startPointerEffects(x, y, isRight, target, opts) {
     if (performance.now() < suppressEffectsUntil) return;
     const options = opts || {};
-    // 触屏：不启动连续特效，避免拖动滚动时满屏粒子
+    // 触屏不启动连续特效，避免拖动滚动时满屏粒子
     if (coarsePointer && !options.allowOnCoarse) return;
 
     pointerIsRight = isRight;
@@ -4817,12 +4737,8 @@
       longPressTimer = null;
       if (longPressMoved || !longPressOrigin) return;
       longPressFired = true;
-      // 长按：弹出与右键相同的菜单
       showContextMenu(longPressOrigin.x, longPressOrigin.y, longPressOrigin.target);
-      // 轻微震动反馈（若支持）
-      try {
-        if (navigator.vibrate) navigator.vibrate(12);
-      } catch (_) {}
+      try { if (navigator.vibrate) navigator.vibrate(12); } catch (_) {}
     }, LONG_PRESS_MS);
   }, { passive: true });
 
@@ -4839,13 +4755,11 @@
         clearLongPress();
       }
     }
-    // 触屏不画曳尾
   }, { passive: true });
 
   window.addEventListener('touchend', function(e) {
     clearLongPress();
     if (isPointerDown) forceReleasePointer();
-    // 长按已弹出菜单时，抑制随后的 click 特效
     if (longPressFired) {
       suppressEffectsUntil = performance.now() + 400;
       longPressFired = false;
@@ -4864,7 +4778,6 @@
   }, true);
 
   document.addEventListener('click', function(e) {
-    // 触屏不在 click 上刷粒子（避免与滚动/点按冲突）
     if (coarsePointer) return;
     if (e.button === 0 && !isPointerDown && performance.now() >= suppressEffectsUntil) {
       if (!shouldSkipClickEffects(e.target)) {

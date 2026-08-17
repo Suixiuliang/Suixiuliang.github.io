@@ -212,7 +212,6 @@ body {
   padding-right: 0;
   text-align: center;
 }
-/* 仅跑马灯时为复制标题留间距，避免静止态被挤偏 */
 .blog-reading-title-track.is-marquee .blog-reading-title {
   padding-right: 2.5rem;
 }
@@ -1030,7 +1029,7 @@ body {
   }
   .white-box-header h2 { font-size: 1.15rem; }
 }
-/* 旧的窄侧栏规则由下方 is-phone / 480px 完整适配覆盖 */
+/* 窄屏主题栏规则见文末手机端适配 */
 .panel-blog {
   touch-action: pan-y;
 }
@@ -1438,25 +1437,6 @@ a.blog-list .blog-card,
   color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.05);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-.article-reader-body blockquote p { margin: 0.35em 0; }
-.article-reader-body blockquote p:first-child { margin-top: 0; }
-.article-reader-body blockquote p:last-child { margin-bottom: 0; }
-.article-reader-body hr.md-hr,
-.article-reader-body hr {
-  border: none;
-  height: 1px;
-  margin: 1.25em 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-}
-.article-reader-body del {
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
-  color: rgba(255, 255, 255, 0.55);
-}
-.article-reader-body p.md-blank-line {
-  margin: 0.15em 0;
-  min-height: 1em;
 }
 
 .boot-loader {
@@ -2878,25 +2858,6 @@ body.is-reading-article .reading-dim-layer {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
-.blog-article-body blockquote p { margin: 0.35em 0; }
-.blog-article-body blockquote p:first-child { margin-top: 0; }
-.blog-article-body blockquote p:last-child { margin-bottom: 0; }
-.blog-article-body hr.md-hr,
-.blog-article-body hr {
-  border: none;
-  height: 1px;
-  margin: 1.25em 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-}
-.blog-article-body del {
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
-  color: rgba(255, 255, 255, 0.55);
-}
-.blog-article-body p.md-blank-line {
-  margin: 0.15em 0;
-  min-height: 1em;
-}
 /* ============================================================
    QQ 状态：Apple 风格自定义下拉菜单
    不使用浏览器原生 <select> 外观
@@ -3208,8 +3169,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
   line-height: 1.55;
 }
 
-#authedRegisterFields[hidden],
-#adminLoginFields[hidden] { display: none; }
+#authedRegisterFields[hidden] { display: none; }
 
 .blog-hidden-badge {
   display: inline-flex;
@@ -3231,9 +3191,31 @@ body.api-offline-lock #homeAvatarPlaceholder {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.blog-list .blog-card-actions {
-  flex-wrap: nowrap;
-  align-items: center;
+
+/* Markdown 扩展：分割线 / 删除线 / 空行 */
+.blog-article-body hr.md-hr,
+.article-reader-body hr.md-hr {
+  border: none;
+  height: 1px;
+  margin: 1.25rem 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+}
+.blog-article-body del,
+.article-reader-body del {
+  text-decoration: line-through;
+  opacity: 0.72;
+}
+.blog-article-body .md-blank-line,
+.article-reader-body .md-blank-line {
+  height: 0.75em;
+}
+.blog-article-body blockquote,
+.article-reader-body blockquote {
+  margin: 0.85rem 0;
+  padding: 0.55rem 0.9rem;
+  border-left: 3px solid rgba(96, 165, 250, 0.55);
+  background: rgba(255,255,255,0.05);
+  border-radius: 0 12px 12px 0;
 }
 
 .admin-guest-code-card {
@@ -3299,7 +3281,6 @@ body.api-offline-lock #homeAvatarPlaceholder {
    平板不走这里，统一桌面布局
    ============================================================ */
 
-/* 横屏强制提示（仅手机 is-phone） */
 @media screen and (max-width: 480px) and (orientation: landscape) {
   html.is-phone body::before {
     content: "请竖屏使用以获得最佳体验";
@@ -3331,7 +3312,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
     --radius-pad: 12px;
   }
 
-  /* —— 导航：Logo 保留；未选中仅图标，选中显示文字 —— */
+  /* 导航：Logo 保留；未选中仅图标，选中显示文字 */
   .glass-nav {
     top: max(8px, env(safe-area-inset-top, 0px));
     max-width: calc(100vw - 12px);
@@ -3363,19 +3344,10 @@ body.api-offline-lock #homeAvatarPlaceholder {
     justify-content: center;
     transition: padding 0.22s ease, color 0.2s ease;
   }
-  .nav-btn span {
-    display: none;
-  }
-  .nav-btn.active span {
-    display: inline;
-  }
-  .nav-btn.active {
-    padding: 0.4rem 0.65rem;
-  }
-  .nav-btn i {
-    font-size: 1.05rem;
-    color: inherit;
-  }
+  .nav-btn span { display: none; }
+  .nav-btn.active span { display: inline; }
+  .nav-btn.active { padding: 0.4rem 0.65rem; }
+  .nav-btn i { font-size: 1.05rem; color: inherit; }
 
   .glass-nav.blog-mode,
   .glass-nav.blog-mode.is-reading-toolbar {
@@ -3395,10 +3367,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
     width: 100%;
     transform: translate(-50%, 0) scale(1);
   }
-  .blog-toolbar-reading {
-    align-items: center;
-    text-align: center;
-  }
+  .blog-toolbar-reading { align-items: center; text-align: center; }
   .blog-reading-title {
     font-size: 1rem;
     padding-right: 0 !important;
@@ -3420,7 +3389,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
   }
   .panel { padding: 1.1rem 0.85rem 1.4rem; }
 
-  /* 封面第一阶段：一屏高度 + 内容上移 */
+  /* 封面第一阶段：一屏 + 内容上移 */
   .blog-cover {
     height: 100vh;
     height: 100dvh;
@@ -3438,7 +3407,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
   .slogan { font-size: clamp(2rem, 9.5vw, 2.8rem); }
   .slogan-sub { font-size: 0.88rem; letter-spacing: 0.08em; }
 
-  /* 三阶段：主题栏横滑，第三阶段下滑 */
+  /* 三阶段：主题栏横排，第三阶段下滑 */
   .blog-stage-duo {
     flex-direction: column;
     align-items: stretch;
@@ -3486,7 +3455,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
     width: 100%;
   }
 
-  /* 隐私标签：不撑高卡片 */
+  /* 隐私标签不撑高卡片 */
   .blog-list .blog-card-actions {
     max-width: 5.5rem;
     flex-wrap: nowrap;
@@ -3507,7 +3476,6 @@ body.api-offline-lock #homeAvatarPlaceholder {
     padding: 0.28rem 0.45rem;
   }
 
-  /* 触屏隐藏自定义光标与曳尾（双保险） */
   .custom-cursor,
   .cursor-trail-canvas {
     display: none !important;
