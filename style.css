@@ -594,15 +594,17 @@ body {
 }
 
 .panel-home {
-  align-items: center;
+  align-items: stretch;
   padding: 0.9rem 1.8rem 1.3rem;
-  overflow-y: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: block;
 }
 .home-content {
   display: flex;
   align-items: center;
-  min-height: 0;
-  height: 100%;
+  min-height: calc(100vh - 110px);
+  height: calc(100vh - 110px);
 }
 .home-layout {
   display: grid;
@@ -1436,7 +1438,7 @@ a.blog-list .blog-card,
   border-left: 3px solid rgba(0, 113, 227, 0.7);
   color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .boot-loader {
@@ -2020,6 +2022,12 @@ a.blog-list .blog-card,
 }
 .footer { text-align: center; padding: 1rem 0; font-size: 0.85rem; opacity: 0.8; width: 100%; }
 @media (max-width: 800px) {
+  .panel-home { padding-left: .85rem; padding-right: .85rem; }
+  .home-content { height: auto; min-height: calc(100vh - 105px); }
+  .status-timeline-section { width: 100%; margin-top: 1.2rem; }
+  .status-timeline-item { width: 190px; flex-basis: 190px; }
+  .status-timeline-track { padding-left: 1rem; padding-right: 1rem; }
+  .status-timeline-line { left: 1rem; right: 1rem; }
   .glass-nav { max-width: 95vw; }
   .win7-business-card { flex-direction: column; text-align: center; padding: 2rem 1.5rem; }
   .win7-info-list { align-items: center; }
@@ -2645,7 +2653,7 @@ body.is-reading-article .reading-dim-layer {
   height: 100% !important;
   border: 0;
   display: block;
-  background: transparent;
+  background: #000;
 }
 /* 若原文给了明确宽高且较小，按属性缩放 */
 .blog-article-body iframe:not(.md-embed-iframe) {
@@ -2822,27 +2830,6 @@ body.is-reading-article .reading-dim-layer {
 }
 .blog-article-body .md-code-window .hljs-addition { color: #b5cea8; }
 .blog-article-body .md-code-window .hljs-deletion { color: #ce9178; }
-
-/* 代码高亮最终兜底：覆盖全局代码颜色，确保 token 不会被玻璃主题冲成纯白 */
-.blog-article-body .md-code-window pre code.hljs .hljs-keyword,
-.blog-article-body .md-code-window pre code.hljs .hljs-selector-tag,
-.blog-article-body .md-code-window pre code.hljs .hljs-built_in,
-.blog-article-body .md-code-window pre code.hljs .hljs-literal { color: #569cd6 !important; }
-.blog-article-body .md-code-window pre code.hljs .hljs-string,
-.blog-article-body .md-code-window pre code.hljs .hljs-attr,
-.blog-article-body .md-code-window pre code.hljs .hljs-attribute { color: #ce9178 !important; }
-.blog-article-body .md-code-window pre code.hljs .hljs-number { color: #b5cea8 !important; }
-.blog-article-body .md-code-window pre code.hljs .hljs-comment,
-.blog-article-body .md-code-window pre code.hljs .hljs-quote { color: #6a9955 !important; font-style: italic; }
-.blog-article-body .md-code-window pre code.hljs .hljs-title,
-.blog-article-body .md-code-window pre code.hljs .hljs-title.function_,
-.blog-article-body .md-code-window pre code.hljs .hljs-section { color: #dcdcaa !important; }
-.blog-article-body .md-code-window pre code.hljs .hljs-type,
-.blog-article-body .md-code-window pre code.hljs .hljs-class .hljs-title { color: #4ec9b0 !important; }
-.blog-article-body .md-code-window pre code.hljs .hljs-variable,
-.blog-article-body .md-code-window pre code.hljs .hljs-params { color: #9cdcfe !important; }
-.blog-article-body .md-code-window pre code.hljs .hljs-meta { color: #9b9b9b !important; }
-
 .blog-article-body .md-math-display {
   overflow-x: auto;
   margin: 1em 0;
@@ -2883,7 +2870,7 @@ body.is-reading-article .reading-dim-layer {
   border-left: 3px solid rgba(0, 113, 227, 0.7);
   color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 /* ============================================================
    QQ 状态：Apple 风格自定义下拉菜单
@@ -3259,7 +3246,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
   padding: 0.55rem 0.9rem;
   border-left: 3px solid rgba(96, 165, 250, 0.55);
   background: rgba(255,255,255,0.05);
-  border-radius: 4px;
+  border-radius: 8px;
   line-height: 1.55;
 }
 
@@ -3530,194 +3517,137 @@ body.api-offline-lock #homeAvatarPlaceholder {
 }
 
 /* ============================================================
-   Windows 10 Fluent Reveal + Liquid Glass Highlight
-   仅保留鼠标附近的液态玻璃高亮边框；不显示内部光晕。
+   Fluent Reveal Highlight — 仅液态玻璃边框
+   坐标来自当前真实 DOMRect；不再绘制鼠标周围内部光晕
    ============================================================ */
 .reveal-host {
   --reveal-x: 50%;
   --reveal-y: 50%;
-  --reveal-edge: 0;
-  --reveal-radius: 150px;
+  --reveal-edge: 0.6;
   position: relative;
   isolation: isolate;
 }
-
 .reveal-host > .reveal-border {
   position: absolute;
   inset: 0;
+  box-sizing: border-box;
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  z-index: 4;
-  padding: 1.35px;
-  background:
-    radial-gradient(
-      circle 340px at var(--reveal-x) var(--reveal-y),
-      rgba(255,255,255,calc(0.98 * var(--reveal-edge))) 0,
-      rgba(238,248,255,calc(0.78 * var(--reveal-edge))) 18%,
-      rgba(190,225,255,calc(0.42 * var(--reveal-edge))) 36%,
-      rgba(255,255,255,calc(0.12 * var(--reveal-edge))) 52%,
-      transparent 72%
-    );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
+  z-index: 3;
+  padding: 1.5px;
+  background: radial-gradient(
+    circle 170px at var(--reveal-x) var(--reveal-y),
+    rgba(255,255,255,calc(.98 * var(--reveal-edge))) 0%,
+    rgba(220,240,255,calc(.72 * var(--reveal-edge))) 32%,
+    rgba(255,255,255,calc(.24 * var(--reveal-edge))) 58%,
+    transparent 78%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
-  will-change: opacity, background;
-  transition: opacity 120ms ease;
+  transition: opacity .12s ease;
 }
-
-.reveal-host.is-reveal-active > .reveal-border {
-  opacity: 1;
-}
-
+.reveal-host.is-reveal-active > .reveal-border { opacity: 1; }
 .reveal-host > :not(.reveal-border) {
   position: relative;
   z-index: 1;
 }
-
-body.has-reveal-highlight .glass-card:hover,
 body.has-reveal-highlight .blog-list .blog-card:hover,
-body.has-reveal-highlight .work-card:hover,
-body.has-reveal-highlight .blog-white-box:hover,
-body.has-reveal-highlight .theme-rail-inner:hover {
+body.has-reveal-highlight .glass-card:hover {
   transform: none;
 }
-
 @media (max-width: 480px), (hover: none), (pointer: coarse) {
-  .reveal-host > .reveal-border {
-    display: none !important;
-  }
+  .reveal-host > .reveal-border { display: none !important; }
 }
 
-
-/* 圆形按钮：以自身圆心为缩放原点，悬停放大 1/12 */
-.work-circle-btn,
-.social-circle-btn,
-.calendar-btn {
-  transform-origin: center center;
+/* ===== 主页横向状态时间线：不使用独立玻璃面板 ===== */
+.status-timeline-section {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 2.4rem auto 0;
+  padding: 0 0 2.2rem;
 }
-
-/* 圆形按钮：以自身圆心为缩放原点，悬停放大 1/12 */
-.work-circle-btn,
-.social-circle-btn,
-.calendar-btn {
-  transform-origin: center center;
-}
-
-
-/* ============================================================
-   Markdown @[audio][lyrics]@：液态玻璃音频 + 可折叠歌词面板
-   ============================================================ */
-.blog-article-body .md-media-audio-card {
-  width: 100%;
-  margin: 1em 0;
-}
-.blog-article-body .md-media-audio-card > .glass-audio-player {
-  margin: 0;
-}
-.blog-article-body .md-lyrics-toggle {
-  appearance: none;
-  width: 100%;
-  min-height: 34px;
-  margin-top: 7px;
-  padding: 7px 12px;
-  border: 1px solid rgba(255,255,255,.14);
-  border-radius: 10px;
-  background: rgba(255,255,255,.055);
-  color: rgba(255,255,255,.78);
+.status-timeline-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  cursor: pointer;
-  font: inherit;
-  transition: background .18s ease, border-color .18s ease, color .18s ease;
-  backdrop-filter: blur(14px) saturate(145%);
-  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: .75rem;
+  padding: 0 .25rem;
 }
-.blog-article-body .md-lyrics-toggle:hover {
-  background: rgba(255,255,255,.09);
-  border-color: rgba(255,255,255,.24);
-  color: rgba(255,255,255,.94);
-}
-.blog-article-body .md-lyrics-chevron {
-  transition: transform .22s ease;
-}
-.blog-article-body .md-media-audio-card.is-lyrics-open .md-lyrics-chevron {
-  transform: rotate(180deg);
-}
-.blog-article-body .md-lyrics-panel {
-  margin-top: 6px;
-  max-height: min(360px, 45vh);
-  overflow: auto;
-  padding: 10px 8px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px;
-  background: rgba(8,12,18,.34);
-  box-shadow: inset 0 1px 1px rgba(255,255,255,.08), 0 10px 28px rgba(0,0,0,.14);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+.status-timeline-title { font-size: .98rem; font-weight: 650; color: rgba(255,255,255,.88); }
+.status-timeline-title i { margin-right: .4rem; opacity: .72; }
+.status-timeline-hint { font-size: .72rem; color: rgba(255,255,255,.42); }
+.status-timeline {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.2) transparent;
+  cursor: grab;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  padding: 1.2rem .25rem 1.45rem;
 }
-.blog-article-body .md-lyrics-list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
+.status-timeline:active { cursor: grabbing; }
+.status-timeline-track {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0;
+  min-width: max-content;
+  padding: 0 2rem;
 }
-.blog-article-body .md-lyrics-line {
-  width: min(100%, 720px);
-  padding: 5px 10px;
-  border-radius: 8px;
-  color: rgba(255,255,255,.56);
-  text-align: center;
-  line-height: 1.55;
-  font-size: .9rem;
-  transition: color .18s ease, background .18s ease, transform .18s ease, opacity .18s ease;
+.status-timeline-line {
+  position: absolute;
+  left: 2rem; right: 2rem; top: 12px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.28) 3%, rgba(255,255,255,.28) 97%, transparent);
 }
-.blog-article-body .md-lyrics-line.is-active {
-  color: rgba(255,255,255,.98);
-  background: rgba(255,255,255,.08);
-  transform: scale(1.015);
+.status-timeline-item {
+  position: relative;
+  width: 230px;
+  flex: 0 0 230px;
+  padding-top: 0;
 }
-.blog-article-body .md-lyrics-line.is-static {
-  color: rgba(255,255,255,.7);
+.status-timeline-dot {
+  position: relative; z-index: 2; display: block; width: 10px; height: 10px;
+  margin: 0 auto .72rem; border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(255,255,255,.07), 0 0 16px rgba(255,255,255,.08);
 }
-.blog-article-body .md-lyrics-state {
-  padding: 18px 10px;
-  color: rgba(255,255,255,.5);
-  text-align: center;
-  font-size: .86rem;
+.status-timeline-card {
+  padding: 0 .65rem; text-align: center;
+}
+.status-timeline-status { display:flex; align-items:center; justify-content:center; gap:.38rem; font-size:.84rem; font-weight:600; color:rgba(255,255,255,.9); white-space:nowrap; }
+.status-timeline-dot-mini { width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
+.status-timeline-summary { margin-top:.3rem; font-size:.68rem; line-height:1.45; color:rgba(255,255,255,.5); max-width:210px; margin-left:auto; margin-right:auto; }
+.status-timeline-time { margin-top:.38rem; font-size:.62rem; line-height:1.35; color:rgba(255,255,255,.34); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.status-timeline-now { font-size:.58rem; font-weight:500; color:rgba(255,255,255,.55); padding:.08rem .3rem; border:1px solid rgba(255,255,255,.15); border-radius:999px; }
+.status-timeline-empty, .status-timeline-loading { padding:.7rem 0; font-size:.78rem; color:rgba(255,255,255,.4); }
+.status-timeline-dot.online,.status-timeline-dot-mini.online { background:#34c759; }
+.status-timeline-dot.busy,.status-timeline-dot-mini.busy { background:#ff3b30; }
+.status-timeline-dot.away,.status-timeline-dot-mini.away { background:#ffcc00; }
+.status-timeline-dot.dnd,.status-timeline-dot-mini.dnd { background:#ff3b30; }
+.status-timeline-dot.invisible,.status-timeline-dot-mini.invisible { background:#8e8e93; }
+.status-timeline-dot.offline,.status-timeline-dot-mini.offline { background:#8e8e93; }
+.status-timeline-dot.custom,.status-timeline-dot-mini.custom { background:#64d2ff; }
+.status-timeline-item.is-current .status-timeline-dot { box-shadow: 0 0 0 5px rgba(255,255,255,.08), 0 0 22px rgba(100,210,255,.24); }
+
+/* 状态标签：点击后淡出 → 简述淡入；再次自动恢复 */
+.home-status { cursor: default; appearance:none; font:inherit; }
+.home-status.has-summary { cursor:pointer; }
+.home-status .home-status-text { transition: opacity .18s ease, transform .18s ease; }
+.home-status.is-switching .home-status-text { opacity:0; transform:translateY(-3px); }
+.home-status.is-detail .home-status-text { max-width: min(24rem, 65vw); white-space:normal; overflow:visible; text-overflow:clip; }
+
+/* 管理员状态简述 */
+.admin-field-hint { display:block; margin-top:.35rem; font-size:.68rem; color:rgba(255,255,255,.42); line-height:1.45; }
+.admin-form-row textarea#adminStatusSummary { min-height:72px; resize:vertical; }
+
+/* 圆形按钮：以自身圆心为缩放原点，悬停放大 1/12 */
+.work-circle-btn,
+.social-circle-btn,
+.calendar-btn {
+  transform-origin: center center;
 }
 
-/* Reveal 强制可见兜底：Chrome/WebKit 使用液态玻璃径向边缘光，mask 失败时仍保留细微玻璃边缘 */
-.reveal-host > .reveal-border {
-  border: 1px solid rgba(255,255,255,.16);
-  padding: 1.35px;
-  background:
-    radial-gradient(
-      circle 340px at var(--reveal-x) var(--reveal-y),
-      rgba(255,255,255,calc(.98 * var(--reveal-edge))) 0,
-      rgba(225,242,255,calc(.72 * var(--reveal-edge))) 20%,
-      rgba(185,220,255,calc(.42 * var(--reveal-edge))) 38%,
-      rgba(255,255,255,calc(.12 * var(--reveal-edge))) 54%,
-      transparent 73%
-    );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-.reveal-host.is-reveal-active > .reveal-border {
-  opacity: 1;
-}

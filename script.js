@@ -602,7 +602,8 @@
     interests: ["C", "C#", "C++", "OIer", "Minecraft", "CR-中国铁路", "Airbus"],
     avatar: null,
     status: "在线",
-    statusType: "online"
+    statusType: "online",
+    statusSummary: ""
   };
 
   let profileData = { ...defaultProfile };
@@ -1266,211 +1267,6 @@
     root.querySelectorAll('iframe').forEach((iframe) => {
       if (!iframe.getAttribute('loading')) iframe.setAttribute('loading', 'lazy');
     });
-    bindIframeCursorVisibility(root);
-  }
-
-  // ============================================================
-  // 自定义 Markdown 音频语法：@[音频链接][歌词链接]@
-  // 支持 mp3 / wav / flac / ogg / m4a / aac / opus 等浏览器可播放格式。
-  // 歌词支持 LRC / SRT / VTT / 纯文本；歌词按 ArrayBuffer 解码，兼容 UTF-8 / UTF-16 / GB18030。
-  // ============================================================
-  function normalizeMediaUrl(raw) {
-    const value = String(raw || '').trim();
-    if (!value) return '';
-    try {
-      const url = new URL(value, window.location.href);
-      if (!/^https?:$/i.test(url.protocol)) return '';
-      return url.href;
-    } catch (_) {
-      return '';
-    }
-  }
-
-  function getAudioMime(url) {
-    const path = String(url || '').split(/[?#]/)[0].toLowerCase();
-    if (/\.mp3$/.test(path)) return 'audio/mpeg';
-    if (/\.wav$/.test(path)) return 'audio/wav';
-    if (/\.flac$/.test(path)) return 'audio/flac';
-    if (/\.ogg$/.test(path)) return 'audio/ogg';
-    if (/\.opus$/.test(path)) return 'audio/opus';
-    if (/\.m4a$/.test(path)) return 'audio/mp4';
-    if (/\.aac$/.test(path)) return 'audio/aac';
-    return '';
-  }
-
-  function decodeLyricsBuffer(buffer) {
-    const bytes = new Uint8Array(buffer);
-    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
-      return new TextDecoder('utf-8').decode(bytes.subarray(3));
-    }
-    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
-      return new TextDecoder('utf-16le').decode(bytes.subarray(2));
-    }
-    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
-      return new TextDecoder('utf-16be').decode(bytes.subarray(2));
-    }
-
-    const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-    // UTF-8 解码出现大量替换字符时，再尝试常见中文歌词编码。
-    const replacementCount = (utf8.match(/\uFFFD/g) || []).length;
-    if (replacementCount === 0) return utf8;
-    try {
-      const gb = new TextDecoder('gb18030', { fatal: false }).decode(bytes);
-      if ((gb.match(/\uFFFD/g) || []).length < replacementCount) return gb;
-    } catch (_) {}
-    try {
-      const big5 = new TextDecoder('big5', { fatal: false }).decode(bytes);
-      if ((big5.match(/\uFFFD/g) || []).length < replacementCount) return big5;
-    } catch (_) {}
-    return utf8;
-  }
-
-  function parseLyricsText(text, url) {
-    const raw = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
-    const lines = raw.split('\n');
-    const result = [];
-    const timeRe = /\[(\d{1,3}):([0-5]?\d)(?:[.:](\d{1,3}))?\]/g;
-    const isVtt = /^\s*WEBVTT(?:\s|$)/i.test(raw);
-    const ext = String(url || '').split(/[?#]/)[0].toLowerCase();
-    const isSrt = /\.srt$/.test(ext) || lines.some((line, i) => i < 3 && /^\s*\d+\s*$/.test(line));
-
-    if (isVtt || isSrt) {
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const m = line.match(/(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})\s+-->\s+(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})/);
-        if (!m) continue;
-        const start = (+m[1] * 3600) + (+m[2] * 60) + (+m[3]) + (+m[4]) / 1000;
-        const body = [];
-        for (let j = i + 1; j < lines.length; j++) {
-          if (!lines[j].trim()) break;
-          body.push(lines[j].trim());
-        }
-        const lyric = body.join(' ').replace(/<[^>]+>/g, '').trim();
-        if (lyric) result.push({ time: start, text: lyric });
-      }
-      return result;
-    }
-
-    for (const line of lines) {
-      let match;
-      let found = false;
-      timeRe.lastIndex = 0;
-      while ((match = timeRe.exec(line))) {
-        found = true;
-        const minutes = Number(match[1]);
-        const seconds = Number(match[2]);
-        const fraction = match[3] ? Number('0.' + String(match[3]).padEnd(3, '0')) : 0;
-        const time = minutes * 60 + seconds + fraction;
-        const lyric = line.slice(timeRe.lastIndex).trim();
-        result.push({ time, text: lyric });
-      }
-      if (!found && line.trim()) {
-        // 非时间轴文本也保留，显示在歌词面板中，但不参与自动同步。
-        result.push({ time: null, text: line.trim() });
-      }
-    }
-    return result.sort((a, b) => (a.time == null ? Infinity : a.time) - (b.time == null ? Infinity : b.time));
-  }
-
-  async function loadLyricsIntoPanel(panel, lyricsUrl, audio) {
-    if (!lyricsUrl || panel.dataset.loaded === '1' || panel.dataset.loading === '1') return;
-    panel.dataset.loading = '1';
-    const list = panel.querySelector('.md-lyrics-list');
-    try {
-      list.innerHTML = '<div class="md-lyrics-state">正在读取歌词…</div>';
-      const response = await fetch(lyricsUrl, { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const buffer = await response.arrayBuffer();
-      const text = decodeLyricsBuffer(buffer);
-      const lyrics = parseLyricsText(text, lyricsUrl);
-      list.innerHTML = '';
-      if (!lyrics.length) {
-        list.innerHTML = '<div class="md-lyrics-state">未找到可识别的歌词内容。</div>';
-      } else {
-        const frag = document.createDocumentFragment();
-        lyrics.forEach((item, index) => {
-          const row = document.createElement('div');
-          row.className = 'md-lyrics-line' + (item.time == null ? ' is-static' : '');
-          row.dataset.index = String(index);
-          if (item.time != null) row.dataset.time = String(item.time);
-          row.textContent = item.text || '♪';
-          frag.appendChild(row);
-        });
-        list.appendChild(frag);
-        panel._lyrics = lyrics;
-        panel._audio = audio;
-      }
-      panel.dataset.loaded = '1';
-    } catch (err) {
-      console.error('[lyrics] 歌词读取失败：', lyricsUrl, err);
-      list.innerHTML = '<div class="md-lyrics-state">歌词加载失败，请检查链接、CORS 或文件编码。</div>';
-    } finally {
-      delete panel.dataset.loading;
-    }
-  }
-
-  function buildMarkdownAudioCard(audioUrl, lyricsUrl) {
-    const audio = document.createElement('audio');
-    audio.preload = 'metadata';
-    audio.setAttribute('playsinline', '');
-    audio.src = audioUrl;
-    const mime = getAudioMime(audioUrl);
-    if (mime) audio.setAttribute('type', mime);
-
-    const shell = document.createElement('div');
-    shell.className = 'md-media-audio-card';
-    shell.appendChild(buildGlassAudioPlayer(audio));
-
-    if (lyricsUrl) {
-      const toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'md-lyrics-toggle';
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.innerHTML = '<span><i class="fas fa-music"></i> 歌词</span><i class="fas fa-chevron-down md-lyrics-chevron"></i>';
-      const panel = document.createElement('div');
-      panel.className = 'md-lyrics-panel';
-      panel.hidden = true;
-      panel.innerHTML = '<div class="md-lyrics-list"><div class="md-lyrics-state">点击展开歌词</div></div>';
-      toggle.addEventListener('click', () => {
-        const open = panel.hidden;
-        panel.hidden = !open;
-        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        shell.classList.toggle('is-lyrics-open', open);
-        if (open) loadLyricsIntoPanel(panel, lyricsUrl, audio);
-      });
-      shell.appendChild(toggle);
-      shell.appendChild(panel);
-
-      let raf = 0;
-      let activeIndex = -1;
-      const syncLyrics = () => {
-        raf = 0;
-        if (panel.hidden || !panel._lyrics) return;
-        const t = audio.currentTime || 0;
-        let idx = -1;
-        for (let i = 0; i < panel._lyrics.length; i++) {
-          if (panel._lyrics[i].time != null && panel._lyrics[i].time <= t) idx = i;
-          else if (panel._lyrics[i].time != null && panel._lyrics[i].time > t) break;
-        }
-        if (idx === activeIndex) return;
-        activeIndex = idx;
-        panel.querySelectorAll('.md-lyrics-line.is-active').forEach((el) => el.classList.remove('is-active'));
-        if (idx >= 0) {
-          const row = panel.querySelector(`.md-lyrics-line[data-index="${idx}"]`);
-          if (row) {
-            row.classList.add('is-active');
-            row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          }
-        }
-      };
-      const schedule = () => {
-        if (!raf) raf = requestAnimationFrame(syncLyrics);
-      };
-      audio.addEventListener('timeupdate', schedule);
-      audio.addEventListener('play', schedule);
-      audio.addEventListener('seeked', schedule);
-    }
-    return shell;
   }
 
   function simpleMarkdownToHtml(md) {
@@ -1544,19 +1340,11 @@
     // 行内代码
     s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
 
-    // 自定义 Markdown 音频：@[音频链接][歌词链接]@
-    // 歌词链接可留空：@[音频链接][]@；也支持 @[音频链接]@。
-    s = s.replace(/@\[([^\]]+)\](?:\[([^\]]*)\])?@/g, (full, audioRaw, lyricsRaw) => {
-      const audioUrl = normalizeMediaUrl(audioRaw);
-      const lyricsUrl = normalizeMediaUrl(lyricsRaw || '');
-      if (!audioUrl) return full;
-      return hold(buildMarkdownAudioCard(audioUrl, lyricsUrl).outerHTML);
-    });
-
-    // 保留旧版 @<HTML>@ 语法兼容，避免已有文章失效。
+    // 自定义：@...@ 插入 HTML 片段（需含标签；完整文档会经 sanitize 抽 body）
+    // 例：@<audio controls src="https://xxx.mp3"></audio>@
     s = s.replace(/@([\s\S]+?)@/g, (full, inner) => {
       const t = String(inner || '').trim();
-      if (!t || !/<[a-zA-Z]/.test(t)) return full;
+      if (!t || !/<[a-zA-Z]/.test(t)) return full; // 非 HTML，原样保留（如邮箱）
       return hold(sanitizeAdminHtml(t) || '');
     });
 
@@ -1863,152 +1651,49 @@
     });
   }
 
-  // Markdown 代码高亮：优先使用 highlight.js；即使 CDN 加载失败，也使用本地轻量兜底，
-  // 避免代码块退化成“全部白色”。
-  function escapeCodeHtml(text) {
-    return String(text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  function fallbackHighlightCode(source, language) {
-    const lang = String(language || '').toLowerCase();
-    const code = String(source || '');
-    const isJsLike = /^(js|javascript|jsx|ts|typescript|tsx|json|css|scss|less)$/.test(lang);
-    const isCppLike = /^(c|cpp|c\+\+|h|hpp|java|csharp|cs|go|rust|swift|kotlin|php)$/.test(lang);
-    const isPythonLike = /^(py|python)$/.test(lang);
-    const isHtmlLike = /^(html|xml|svg|xhtml)$/.test(lang);
-    const isShellLike = /^(bash|sh|shell|zsh|powershell|ps|bat|cmd)$/.test(lang);
-    const isSqlLike = /^(sql|mysql|postgres|postgresql)$/.test(lang);
-    if (!(isJsLike || isCppLike || isPythonLike || isHtmlLike || isShellLike || isSqlLike)) {
-      return escapeCodeHtml(code);
-    }
-
-    const strings = [];
-    const stash = (html) => {
-      const i = strings.length;
-      strings.push(html);
-      return `\uE100${i}\uE101`;
-    };
-
-    let s = escapeCodeHtml(code);
-    // 字符串 / 模板字符串 / HTML 属性值先保护，避免后面的关键字规则误伤。
-    s = s.replace(/(&quot;|&quot;|\"|\')(?:(?!\1)[\s\S])*?\1/g, (m) => stash(`<span class="hljs-string">${m}</span>`));
-    s = s.replace(/`[^`]*`/g, (m) => stash(`<span class="hljs-string">${m}</span>`));
-
-    const commentPattern = isPythonLike || isShellLike || isSqlLike
-      ? /(^|\n)(\s*#.*|\s*--.*)/g
-      : /(\/\*[\s\S]*?\*\/|\/\/[^\n]*)/g;
-    s = s.replace(commentPattern, (m, prefix, comment) => {
-      if (prefix !== undefined) return prefix + stash(`<span class="hljs-comment">${comment}</span>`);
-      return stash(`<span class="hljs-comment">${m}</span>`);
-    });
-
-    const keywordSets = {
-      python: 'and as assert async await break case class continue def del elif else except finally for from global if import in is lambda match nonlocal not or pass raise return try while with yield',
-      cpp: 'alignas alignof and asm auto bool break case catch char class const constexpr continue default delete do double else enum explicit export extern false float for friend if inline int long namespace new noexcept nullptr operator private protected public register reinterpret_cast return short signed sizeof static struct switch template this throw true try typedef typename union unsigned using virtual void volatile wchar_t while',
-      csharp: 'abstract as base bool break byte case catch char class const continue decimal default delegate do double else enum event explicit extern false finally fixed float for foreach goto if implicit in int interface internal is lock long namespace new null object operator out override params private protected public readonly ref return sbyte sealed short sizeof stackalloc static string struct switch this throw true try typeof uint ulong unchecked unsafe ushort using virtual void volatile while var async await',
-      java: 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long native new null package private protected public return short static strictfp super switch synchronized this throw throws transient true try void volatile while',
-      javascript: 'as async await break case catch class const continue debugger default delete do else export extends false finally for from function get if import in instanceof let new null of return set static super switch this throw true try typeof undefined var void while with yield',
-      typescript: 'as async await break case catch class const continue debugger declare default delete do else export extends false finally for from function get if implements import in infer instanceof interface is keyof let module namespace never new null number object of private protected public readonly return set static string super switch symbol this throw true try type typeof undefined var void while with yield',
-      sql: 'select from where and or not insert into update delete create alter drop table database index join inner left right full outer on as distinct group by order having limit offset values set null is like in exists union all case when then else end asc desc',
-      go: 'break default func interface select case defer go map struct chan else goto package switch const fallthrough if range type continue for import return var',
-      rust: 'as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while',
-    };
-    let keyName = lang === 'c++' ? 'cpp' : (lang === 'c#' ? 'csharp' : lang);
-    let keywords = keywordSets[keyName] || keywordSets.javascript;
-    if (isPythonLike) keywords = keywordSets.python;
-    if (isSqlLike) keywords = keywordSets.sql;
-    if (lang === 'go') keywords = keywordSets.go;
-    if (lang === 'rust') keywords = keywordSets.rust;
-    const kw = new Set(keywords.split(/\s+/));
-    s = s.replace(/\b[A-Za-z_$][\w$]*\b/g, (m) => {
-      if (kw.has(m)) return `<span class="hljs-keyword">${m}</span>`;
-      if (/^(true|false|null|undefined|None|True|False|nil)$/i.test(m)) return `<span class="hljs-literal">${m}</span>`;
-      return m;
-    });
-    s = s.replace(/\b(?:0x[\da-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, '<span class="hljs-number">$&</span>');
-    s = s.replace(/(^|[\s(,;])([A-Za-z_$][\w$]*)(?=\s*\()/g, '$1<span class="hljs-title function_">$2</span>');
-
-    strings.forEach((value, i) => {
-      s = s.replace(`\uE100${i}\uE101`, value);
-    });
-    return s;
-  }
-
   function highlightArticleCode(root) {
     if (!root) return;
     bindCodeCopyButtons(root);
-    const blocks = Array.from(root.querySelectorAll('pre code'));
-    if (!blocks.length) return;
-
-    const normalizeLanguage = (raw) => {
-      let lang = (raw || '').trim().toLowerCase();
-      if (lang === 'c++' || lang === 'cpp') return 'cpp';
-      if (lang === 'c#' || lang === 'cs' || lang === 'csharp') return 'csharp';
-      if (lang === 'js') return 'javascript';
-      if (lang === 'ts') return 'typescript';
-      if (lang === 'py') return 'python';
-      if (lang === 'sh' || lang === 'bash' || lang === 'zsh') return 'shell';
-      if (lang === 'html') return 'xml';
-      if (lang === 'md') return 'markdown';
-      if (lang === 'text' || lang === 'plain') return '';
-      return lang;
-    };
-
     const run = () => {
-      const hasHljs = typeof window.hljs !== 'undefined';
+      if (typeof window.hljs === 'undefined') return false;
+      const blocks = root.querySelectorAll('pre code');
+      if (!blocks.length) return true;
       blocks.forEach((block) => {
         if (block.dataset.hljsDone === '1') return;
         try {
+          // 从 class="language-xxx" 取语言；兼容 c++ / cpp
+          let lang = '';
           const m = (block.className || '').match(/language-([a-zA-Z0-9_+#.-]+)/);
-          const originalLang = m ? m[1] : '';
-          const lang = normalizeLanguage(originalLang);
-          const src = block.textContent || '';
+          if (m) lang = m[1].toLowerCase();
+          if (lang === 'c++') lang = 'cpp';
+          if (lang === 'c#') lang = 'csharp';
+          if (lang === 'text' || lang === 'plain') lang = '';
 
-          // cpp 与 c++ 使用同一套 C++ grammar；显示标签仍由 Markdown 原始语言决定。
-          if (lang === 'cpp') block.classList.add('language-cpp');
-
-          if (hasHljs && lang && typeof window.hljs.getLanguage === 'function' &&
-              window.hljs.getLanguage(lang) && typeof window.hljs.highlight === 'function') {
+          if (lang && window.hljs.getLanguage && window.hljs.getLanguage(lang) && window.hljs.highlight) {
+            const src = block.textContent || '';
             const result = window.hljs.highlight(src, { language: lang, ignoreIllegals: true });
             block.innerHTML = result.value;
             block.classList.add('hljs');
-          } else if (hasHljs && typeof window.hljs.highlightElement === 'function') {
-            block.classList.add('hljs');
+            if (!block.classList.contains('language-' + lang)) {
+              block.classList.add('language-' + lang);
+            }
+          } else if (typeof window.hljs.highlightElement === 'function') {
             window.hljs.highlightElement(block);
-          } else {
-            block.innerHTML = fallbackHighlightCode(src, lang);
-            block.classList.add('hljs');
+          } else if (typeof window.hljs.highlightBlock === 'function') {
+            window.hljs.highlightBlock(block);
           }
           block.dataset.hljsDone = '1';
         } catch (err) {
-          console.warn('[code-highlight] highlight failed; using fallback:', err);
-          block.innerHTML = fallbackHighlightCode(block.textContent || '', normalizeLanguage(
-            ((block.className || '').match(/language-([a-zA-Z0-9_+#.-]+)/) || [,''])[1]
-          ));
-          block.classList.add('hljs');
-          block.dataset.hljsDone = '1';
+          console.warn('[hljs]', err);
         }
       });
-      return hasHljs;
+      return true;
     };
-
-    // 立即使用轻量本地高亮，避免 CDN 延迟导致白色代码块；highlight.js 加载后再替换为完整语法树。
-    run();
-    if (typeof window.hljs === 'undefined') {
+    if (!run() || (typeof window.hljs === 'undefined')) {
       let n = 0;
       const timer = setInterval(() => {
         n += 1;
-        if (typeof window.hljs !== 'undefined') {
-          blocks.forEach((block) => { delete block.dataset.hljsDone; });
-          run();
-          clearInterval(timer);
-        } else if (n >= 100) {
-          clearInterval(timer);
-          console.error('[code-highlight] highlight.js 加载失败或超时（5 秒）。当前代码块已使用本地 fallback 高亮。请检查 highlight.js CDN、网络或 CSP 设置。');
-        }
+        if ((typeof window.hljs !== 'undefined' && run()) || n > 60) clearInterval(timer);
       }, 50);
     }
   }
@@ -2651,6 +2336,7 @@
         <div class="admin-panel-wrap">
           <div class="admin-tabs" role="tablist">
             <button type="button" class="admin-tab-btn active" data-tab="status"><i class="fas fa-circle"></i> 状态</button>
+            <button type="button" class="admin-tab-btn" data-tab="status-retention"><i class="fas fa-history"></i> 历史</button>
             <button type="button" class="admin-tab-btn" data-tab="articles"><i class="fas fa-newspaper"></i> 文章</button>
             <button type="button" class="admin-tab-btn" data-tab="editor"><i class="fas fa-pen"></i> 写文章</button>
             <button type="button" class="admin-tab-btn" data-tab="session"><i class="fas fa-sign-out-alt"></i> 会话</button>
@@ -2662,6 +2348,11 @@
                 <div class="admin-form-row">
                   <label>状态文案</label>
                   <input type="text" id="adminStatusText" value="${escapeHtml(st)}" maxlength="32" placeholder="例如：在线 / 写代码中">
+                </div>
+                <div class="admin-form-row">
+                  <label>状态简述</label>
+                  <textarea id="adminStatusSummary" maxlength="300" rows="3" placeholder="例如：正在研究 Worker + D1 的状态历史功能">${escapeHtml(profileData.statusSummary || '')}</textarea>
+                  <small class="admin-field-hint">点击主页状态标签后显示；显示时间会根据文字长度自动估算。</small>
                 </div>
                 <div class="admin-form-row">
                   <label>状态类型</label>
@@ -2694,6 +2385,34 @@
                   <button type="button" class="nav-btn apple-primary-btn" id="adminSaveStatusBtn">保存状态</button>
                 </div>
                 <p class="admin-msg" id="adminStatusMsg"></p>
+              </div>
+            </div>
+          </div>
+          <div class="admin-tab-panel" data-panel="status-retention">
+            <div class="glass-card admin-card">
+              <h3><i class="fas fa-database"></i> 状态历史保存时间</h3>
+              <div class="admin-form-grid">
+                <div class="admin-form-row">
+                  <label>保存周期</label>
+                  <div class="apple-select" id="adminStatusRetentionSelect" data-value="1y">
+                    <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                      <span class="apple-select-dot home-status-dot custom"></span>
+                      <span class="apple-select-label">1年</span>
+                      <i class="fas fa-chevron-down apple-select-chevron"></i>
+                    </button>
+                    <div class="apple-select-menu" role="listbox">
+                      <button type="button" class="apple-select-option" data-value="1w" data-label="1周"><span class="home-status-dot away"></span><span>1周</span></button>
+                      <button type="button" class="apple-select-option" data-value="1m" data-label="1个月"><span class="home-status-dot online"></span><span>1个月</span></button>
+                      <button type="button" class="apple-select-option" data-value="3m" data-label="3个月"><span class="home-status-dot custom"></span><span>3个月</span></button>
+                      <button type="button" class="apple-select-option" data-value="6m" data-label="6个月"><span class="home-status-dot busy"></span><span>6个月</span></button>
+                      <button type="button" class="apple-select-option" data-value="1y" data-label="1年"><span class="home-status-dot offline"></span><span>1年</span></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="admin-form-actions">
+                  <button type="button" class="nav-btn apple-primary-btn" id="adminSaveStatusRetentionBtn">保存保存周期</button>
+                </div>
+                <p class="admin-msg" id="adminStatusRetentionMsg"></p>
               </div>
             </div>
           </div>
@@ -2816,12 +2535,14 @@
         });
         if (tab === 'articles') loadAdminArticles();
         if (tab === 'status') syncAdminStatusFormFromProfile();
+        if (tab === 'status-retention') setupAdminStatusRetention(section);
         if (tab === 'editor') updateAdminArticlePreview();
       });
     });
     syncAdminStatusFormFromProfile();
 
     const statusText = section.querySelector('#adminStatusText');
+    const statusSummary = section.querySelector('#adminStatusSummary');
     const statusType = section.querySelector('#adminStatusType');
     const statusSelect = section.querySelector('#adminStatusSelect');
     const selectTrigger = statusSelect?.querySelector('.apple-select-trigger');
@@ -2886,13 +2607,18 @@
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status_type: type, status_text: text })
+          body: JSON.stringify({
+            status_type: type,
+            status_text: text,
+            status_summary: (statusSummary?.value || '').trim()
+          })
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) throw new Error(data.error || '状态保存失败');
         const p = data.profile || {};
         profileData.status = p.status_text || p.status || text;
         profileData.statusType = String(p.status_type || p.statusType || type).toLowerCase();
+        profileData.statusSummary = String(p.status_summary || p.statusSummary || '');
         renderProfile();
         if (msg) { msg.textContent = '状态已保存到服务器，并已同步到主页'; msg.className = 'admin-msg ok'; }
       } catch (e) {
@@ -3120,9 +2846,11 @@
     const st = profileData.status || '在线';
     const stType = String(profileData.statusType || 'online').toLowerCase();
     const statusText = document.getElementById('adminStatusText');
+    const statusSummary = document.getElementById('adminStatusSummary');
     const statusType = document.getElementById('adminStatusType');
     const statusSelect = document.getElementById('adminStatusSelect');
     if (statusText) statusText.value = st;
+    if (statusSummary) statusSummary.value = profileData.statusSummary || '';
     if (statusType) statusType.value = stType;
     if (statusSelect) {
       statusSelect.dataset.value = stType;
@@ -3469,7 +3197,142 @@
     return false;
   }
 
-  function setupAdminLoginUI() {
+  async function setupAdminStatusRetention(section) {
+    const select = section?.querySelector('#adminStatusRetentionSelect');
+    if (!select || select.dataset.ready === '1') return;
+    select.dataset.ready = '1';
+    const trigger = select.querySelector('.apple-select-trigger');
+    const label = select.querySelector('.apple-select-label');
+    const options = [...select.querySelectorAll('.apple-select-option')];
+    const msg = section.querySelector('#adminStatusRetentionMsg');
+    const setValue = (value, text) => {
+      select.dataset.value = value;
+      if (label) label.textContent = text;
+    };
+    options.forEach(opt => opt.addEventListener('click', e => {
+      e.stopPropagation();
+      setValue(opt.dataset.value || '1y', opt.dataset.label || opt.textContent.trim());
+      select.classList.remove('open');
+      trigger?.setAttribute('aria-expanded', 'false');
+    }));
+    trigger?.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = select.classList.toggle('open');
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', e => {
+      if (!select.contains(e.target)) { select.classList.remove('open'); trigger?.setAttribute('aria-expanded','false'); }
+    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/profile/status-retention`, { credentials: 'include' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const opt = options.find(o => o.dataset.value === data.retention);
+        if (opt) setValue(data.retention, opt.dataset.label);
+      }
+    } catch (_) {}
+    section.querySelector('#adminSaveStatusRetentionBtn')?.addEventListener('click', async () => {
+      const btn = section.querySelector('#adminSaveStatusRetentionBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/profile/status-retention`, {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ retention: select.dataset.value || '1y' })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || '保存失败');
+        if (msg) { msg.textContent = '保存周期已更新，过期的历史状态已清理。'; msg.className = 'admin-msg ok'; }
+      } catch (e) {
+        if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '保存保存周期'; }
+      }
+    });
+  }
+
+  function estimateStatusReadMs(text) {
+    const value = String(text || '').trim();
+    if (!value) return 1200;
+    const cjk = (value.match(/[\u3400-\u9fff]/g) || []).length;
+    const latinWords = (value.match(/[A-Za-z0-9]+(?:[’'_-][A-Za-z0-9]+)*/g) || []).length;
+    const seconds = cjk / 5.5 + latinWords / 3.2;
+    return Math.max(1800, Math.min(12000, seconds * 1000 + 900));
+  }
+
+  function setupHomeStatusDetail() {
+    const button = document.getElementById('homeStatusButton');
+    if (!button) return;
+    const summary = String(profileData.statusSummary || '').trim();
+    if (!summary) { button.removeAttribute('title'); return; }
+    let timer = 0;
+    button.addEventListener('click', () => {
+      if (button.classList.contains('is-detail')) return;
+      const textEl = button.querySelector('.home-status-text');
+      if (!textEl) return;
+      button.classList.add('is-switching');
+      window.clearTimeout(timer);
+      window.setTimeout(() => {
+        textEl.textContent = summary;
+        button.classList.remove('is-switching');
+        button.classList.add('is-detail');
+        timer = window.setTimeout(() => {
+          button.classList.add('is-switching');
+          window.setTimeout(() => {
+            textEl.textContent = (profileData.status || '在线');
+            button.classList.remove('is-detail', 'is-switching');
+          }, 190);
+        }, estimateStatusReadMs(summary));
+      }, 190);
+    });
+  }
+
+  async function loadStatusTimeline() {
+    const timeline = document.getElementById('statusTimeline');
+    const track = document.getElementById('statusTimelineTrack');
+    if (!timeline || !track) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/status-history?limit=300`, { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '状态历史加载失败');
+      const history = Array.isArray(data.history) ? data.history : [];
+      if (!history.length) {
+        track.innerHTML = '<div class="status-timeline-empty">还没有可显示的状态历程</div>';
+        return;
+      }
+      const labels = { online:'在线', busy:'忙碌', away:'离开', dnd:'请勿打扰', invisible:'隐身', offline:'离线', custom:'自定义' };
+      track.innerHTML = `<div class="status-timeline-line"></div>` + history.map((item, i) => {
+        const type = labels[item.status_type] ? item.status_type : 'custom';
+        const active = !item.ended_at;
+        return `<article class="status-timeline-item${active ? ' is-current' : ''}">
+          <span class="status-timeline-dot ${type}"></span>
+          <div class="status-timeline-card">
+            <div class="status-timeline-status"><span class="status-timeline-dot-mini ${type}"></span>${escapeHtml(item.status_text || labels[type])}${active ? '<span class="status-timeline-now">现在</span>' : ''}</div>
+            ${item.status_summary ? `<div class="status-timeline-summary">${escapeHtml(item.status_summary)}</div>` : ''}
+            <div class="status-timeline-time">${escapeHtml(formatDateUTC8(item.started_at))}${item.ended_at ? ` — ${escapeHtml(formatDateUTC8(item.ended_at))}` : ' — 至今'}</div>
+          </div>
+        </article>`;
+      }).join('');
+      requestAnimationFrame(() => { timeline.scrollLeft = Math.max(0, timeline.scrollWidth - timeline.clientWidth); });
+    } catch (e) {
+      track.innerHTML = `<div class="status-timeline-empty">状态历程暂时无法加载</div>`;
+      console.warn('[status-timeline]', e);
+    }
+  }
+
+  function setupStatusTimelineWheel() {
+    const timeline = document.getElementById('statusTimeline');
+    if (!timeline || timeline.dataset.wheelReady === '1') return;
+    timeline.dataset.wheelReady = '1';
+    timeline.addEventListener('wheel', e => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      if (timeline.scrollWidth <= timeline.clientWidth) return;
+      e.preventDefault();
+      timeline.scrollLeft += e.deltaY;
+    }, { passive: false });
+  }
+
+    function setupAdminLoginUI() {
     const modal = document.getElementById('adminLoginModal');
     const form = document.getElementById('adminLoginForm');
     const closeBtn = document.getElementById('closeAdminLoginBtn');
@@ -4188,10 +4051,10 @@
       <p class="home-kicker">Personal Site</p>
       <div class="home-name-row">
         <h1 class="home-name">${profileData.name || 'MaxSui'}</h1>
-        <div class="home-status" title="状态（管理员可在后台修改）">
+        <button type="button" class="home-status${profileData.statusSummary ? ' has-summary' : ''}" id="homeStatusButton" title="点击查看状态简述">
           <span class="home-status-dot ${statusType}"></span>
           <span class="home-status-text">${statusText}</span>
-        </div>
+        </button>
       </div>
       <p class="home-meta-row">${grade}${age ? ' · ' + age : ''}</p>
       <p class="home-bio">${profileData.bio || ''}</p>
@@ -4201,6 +4064,8 @@
         <a href="#contact" class="nav-btn apple-secondary-btn" style="text-decoration:none;"><i class="fas fa-paper-plane"></i> 联系</a>
       </div>
     `;
+
+    setupHomeStatusDetail();
 
     if (avatarContainer) {
       avatarContainer.innerHTML = `<div class="avatar-circle-placeholder" id="homeAvatarPlaceholder"></div>`;
@@ -4298,11 +4163,16 @@
             profileData.statusType = String(
               payload.status_type ?? payload.statusType ?? profileData.statusType ?? 'online'
             ).toLowerCase();
+            profileData.statusSummary = String(
+              payload.status_summary ?? payload.statusSummary ?? profileData.statusSummary ?? ''
+            );
           }
         }
       } catch (e) {}
       routeLoadState.profile = true;
       renderProfile();
+      setupStatusTimelineWheel();
+      loadStatusTimeline();
       return profileData;
     })();
     try {
@@ -5016,30 +4886,6 @@
     trailHasLast = false;
   }, { passive: true });
 
-  // iframe 拥有独立的浏览上下文，鼠标进入 iframe 后父文档不再收到 mousemove。
-  // 因此在 iframe 元素本身进入/离开时控制自定义小圆点，避免它卡在 iframe 边框。
-  function bindIframeCursorVisibility(root = document) {
-    if (!customCursor || !root || !root.querySelectorAll) return;
-    root.querySelectorAll('iframe').forEach((iframe) => {
-      if (iframe.dataset.cursorBridge === '1') return;
-      iframe.dataset.cursorBridge = '1';
-      iframe.addEventListener('mouseenter', () => {
-        setCursorVisible(false);
-        trailHasLast = false;
-      }, { passive: true });
-      iframe.addEventListener('mouseleave', (e) => {
-        // 离开 iframe 后父文档下一次 mousemove 会重新定位小圆点。
-        setCursorVisible(false);
-        trailHasLast = false;
-        if (e.relatedTarget && e.relatedTarget.nodeType === 1) {
-          const r = e.relatedTarget.getBoundingClientRect?.();
-          if (r) moveCustomCursor(e.clientX, e.clientY);
-        }
-      }, { passive: true });
-    });
-  }
-  bindIframeCursorVisibility();
-
   document.addEventListener('mousedown', function(e) {
     if (e.button !== 0 && e.button !== 2) return;
     startPointerEffects(e.clientX, e.clientY, e.button === 2, e.target);
@@ -5449,18 +5295,14 @@
 
 
   // ============================================================
-  // Fluent Reveal Highlight（仅保留液态玻璃局部高亮边框）
-  // 性能优化：缓存节点与几何信息；每帧只更新鼠标所在卡片。
+  // Fluent Reveal Highlight — 仅液态玻璃边框；坐标始终以当前真实 DOMRect 为准
   // ============================================================
-  const REVEAL_SELECTOR = '.glass-card, .blog-list .blog-card, .work-card, .blog-white-box, .theme-rail-inner';
+  const REVEAL_SELECTOR = '.blog-list .blog-card, .work-card, .glass-card.win7-business-card, .glass-card.admin-card';
   let revealEnabled = false;
   let revealRaf = 0;
   let revealLastX = 0;
   let revealLastY = 0;
-  let revealHosts = [];
-  let revealActive = null;
-  let revealGeometryDirty = true;
-  let revealObservers = [];
+  let revealActiveHost = null;
 
   function canUseRevealHighlight() {
     try {
@@ -5476,7 +5318,6 @@
     if (!el || el.dataset.revealReady === '1') return;
     el.dataset.revealReady = '1';
     el.classList.add('reveal-host');
-    // 只保留边框层；不再创建鼠标周围的 fill 光晕。
     const border = document.createElement('span');
     border.className = 'reveal-border';
     border.setAttribute('aria-hidden', 'true');
@@ -5486,85 +5327,41 @@
   function prepareRevealHosts() {
     if (!revealEnabled) return;
     document.querySelectorAll(REVEAL_SELECTOR).forEach(ensureRevealLayers);
-    revealHosts = Array.from(document.querySelectorAll(REVEAL_SELECTOR));
-    revealGeometryDirty = true;
   }
 
-  function refreshRevealGeometry() {
-    if (!revealEnabled || !revealGeometryDirty) return;
-    revealHosts = revealHosts.filter((el) => el && el.isConnected);
-    revealHosts.forEach((el) => {
-      const r = el.getBoundingClientRect();
-      el._revealRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
-    });
-    revealGeometryDirty = false;
-  }
-
-  function setRevealActive(el) {
-    if (revealActive === el) return;
-    if (revealActive) revealActive.classList.remove('is-reveal-active');
-    revealActive = el || null;
-    if (revealActive) revealActive.classList.add('is-reveal-active');
-  }
-
-  function findRevealHostAtPoint(clientX, clientY) {
-    // elementFromPoint 使用浏览器当前实际布局/transform 后的坐标，
-    // 避免仅依赖缓存 rect 导致动画、视差或滚动期间出现 Reveal 错位。
-    let node = document.elementFromPoint(clientX, clientY);
-    if (!node) return null;
-    if (node.nodeType !== 1) node = node.parentElement;
-    if (!node) return null;
-
-    const selector = REVEAL_SELECTOR;
-    let host = node.closest && node.closest(selector);
-    if (host && host.isConnected) return host;
-
-    // iframe 内部 DOM 不属于父文档；elementFromPoint 会返回 iframe 本身，
-    // 因此从 iframe 向父级继续找 Reveal 容器。
-    if (node.tagName === 'IFRAME') {
-      host = node.parentElement && node.parentElement.closest(selector);
-      if (host && host.isConnected) return host;
+  function clearRevealActive() {
+    if (revealActiveHost) {
+      revealActiveHost.classList.remove('is-reveal-active');
+      revealActiveHost = null;
     }
-    return null;
   }
 
   function updateRevealAt(clientX, clientY) {
     if (!revealEnabled) return;
+    prepareRevealHosts();
+    const target = document.elementFromPoint(clientX, clientY);
+    const host = target?.closest?.(REVEAL_SELECTOR) || null;
+    if (!host || !host.isConnected) { clearRevealActive(); return; }
 
-    let hit = findRevealHostAtPoint(clientX, clientY);
-
-    // elementFromPoint 在某些 pointer-events/玻璃层组合下可能拿不到宿主，
-    // 仅在失败时使用缓存 rect 做兜底；正常路径不会遍历所有卡片。
-    if (!hit) {
-      refreshRevealGeometry();
-      for (let i = revealHosts.length - 1; i >= 0; i--) {
-        const el = revealHosts[i];
-        const rect = el._revealRect;
-        if (!rect) continue;
-        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-          hit = el;
-          break;
-        }
-      }
-    }
-
-    if (!hit) {
-      setRevealActive(null);
-      return;
-    }
-
-    // 每次真正命中时重新读取当前 rect，确保 transform/scroll/动画中的坐标绝对准确。
-    const r = hit.getBoundingClientRect();
-    const rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    // 关键：每一帧对当前真实玻璃面板重新取 DOMRect。
+    // 博客阅读/返回、transform、滚动、动画都不会再使用旧坐标。
+    const rect = host.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) { clearRevealActive(); return; }
     const x = clientX - rect.left;
     const y = clientY - rect.top;
-    hit.style.setProperty('--reveal-x', x + 'px');
-    hit.style.setProperty('--reveal-y', y + 'px');
-
+    const pad = 170;
+    if (clientX < rect.left - pad || clientX > rect.right + pad || clientY < rect.top - pad || clientY > rect.bottom + pad) {
+      clearRevealActive();
+      return;
+    }
+    if (revealActiveHost && revealActiveHost !== host) revealActiveHost.classList.remove('is-reveal-active');
+    revealActiveHost = host;
+    host.style.setProperty('--reveal-x', `${x}px`);
+    host.style.setProperty('--reveal-y', `${y}px`);
     const edgeDist = Math.min(x, rect.width - x, y, rect.height - y);
-    const edgeBoost = Math.max(0.22, Math.min(1, 1 - edgeDist / 360));
-    hit.style.setProperty('--reveal-edge', String(edgeBoost));
-    setRevealActive(hit);
+    const edgeBoost = Math.max(0, 1 - edgeDist / 110);
+    host.style.setProperty('--reveal-edge', String(0.28 + edgeBoost * 0.72));
+    host.classList.add('is-reveal-active');
   }
 
   function onRevealPointerMove(e) {
@@ -5577,60 +5374,46 @@
     });
   }
 
-  function onRevealPointerLeave() {
-    setRevealActive(null);
-  }
+  function onRevealPointerLeave() { clearRevealActive(); }
 
-  function markRevealGeometryDirty() {
-    revealGeometryDirty = true;
-    if (revealRaf) return;
-    revealRaf = requestAnimationFrame(() => {
-      revealRaf = 0;
-      refreshRevealGeometry();
-      if (revealActive) updateRevealAt(revealLastX, revealLastY);
-    });
+  function refreshRevealAfterLayout() {
+    if (!revealEnabled || !revealRaf) {
+      if (revealEnabled) updateRevealAt(revealLastX, revealLastY);
+    }
   }
 
   function setupRevealHighlight() {
     const enable = canUseRevealHighlight();
-    if (enable === revealEnabled) {
-      if (enable) prepareRevealHosts();
-      return;
-    }
+    if (enable === revealEnabled) { if (enable) prepareRevealHosts(); return; }
     revealEnabled = enable;
-
     if (enable) {
       document.addEventListener('pointermove', onRevealPointerMove, { passive: true });
-      window.addEventListener('blur', onRevealPointerLeave, { passive: true });
-      window.addEventListener('resize', markRevealGeometryDirty, { passive: true });
-      window.addEventListener('scroll', markRevealGeometryDirty, { passive: true });
+      window.addEventListener('blur', onRevealPointerLeave);
+      window.addEventListener('resize', refreshRevealAfterLayout, { passive: true });
       document.body.classList.add('has-reveal-highlight');
       prepareRevealHosts();
-
-      const watch = (selector) => {
-        const target = document.querySelector(selector);
-        if (!target || target._revealObs) return;
-        const obs = new MutationObserver(() => {
-          prepareRevealHosts();
-          markRevealGeometryDirty();
-        });
-        target._revealObs = obs;
-        obs.observe(target, { childList: true, subtree: true });
-        revealObservers.push(obs);
-      };
-      watch('#blogList');
-      watch('#worksGrid');
+      const blogList = document.getElementById('blogList');
+      if (blogList && !blogList._revealObs) {
+        blogList._revealObs = new MutationObserver(() => { prepareRevealHosts(); refreshRevealAfterLayout(); });
+        blogList._revealObs.observe(blogList, { childList: true, subtree: true });
+      }
+      const worksGrid = document.getElementById('worksGrid');
+      if (worksGrid && !worksGrid._revealObs) {
+        worksGrid._revealObs = new MutationObserver(() => { prepareRevealHosts(); refreshRevealAfterLayout(); });
+        worksGrid._revealObs.observe(worksGrid, { childList: true, subtree: true });
+      }
+      // 博客阅读视图切换会改变 transform / 几何位置；动画期间持续刷新，但不遍历所有卡片。
+      const blogPanel = document.getElementById('blog');
+      if (blogPanel && !blogPanel._revealLayoutObs) {
+        blogPanel._revealLayoutObs = new ResizeObserver(() => refreshRevealAfterLayout());
+        blogPanel._revealLayoutObs.observe(blogPanel);
+      }
     } else {
       document.removeEventListener('pointermove', onRevealPointerMove);
       window.removeEventListener('blur', onRevealPointerLeave);
-      window.removeEventListener('resize', markRevealGeometryDirty);
-      window.removeEventListener('scroll', markRevealGeometryDirty);
-      revealObservers.forEach((obs) => obs.disconnect());
-      revealObservers = [];
+      window.removeEventListener('resize', refreshRevealAfterLayout);
       document.body.classList.remove('has-reveal-highlight');
-      setRevealActive(null);
-      revealHosts = [];
-      revealGeometryDirty = true;
+      onRevealPointerLeave();
     }
   }
 
@@ -5641,6 +5424,7 @@
     const apiOk = !(bootResult && bootResult.apiOk === false);
 
     renderProfile();
+    setupStatusTimelineWheel();
     // 博客/作品改为路由懒加载，初始化只放占位
     const worksGrid = document.getElementById('worksGrid');
     if (worksGrid) worksGrid.innerHTML = '<div class="loading-placeholder">滑动进入后加载作品...</div>';
@@ -5655,11 +5439,6 @@
     setupBlogScrollHeights();
     updateBlogScroll();
     updateGlobalAvatarPosition();
-
-    // Reveal 是纯前端视觉效果，不应该依赖 API。
-    // 原版本在 API 不可达时提前 return，导致 Reveal 根本不会初始化。
-    setupRevealHighlight();
-    window.addEventListener('resize', setupRevealHighlight, { passive: true });
 
     if (!apiOk) {
       applyApiOfflineHomeMode();
@@ -5682,6 +5461,9 @@
       if (slug) openArticleReader(slug);
       else if (isArticleReading) closeArticleReader();
     });
+
+    setupRevealHighlight();
+    window.addEventListener('resize', setupRevealHighlight, { passive: true });
 
     setTimeout(() => {
       setupBlogScrollHeights();

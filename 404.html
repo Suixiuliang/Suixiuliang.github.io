@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
@@ -118,14 +118,16 @@
     </div>
     <div class="calendar-body">
       <form id="adminLoginForm" class="admin-login-form" autocomplete="off">
-        <label class="admin-field">
-          <span>用户名</span>
-          <input type="text" id="adminUsername" name="username" required placeholder="请输入用户名" autocomplete="username">
-        </label>
-        <label class="admin-field">
-          <span>密码</span>
-          <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
-        </label>
+        <div id="adminLoginFields">
+          <label class="admin-field">
+            <span>用户名</span>
+            <input type="text" id="adminUsername" name="username" required placeholder="请输入用户名" autocomplete="username">
+          </label>
+          <label class="admin-field">
+            <span>密码</span>
+            <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
+          </label>
+        </div>
         <div id="authedRegisterFields" hidden>
           <label class="admin-field">
             <span>用户名</span>
@@ -162,6 +164,19 @@
           <div class="loading-placeholder">加载中...</div>
         </div>
         <div class="home-avatar-side" id="avatarContainer"></div>
+      </div>
+    </div>
+
+    <!-- ===== 个人状态历史时间线 ===== -->
+    <div class="status-timeline-section" id="statusTimelineSection" aria-label="个人状态历程">
+      <div class="status-timeline-header">
+        <span class="status-timeline-title"><i class="fas fa-history"></i> 状态历程</span>
+        <span class="status-timeline-hint"> (◍•ᴗ•◍)❤ </span>
+      </div>
+      <div class="status-timeline" id="statusTimeline" tabindex="0">
+        <div class="status-timeline-track" id="statusTimelineTrack">
+          <div class="status-timeline-loading">加载状态历史…</div>
+        </div>
       </div>
     </div>
   </section>
