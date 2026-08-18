@@ -1650,49 +1650,134 @@
     });
   }
 
+  // Markdown 代码高亮：优先使用 highlight.js；即使 CDN 加载失败，也使用本地轻量兜底，
+  // 避免代码块退化成“全部白色”。
+  function escapeCodeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function fallbackHighlightCode(source, language) {
+    const lang = String(language || '').toLowerCase();
+    const code = String(source || '');
+    const isJsLike = /^(js|javascript|jsx|ts|typescript|tsx|json|css|scss|less)$/.test(lang);
+    const isCppLike = /^(c|cpp|c\+\+|h|hpp|java|csharp|cs|go|rust|swift|kotlin|php)$/.test(lang);
+    const isPythonLike = /^(py|python)$/.test(lang);
+    const isHtmlLike = /^(html|xml|svg|xhtml)$/.test(lang);
+    const isShellLike = /^(bash|sh|shell|zsh|powershell|ps|bat|cmd)$/.test(lang);
+    const isSqlLike = /^(sql|mysql|postgres|postgresql)$/.test(lang);
+    if (!(isJsLike || isCppLike || isPythonLike || isHtmlLike || isShellLike || isSqlLike)) {
+      return escapeCodeHtml(code);
+    }
+
+    const strings = [];
+    const stash = (html) => {
+      const i = strings.length;
+      strings.push(html);
+      return `\uE100${i}\uE101`;
+    };
+
+    let s = escapeCodeHtml(code);
+    // 字符串 / 模板字符串 / HTML 属性值先保护，避免后面的关键字规则误伤。
+    s = s.replace(/(&quot;|&quot;|\"|\')(?:(?!\1)[\s\S])*?\1/g, (m) => stash(`<span class="hljs-string">${m}</span>`));
+    s = s.replace(/`[^`]*`/g, (m) => stash(`<span class="hljs-string">${m}</span>`));
+
+    const commentPattern = isPythonLike || isShellLike || isSqlLike
+      ? /(^|\n)(\s*#.*|\s*--.*)/g
+      : /(\/\*[\s\S]*?\*\/|\/\/[^\n]*)/g;
+    s = s.replace(commentPattern, (m, prefix, comment) => {
+      if (prefix !== undefined) return prefix + stash(`<span class="hljs-comment">${comment}</span>`);
+      return stash(`<span class="hljs-comment">${m}</span>`);
+    });
+
+    const keywordSets = {
+      python: 'and as assert async await break case class continue def del elif else except finally for from global if import in is lambda match nonlocal not or pass raise return try while with yield',
+      cpp: 'alignas alignof and asm auto bool break case catch char class const constexpr continue default delete do double else enum explicit export extern false float for friend if inline int long namespace new noexcept nullptr operator private protected public register reinterpret_cast return short signed sizeof static struct switch template this throw true try typedef typename union unsigned using virtual void volatile wchar_t while',
+      csharp: 'abstract as base bool break byte case catch char class const continue decimal default delegate do double else enum event explicit extern false finally fixed float for foreach goto if implicit in int interface internal is lock long namespace new null object operator out override params private protected public readonly ref return sbyte sealed short sizeof stackalloc static string struct switch this throw true try typeof uint ulong unchecked unsafe ushort using virtual void volatile while var async await',
+      java: 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long native new null package private protected public return short static strictfp super switch synchronized this throw throws transient true try void volatile while',
+      javascript: 'as async await break case catch class const continue debugger default delete do else export extends false finally for from function get if import in instanceof let new null of return set static super switch this throw true try typeof undefined var void while with yield',
+      typescript: 'as async await break case catch class const continue debugger declare default delete do else export extends false finally for from function get if implements import in infer instanceof interface is keyof let module namespace never new null number object of private protected public readonly return set static string super switch symbol this throw true try type typeof undefined var void while with yield',
+      sql: 'select from where and or not insert into update delete create alter drop table database index join inner left right full outer on as distinct group by order having limit offset values set null is like in exists union all case when then else end asc desc',
+      go: 'break default func interface select case defer go map struct chan else goto package switch const fallthrough if range type continue for import return var',
+      rust: 'as async await break const continue crate dyn else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while',
+    };
+    let keyName = lang === 'c++' ? 'cpp' : (lang === 'c#' ? 'csharp' : lang);
+    let keywords = keywordSets[keyName] || keywordSets.javascript;
+    if (isPythonLike) keywords = keywordSets.python;
+    if (isSqlLike) keywords = keywordSets.sql;
+    if (lang === 'go') keywords = keywordSets.go;
+    if (lang === 'rust') keywords = keywordSets.rust;
+    const kw = new Set(keywords.split(/\s+/));
+    s = s.replace(/\b[A-Za-z_$][\w$]*\b/g, (m) => {
+      if (kw.has(m)) return `<span class="hljs-keyword">${m}</span>`;
+      if (/^(true|false|null|undefined|None|True|False|nil)$/i.test(m)) return `<span class="hljs-literal">${m}</span>`;
+      return m;
+    });
+    s = s.replace(/\b(?:0x[\da-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g, '<span class="hljs-number">$&</span>');
+    s = s.replace(/(^|[\s(,;])([A-Za-z_$][\w$]*)(?=\s*\()/g, '$1<span class="hljs-title function_">$2</span>');
+
+    strings.forEach((value, i) => {
+      s = s.replace(`\uE100${i}\uE101`, value);
+    });
+    return s;
+  }
+
   function highlightArticleCode(root) {
     if (!root) return;
     bindCodeCopyButtons(root);
+    const blocks = root.querySelectorAll('pre code');
+    if (!blocks.length) return;
+
     const run = () => {
-      if (typeof window.hljs === 'undefined') return false;
-      const blocks = root.querySelectorAll('pre code');
-      if (!blocks.length) return true;
+      const hasHljs = typeof window.hljs !== 'undefined';
       blocks.forEach((block) => {
         if (block.dataset.hljsDone === '1') return;
         try {
-          // 从 class="language-xxx" 取语言；兼容 c++ / cpp
           let lang = '';
           const m = (block.className || '').match(/language-([a-zA-Z0-9_+#.-]+)/);
           if (m) lang = m[1].toLowerCase();
           if (lang === 'c++') lang = 'cpp';
           if (lang === 'c#') lang = 'csharp';
           if (lang === 'text' || lang === 'plain') lang = '';
+          const src = block.textContent || '';
 
-          if (lang && window.hljs.getLanguage && window.hljs.getLanguage(lang) && window.hljs.highlight) {
-            const src = block.textContent || '';
+          if (hasHljs && lang && window.hljs.getLanguage && window.hljs.getLanguage(lang) && window.hljs.highlight) {
             const result = window.hljs.highlight(src, { language: lang, ignoreIllegals: true });
             block.innerHTML = result.value;
+            block.classList.add('hljs', 'language-' + lang);
+          } else if (hasHljs && typeof window.hljs.highlightElement === 'function') {
             block.classList.add('hljs');
-            if (!block.classList.contains('language-' + lang)) {
-              block.classList.add('language-' + lang);
-            }
-          } else if (typeof window.hljs.highlightElement === 'function') {
             window.hljs.highlightElement(block);
-          } else if (typeof window.hljs.highlightBlock === 'function') {
-            window.hljs.highlightBlock(block);
+          } else {
+            block.innerHTML = fallbackHighlightCode(src, lang);
+            block.classList.add('hljs');
           }
           block.dataset.hljsDone = '1';
         } catch (err) {
-          console.warn('[hljs]', err);
+          console.warn('[code-highlight]', err);
+          block.innerHTML = fallbackHighlightCode(block.textContent || '', lang);
+          block.classList.add('hljs');
+          block.dataset.hljsDone = '1';
         }
       });
-      return true;
+      return hasHljs;
     };
-    if (!run() || (typeof window.hljs === 'undefined')) {
+
+    // 先立即兜底着色；highlight.js 到达后再用其完整语法树重新着色。
+    run();
+    if (typeof window.hljs === 'undefined') {
       let n = 0;
       const timer = setInterval(() => {
         n += 1;
-        if ((typeof window.hljs !== 'undefined' && run()) || n > 60) clearInterval(timer);
+        if (typeof window.hljs !== 'undefined') {
+          blocks.forEach((block) => { delete block.dataset.hljsDone; });
+          run();
+          clearInterval(timer);
+        } else if (n > 100) {
+          clearInterval(timer);
+        }
       }, 50);
     }
   }
@@ -2746,7 +2831,8 @@
       }
       startGuestCodeCountdown();
     } catch (e) {
-      if (authRole && authRole !== 'admin') {
+      // Guest 角色不展示邀请码；Admin / Authed User 展示错误
+      if (authRole === 'guest') {
         if (card) card.hidden = true;
         stopGuestCodeTimer();
         return;
@@ -2754,6 +2840,7 @@
       codeEl.textContent = '获取失败';
       guestCodeValue = '';
       if (metaEl) metaEl.textContent = String(e.message || e);
+      if (card) card.hidden = false;
     }
   }
 
@@ -3060,7 +3147,7 @@
               <h3><i class="fas fa-shield-alt"></i> 会话</h3>
               <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">当前身份：${escapeHtml(info.label)}。已通过 API Session Cookie 登录，退出后需重新验证。</p>
               ${showInvite ? `
-              <div class="admin-guest-code-card" id="adminGuestCodeCard" hidden>
+              <div class="admin-guest-code-card" id="adminGuestCodeCard">
                 <div><strong><i class="fas fa-ticket-alt"></i> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
                 <code id="adminGuestCode">加载中…</code>
                 <div class="admin-guest-code-actions">
@@ -5105,6 +5192,132 @@
   });
 
 
+
+  // ============================================================
+  //  Fluent Reveal Highlight（液态玻璃边框光 + 内部光斑，仅桌面）
+  //  使用真实 DOM 层而非 ::before/::after，避免与玻璃伪元素冲突
+  // ============================================================
+  const REVEAL_SELECTOR = '.glass-card, .blog-list .blog-card, .work-card, .blog-white-box, .theme-rail-inner';
+  let revealEnabled = false;
+  let revealRaf = 0;
+  let revealLastX = 0;
+  let revealLastY = 0;
+
+  function canUseRevealHighlight() {
+    try {
+      if (window.matchMedia('(max-width: 480px)').matches) return false;
+      if (window.matchMedia('(hover: none)').matches) return false;
+      if (window.matchMedia('(pointer: coarse)').matches) return false;
+      if (document.documentElement.classList.contains('is-phone')) return false;
+    } catch (_) {}
+    return true;
+  }
+
+  function ensureRevealLayers(el) {
+    if (!el || el.dataset.revealReady === '1') return;
+    el.dataset.revealReady = '1';
+    el.classList.add('reveal-host');
+    const fill = document.createElement('span');
+    fill.className = 'reveal-fill';
+    fill.setAttribute('aria-hidden', 'true');
+    const border = document.createElement('span');
+    border.className = 'reveal-border';
+    border.setAttribute('aria-hidden', 'true');
+    el.insertBefore(border, el.firstChild);
+    el.insertBefore(fill, el.firstChild);
+  }
+
+  function prepareRevealHosts() {
+    if (!revealEnabled) return;
+    document.querySelectorAll(REVEAL_SELECTOR).forEach(ensureRevealLayers);
+  }
+
+  function updateRevealAt(clientX, clientY) {
+    if (!revealEnabled) return;
+    prepareRevealHosts();
+    document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const pad = 56;
+      if (
+        clientX < rect.left - pad ||
+        clientX > rect.right + pad ||
+        clientY < rect.top - pad ||
+        clientY > rect.bottom + pad
+      ) {
+        el.classList.remove('is-reveal-active');
+        return;
+      }
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      el.style.setProperty('--reveal-x', x + 'px');
+      el.style.setProperty('--reveal-y', y + 'px');
+      // Windows 10 Reveal：鼠标越靠近玻璃边缘，边缘高光越强。
+      // 卡片中心仍保留很弱的玻璃折射光，不出现整圈常亮白边。
+      const dl = x;
+      const dr = rect.width - x;
+      const dt = y;
+      const db = rect.height - y;
+      const edgeDist = Math.min(dl, dr, dt, db);
+      const edgeBoost = Math.max(0, 1 - edgeDist / 96);
+      const revealEdge = Math.min(1, edgeBoost * 0.92);
+      el.style.setProperty('--reveal-edge', String(revealEdge));
+      el.classList.add('is-reveal-active');
+    });
+  }
+
+  function onRevealPointerMove(e) {
+    revealLastX = e.clientX;
+    revealLastY = e.clientY;
+    if (revealRaf) return;
+    revealRaf = requestAnimationFrame(() => {
+      revealRaf = 0;
+      updateRevealAt(revealLastX, revealLastY);
+    });
+  }
+
+  function onRevealPointerLeave() {
+    document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
+      el.classList.remove('is-reveal-active');
+    });
+  }
+
+  function setupRevealHighlight() {
+    const enable = canUseRevealHighlight();
+    if (enable === revealEnabled) {
+      if (enable) prepareRevealHosts();
+      return;
+    }
+    revealEnabled = enable;
+    if (enable) {
+      document.addEventListener('pointermove', onRevealPointerMove, { passive: true });
+      window.addEventListener('blur', onRevealPointerLeave);
+      document.body.classList.add('has-reveal-highlight');
+      prepareRevealHosts();
+      // 博客列表异步渲染后补一次
+      const blogList = document.getElementById('blogList');
+      if (blogList && !blogList._revealObs) {
+        blogList._revealObs = new MutationObserver(() => prepareRevealHosts());
+        blogList._revealObs.observe(blogList, { childList: true, subtree: true });
+      }
+      const worksGrid = document.getElementById('worksGrid');
+      if (worksGrid && !worksGrid._revealObs) {
+        worksGrid._revealObs = new MutationObserver(() => prepareRevealHosts());
+        worksGrid._revealObs.observe(worksGrid, { childList: true, subtree: true });
+      }
+
+      // 其它弹窗/动态区域中的 glass-card 也自动获得 Reveal。
+      if (!document.body._revealObs) {
+        document.body._revealObs = new MutationObserver(() => prepareRevealHosts());
+        document.body._revealObs.observe(document.body, { childList: true, subtree: true });
+      }
+    } else {
+      document.removeEventListener('pointermove', onRevealPointerMove);
+      window.removeEventListener('blur', onRevealPointerLeave);
+      document.body.classList.remove('has-reveal-highlight');
+      onRevealPointerLeave();
+    }
+  }
+
   // ---------- 初始化 ----------
   async function init() {
     loadSpriteImage();
@@ -5126,6 +5339,11 @@
     setupBlogScrollHeights();
     updateBlogScroll();
     updateGlobalAvatarPosition();
+
+    // Reveal 是纯前端视觉效果，不应该依赖 API。
+    // 原版本在 API 不可达时提前 return，导致 Reveal 根本不会初始化。
+    setupRevealHighlight();
+    window.addEventListener('resize', setupRevealHighlight, { passive: true });
 
     if (!apiOk) {
       applyApiOfflineHomeMode();
@@ -5154,6 +5372,7 @@
       updateBlogScroll();
       updateGlobalAvatarPosition();
       updateCapsuleFromScroll();
+      prepareRevealHosts();
     }, 500);
   }
 

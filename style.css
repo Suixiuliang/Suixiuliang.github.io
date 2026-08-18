@@ -295,6 +295,7 @@ body {
   width: 38px;
   height: 38px;
   border-radius: var(--radius-circle);
+  transform-origin: center center;
   background: rgba(255, 255, 255, 0.13);
   backdrop-filter: blur(12px) saturate(160%);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
@@ -1082,7 +1083,7 @@ a.blog-list .blog-card,
   text-decoration: none;
   color: inherit;
 }
-.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.15); }
+.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.12); }
 .blog-list .blog-card:focus-visible {
   outline: 2px solid rgba(0, 113, 227, 0.7);
   outline-offset: 2px;
@@ -1435,7 +1436,7 @@ a.blog-list .blog-card,
   border-left: 3px solid rgba(0, 113, 227, 0.7);
   color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: 4px;
 }
 
 .boot-loader {
@@ -1664,9 +1665,12 @@ a.blog-list .blog-card,
   margin-left: auto;
   transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+.work-circle-btn {
+  transform-origin: center center;
+}
 .work-circle-btn:hover {
   background: #0071e3;
-  transform: scale(1.08) translateY(-2px);
+  transform: scale(calc(13 / 12));
   border-color: rgba(255, 255, 255, 0.55);
   box-shadow:
     0 8px 20px rgba(0, 113, 227, 0.45),
@@ -1719,9 +1723,12 @@ a.blog-list .blog-card,
   color: #ffffff; font-size: 1.3rem; text-decoration: none;
   transition: all 0.25s ease;
 }
+.social-circle-btn {
+  transform-origin: center center;
+}
 .social-circle-btn:hover {
   background: rgba(255, 255, 255, 0.22);
-  transform: translateY(-4px) scale(1.05);
+  transform: scale(calc(13 / 12));
   border-color: rgba(255, 255, 255, 0.48);
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.22),
@@ -2040,13 +2047,13 @@ a.blog-list .blog-card,
   transform: translateY(-1px) scale(1.02);
 }
 .work-circle-btn:hover {
-  transform: scale(1.08) translateY(-2px);
+  transform: scale(calc(13 / 12));
 }
 .social-circle-btn:hover {
-  transform: translateY(-3px) scale(1.04);
+  transform: scale(calc(13 / 12));
 }
 .calendar-btn:hover {
-  transform: scale(1.06);
+  transform: scale(calc(13 / 12));
 }
 .apple-primary-btn:active,
 .apple-secondary-btn:active,
@@ -2815,6 +2822,27 @@ body.is-reading-article .reading-dim-layer {
 }
 .blog-article-body .md-code-window .hljs-addition { color: #b5cea8; }
 .blog-article-body .md-code-window .hljs-deletion { color: #ce9178; }
+
+/* 代码高亮最终兜底：覆盖全局代码颜色，确保 token 不会被玻璃主题冲成纯白 */
+.blog-article-body .md-code-window pre code.hljs .hljs-keyword,
+.blog-article-body .md-code-window pre code.hljs .hljs-selector-tag,
+.blog-article-body .md-code-window pre code.hljs .hljs-built_in,
+.blog-article-body .md-code-window pre code.hljs .hljs-literal { color: #569cd6 !important; }
+.blog-article-body .md-code-window pre code.hljs .hljs-string,
+.blog-article-body .md-code-window pre code.hljs .hljs-attr,
+.blog-article-body .md-code-window pre code.hljs .hljs-attribute { color: #ce9178 !important; }
+.blog-article-body .md-code-window pre code.hljs .hljs-number { color: #b5cea8 !important; }
+.blog-article-body .md-code-window pre code.hljs .hljs-comment,
+.blog-article-body .md-code-window pre code.hljs .hljs-quote { color: #6a9955 !important; font-style: italic; }
+.blog-article-body .md-code-window pre code.hljs .hljs-title,
+.blog-article-body .md-code-window pre code.hljs .hljs-title.function_,
+.blog-article-body .md-code-window pre code.hljs .hljs-section { color: #dcdcaa !important; }
+.blog-article-body .md-code-window pre code.hljs .hljs-type,
+.blog-article-body .md-code-window pre code.hljs .hljs-class .hljs-title { color: #4ec9b0 !important; }
+.blog-article-body .md-code-window pre code.hljs .hljs-variable,
+.blog-article-body .md-code-window pre code.hljs .hljs-params { color: #9cdcfe !important; }
+.blog-article-body .md-code-window pre code.hljs .hljs-meta { color: #9b9b9b !important; }
+
 .blog-article-body .md-math-display {
   overflow-x: auto;
   margin: 1em 0;
@@ -2855,7 +2883,7 @@ body.is-reading-article .reading-dim-layer {
   border-left: 3px solid rgba(0, 113, 227, 0.7);
   color: rgba(255, 255, 255, 0.72);
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: 4px;
 }
 /* ============================================================
    QQ 状态：Apple 风格自定义下拉菜单
@@ -3231,7 +3259,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
   padding: 0.55rem 0.9rem;
   border-left: 3px solid rgba(96, 165, 250, 0.55);
   background: rgba(255,255,255,0.05);
-  border-radius: 0 12px 12px 0;
+  border-radius: 4px;
   line-height: 1.55;
 }
 
@@ -3500,3 +3528,137 @@ body.api-offline-lock #homeAvatarPlaceholder {
     display: none !important;
   }
 }
+
+/* ============================================================
+   Windows 10 Fluent Reveal + Liquid Glass Highlight
+   鼠标靠近卡片边缘时，光不是“描一圈白边”，而是：
+   1. 玻璃内部出现跟随鼠标的柔和折射光斑
+   2. 玻璃边缘出现局部高光带
+   3. 高光带随鼠标距离边缘实时增强/减弱
+   4. 保留原有液态玻璃背景、模糊、饱和度和阴影
+   ============================================================ */
+.reveal-host {
+  --reveal-x: 50%;
+  --reveal-y: 50%;
+  --reveal-edge: 0;
+  --reveal-radius: 150px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.reveal-host > .reveal-fill,
+.reveal-host > .reveal-border {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  will-change: opacity, background;
+}
+
+/* 玻璃内部跟随鼠标的局部光学照明 */
+.reveal-host > .reveal-fill {
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle var(--reveal-radius) at var(--reveal-x) var(--reveal-y),
+      rgba(255, 255, 255, 0.30) 0,
+      rgba(255, 255, 255, 0.15) 24%,
+      rgba(220, 238, 255, 0.075) 46%,
+      rgba(255, 255, 255, 0.025) 62%,
+      transparent 76%
+    );
+  mix-blend-mode: screen;
+  filter: saturate(125%);
+}
+
+/* 液态玻璃边缘高光：只有鼠标靠近边缘时才明显 */
+.reveal-host > .reveal-border {
+  z-index: 4;
+  padding: 1.35px;
+  background:
+    radial-gradient(
+      circle var(--reveal-radius) at var(--reveal-x) var(--reveal-y),
+      rgba(255, 255, 255, calc(0.98 * var(--reveal-edge))) 0,
+      rgba(238, 248, 255, calc(0.78 * var(--reveal-edge))) 18%,
+      rgba(190, 225, 255, calc(0.42 * var(--reveal-edge))) 36%,
+      rgba(255, 255, 255, calc(0.12 * var(--reveal-edge))) 52%,
+      transparent 72%
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter:
+    drop-shadow(0 0 1px rgba(255,255,255,0.42))
+    drop-shadow(0 0 8px rgba(210,235,255,calc(0.28 * var(--reveal-edge))));
+}
+
+/* 一点玻璃折射高光，避免看起来只是普通发光描边 */
+.reveal-host > .reveal-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      ellipse 90px 38px at var(--reveal-x) var(--reveal-y),
+      rgba(255,255,255,0.16),
+      transparent 72%
+    );
+  opacity: calc(0.75 * var(--reveal-edge));
+  mix-blend-mode: overlay;
+}
+
+.reveal-host.is-reveal-active > .reveal-fill,
+.reveal-host.is-reveal-active > .reveal-border {
+  opacity: 1;
+}
+
+/* 原内容压在 Reveal 光效之上 */
+.reveal-host > :not(.reveal-fill):not(.reveal-border) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Reveal 接管 hover 后，取消原来的整卡片突然变亮 */
+body.has-reveal-highlight .glass-card:hover,
+body.has-reveal-highlight .blog-list .blog-card:hover,
+body.has-reveal-highlight .work-card:hover,
+body.has-reveal-highlight .blog-white-box:hover,
+body.has-reveal-highlight .theme-rail-inner:hover {
+  transform: none;
+}
+
+body.has-reveal-highlight .glass-card:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 480px), (hover: none), (pointer: coarse) {
+  .reveal-host > .reveal-fill,
+  .reveal-host > .reveal-border {
+    display: none !important;
+  }
+}
+
+/* 圆形按钮：以自身圆心为缩放原点，悬停放大 1/12 */
+.work-circle-btn,
+.social-circle-btn,
+.calendar-btn {
+  transform-origin: center center;
+}
+
+/* 圆形按钮：以自身圆心为缩放原点，悬停放大 1/12 */
+.work-circle-btn,
+.social-circle-btn,
+.calendar-btn {
+  transform-origin: center center;
+}
+
