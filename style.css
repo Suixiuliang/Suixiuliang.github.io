@@ -603,9 +603,25 @@ body {
 .home-content {
   display: flex;
   align-items: center;
-  min-height: 0;
+  justify-content: center;
+  min-height: calc(100vh - 110px);
   height: auto;
-  padding-bottom: 0.4rem;
+}
+/* 信息栏+头像+时间线作为一组竖直居中 */
+.home-stack {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.1rem;
+}
+.home-avatar-side {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
 .home-layout {
   display: grid;
@@ -787,64 +803,6 @@ body {
 .home-actions .nav-btn {
   padding: 0.55rem 1.2rem;
   font-size: 0.9rem;
-}
-.home-avatar-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.85rem;
-  flex-shrink: 0;
-  min-width: 0;
-}
-.home-avatar-side {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-shrink: 0;
-}
-/* 头像下方当前状态（1.2× 基准字号/圆点） */
-.status-current-under-avatar {
-  width: 100%;
-  max-width: 280px;
-  text-align: center;
-  padding: 0 0.25rem;
-}
-.status-current-under-avatar:empty { display: none; }
-.status-current-under-avatar .status-timeline-item {
-  width: 100%;
-  flex: none;
-  padding-top: 0;
-}
-.status-current-under-avatar .status-timeline-dot {
-  width: 12px; /* 10 * 1.2 */
-  height: 12px;
-  margin: 0 auto 0.7rem;
-  box-shadow: 0 0 0 5px rgba(255,255,255,.08), 0 0 22px rgba(100,210,255,.24);
-}
-.status-current-under-avatar .status-timeline-status {
-  font-size: 1.008rem; /* 0.84 * 1.2 */
-  gap: 0.45rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.status-current-under-avatar .status-timeline-dot-mini {
-  width: 7.2px; /* 6 * 1.2 */
-  height: 7.2px;
-}
-.status-current-under-avatar .status-timeline-summary {
-  font-size: 0.816rem; /* 0.68 * 1.2 */
-  max-width: 260px;
-  margin-top: 0.35rem;
-}
-.status-current-under-avatar .status-timeline-time {
-  font-size: 0.744rem; /* 0.62 * 1.2 */
-  margin-top: 0.4rem;
-  white-space: normal;
-}
-.status-current-under-avatar .status-timeline-now {
-  font-size: 0.696rem; /* 0.58 * 1.2 */
-  padding: 0.1rem 0.36rem;
 }
 .avatar-circle-placeholder {
   width: 200px;
@@ -2126,12 +2084,11 @@ a.blog-list .blog-card,
 @media (max-width: 800px) {
   .panel-home { padding-left: .85rem; padding-right: .85rem; }
   .home-content { height: auto; min-height: calc(100vh - 105px); }
-  .status-timeline-section { width: 100%; max-width: none; margin-top: 0.8rem; }
+  .status-timeline-section { width: 100%; max-width: none; margin-top: 0; }
   .status-timeline-item { width: 152px; flex-basis: 152px; }
+  .status-timeline-item.is-current { width: 220px; flex-basis: 220px; }
   .status-timeline-track { padding-left: 1rem; padding-right: 1rem; }
   .status-timeline-line { left: 1rem; right: 1rem; top: 9.6px; }
-  .home-content { height: auto; min-height: 0; }
-  .status-current-under-avatar { max-width: 240px; }
   .glass-nav { max-width: 95vw; }
   .win7-business-card { flex-direction: column; text-align: center; padding: 2rem 1.5rem; }
   .win7-info-list { align-items: center; }
@@ -3668,27 +3625,21 @@ body.has-reveal-highlight .glass-card:hover {
 
 /* ===== 主页横向状态时间线：历史在右侧；当前状态在头像下方 ===== */
 .status-timeline-section {
-  width: min(1180px, calc(100% - 2rem));
+  width: 100%;
   max-width: 980px;
-  margin: 0.6rem auto 0;
-  padding: 0 0 1.4rem;
+  margin: 0 auto;
+  padding: 0;
+  align-self: center;
 }
-/* 桌面：历史时间线对齐头像列，视觉上在右侧延伸 */
+/* 桌面：时间线与主栏同宽上限 */
 @media (min-width: 901px) {
   .status-timeline-section {
-    display: grid;
-    grid-template-columns: 1.15fr 0.85fr;
-    gap: 2.5rem;
-    align-items: start;
+    max-width: 980px;
   }
-  .status-timeline-header {
-    grid-column: 2;
-  }
-  .status-timeline {
-    grid-column: 2;
-    /* 允许向右溢出滚动，占满剩余视口感 */
-    width: calc(100% + min(12vw, 120px));
-    max-width: calc(100vw - 4rem);
+  .home-layout {
+    max-width: 980px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 .status-timeline-header {
@@ -3727,12 +3678,16 @@ body.has-reveal-highlight .glass-card:hover {
   left: 1.25rem; right: 1.25rem; top: 9.6px; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.28) 3%, rgba(255,255,255,.28) 97%, transparent);
 }
-/* 历史状态：0.8× 基准字号/圆点 */
+/* 历史状态：0.8×；当前状态（.is-current）：1.2× */
 .status-timeline-item {
   position: relative;
   width: 184px; /* 230 * 0.8 */
   flex: 0 0 184px;
   padding-top: 0;
+}
+.status-timeline-item.is-current {
+  width: 276px; /* 230 * 1.2 */
+  flex: 0 0 276px;
 }
 .status-timeline-dot {
   position: relative; z-index: 2; display: block;
@@ -3741,29 +3696,61 @@ body.has-reveal-highlight .glass-card:hover {
   margin: 0 auto .58rem; border-radius: 50%;
   box-shadow: 0 0 0 3.2px rgba(255,255,255,.07), 0 0 13px rgba(255,255,255,.08);
 }
+.status-timeline-item.is-current .status-timeline-dot {
+  width: 12px; /* 10 * 1.2 */
+  height: 12px;
+  margin: 0 auto 0.72rem;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.08), 0 0 22px rgba(100,210,255,.24);
+}
 .status-timeline-card {
   padding: 0 .5rem; text-align: center;
+}
+.status-timeline-item.is-current .status-timeline-card {
+  padding: 0 .65rem;
 }
 .status-timeline-status {
   display:flex; align-items:center; justify-content:center;
   gap:.3rem; font-size:.672rem; /* 0.84 * 0.8 */
   font-weight:600; color:rgba(255,255,255,.9); white-space:nowrap;
 }
+.status-timeline-item.is-current .status-timeline-status {
+  font-size: 1.008rem; /* 0.84 * 1.2 */
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
 .status-timeline-dot-mini { width:4.8px; height:4.8px; border-radius:50%; flex:0 0 auto; } /* 6 * 0.8 */
+.status-timeline-item.is-current .status-timeline-dot-mini {
+  width: 7.2px;
+  height: 7.2px;
+}
 .status-timeline-summary {
   margin-top:.24rem; font-size:.544rem; /* 0.68 * 0.8 */
   line-height:1.45; color:rgba(255,255,255,.5);
   max-width:168px; margin-left:auto; margin-right:auto;
+}
+.status-timeline-item.is-current .status-timeline-summary {
+  font-size: 0.816rem;
+  max-width: 260px;
+  margin-top: 0.35rem;
 }
 .status-timeline-time {
   margin-top:.3rem; font-size:.496rem; /* 0.62 * 0.8 */
   line-height:1.35; color:rgba(255,255,255,.34);
   font-variant-numeric:tabular-nums; white-space:nowrap;
 }
+.status-timeline-item.is-current .status-timeline-time {
+  font-size: 0.744rem;
+  margin-top: 0.4rem;
+  white-space: normal;
+}
 .status-timeline-now {
   font-size:.464rem; /* 0.58 * 0.8 */
   font-weight:500; color:rgba(255,255,255,.55);
   padding:.06rem .24rem; border:1px solid rgba(255,255,255,.15); border-radius:999px;
+}
+.status-timeline-item.is-current .status-timeline-now {
+  font-size: 0.696rem;
+  padding: 0.1rem 0.36rem;
 }
 .status-timeline-empty, .status-timeline-loading { padding:.7rem 0; font-size:.78rem; color:rgba(255,255,255,.4); }
 .status-timeline-dot.online,.status-timeline-dot-mini.online { background:#34c759; }

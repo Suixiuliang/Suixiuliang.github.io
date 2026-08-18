@@ -3512,7 +3512,6 @@
   async function loadStatusTimeline() {
     const timeline = document.getElementById('statusTimeline');
     const track = document.getElementById('statusTimelineTrack');
-    const currentSlot = document.getElementById('statusCurrentUnderAvatar');
     if (!timeline || !track) return;
     try {
       const res = await fetch(`${API_BASE_URL}/profile/status-history?limit=300`, { credentials: 'include' });
@@ -3523,38 +3522,35 @@
 
       const currentItems = history.filter((item) => !item.ended_at);
       const pastItems = history.filter((item) => !!item.ended_at);
-      // 历史按时间从新到旧，显示在右侧
+      // 历史按时间从新到旧，显示在当前状态右侧
       pastItems.sort((a, b) => {
         const ta = new Date(a.started_at || 0).getTime();
         const tb = new Date(b.started_at || 0).getTime();
         return tb - ta;
       });
 
-      if (currentSlot) {
-        if (currentItems.length) {
-          currentSlot.innerHTML = buildStatusTimelineItemHtml(currentItems[0], labels, { isCurrent: true });
-        } else {
-          currentSlot.innerHTML = '';
-        }
-      }
-
       if (!history.length) {
         track.innerHTML = '<div class="status-timeline-empty">还没有可显示的状态历程</div>';
         return;
       }
 
-      if (!pastItems.length) {
-        track.innerHTML = '<div class="status-timeline-empty">暂无历史状态</div>';
+      // 时间线：当前状态在左（1.2×），历史在右（0.8×）；不再单独画一份
+      const currentHtml = currentItems.length
+        ? buildStatusTimelineItemHtml(currentItems[0], labels, { isCurrent: true })
+        : '';
+      const pastHtml = pastItems.map((item) =>
+        buildStatusTimelineItemHtml(item, labels, { isCurrent: false })
+      ).join('');
+
+      if (!currentHtml && !pastHtml) {
+        track.innerHTML = '<div class="status-timeline-empty">还没有可显示的状态历程</div>';
         return;
       }
 
-      track.innerHTML = `<div class="status-timeline-line"></div>` + pastItems.map((item) =>
-        buildStatusTimelineItemHtml(item, labels, { isCurrent: false })
-      ).join('');
+      track.innerHTML = `<div class="status-timeline-line"></div>` + currentHtml + pastHtml;
       requestAnimationFrame(() => { timeline.scrollLeft = 0; });
     } catch (e) {
       track.innerHTML = `<div class="status-timeline-empty">状态历程暂时无法加载</div>`;
-      if (currentSlot) currentSlot.innerHTML = '';
       console.warn('[status-timeline]', e);
     }
   }
