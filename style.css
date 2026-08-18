@@ -612,19 +612,46 @@ body {
   height: 100%;
   overflow: hidden;
 }
-/* 信息栏+头像+时间线作为一组竖直居中，整体不超出一屏 */
+/* 主页纵向三等分：上留白 / 中简介+头像 / 下时间线；禁止纵向滚动 */
 .home-stack {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 0.55rem;
+  display: grid;
+  grid-template-rows: 1fr 1fr 1fr;
+  height: 100%;
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+.home-zone {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-zone-top {
+  pointer-events: none;
+}
+.home-zone-mid {
+  align-items: center;
+  width: 100%;
+}
+.home-zone-mid .home-layout {
+  width: 100%;
+}
+.home-zone-bot {
+  align-items: center;
+  width: 100%;
+  padding-bottom: 0.15rem;
+}
+.home-zone-bot .status-timeline-section {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  align-self: center;
 }
 .home-avatar-side {
   display: flex;
@@ -2711,6 +2738,55 @@ body.is-reading-article .reading-dim-layer {
   background: #0071e3;
 }
 .glass-audio-player audio { display: none !important; }
+
+/* @[音频][歌词]@ 块 */
+.md-song-block {
+  margin: 0.9rem 0 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.md-lyrics {
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.25) transparent;
+}
+.md-lyrics-line {
+  padding: 0.22rem 0.15rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+  text-align: center;
+}
+.md-lyrics-line.is-active {
+  color: rgba(255, 255, 255, 0.96);
+  font-weight: 600;
+  transform: scale(1.03);
+}
+.md-lyrics-plain {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.78);
+}
+.md-lyrics-loading,
+.md-lyrics-error {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+.md-lyrics-error { color: rgba(255, 160, 160, 0.9); }
+
 
 /* —— 嵌入 iframe：默认适中尺寸，避免把小部件撑满整宽 —— */
 .blog-article-body .md-embed {

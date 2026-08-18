@@ -160,22 +160,30 @@
   <section id="home" class="panel panel-home">
     <div class="panel-content home-content">
       <div class="home-stack">
-        <div class="home-layout">
-          <div class="home-text" id="profileContainer">
-            <div class="loading-placeholder">加载中...</div>
+        <!-- 上 1/3：留白 -->
+        <div class="home-zone home-zone-top" aria-hidden="true"></div>
+
+        <!-- 中 1/3：简介 + 头像 -->
+        <div class="home-zone home-zone-mid">
+          <div class="home-layout">
+            <div class="home-text" id="profileContainer">
+              <div class="loading-placeholder">加载中...</div>
+            </div>
+            <div class="home-avatar-side" id="avatarContainer"></div>
           </div>
-          <div class="home-avatar-side" id="avatarContainer"></div>
         </div>
 
-        <!-- 时间线上移：与头像/信息同屏居中；当前状态只在时间线左侧出现一次 -->
-        <div class="status-timeline-section" id="statusTimelineSection" aria-label="个人状态历程">
-          <div class="status-timeline-header">
-            <span class="status-timeline-title"><i class="fas fa-history"></i> 状态历程</span>
-            <span class="status-timeline-hint"> (◍•ᴗ•◍)❤ </span>
-          </div>
-          <div class="status-timeline" id="statusTimeline" tabindex="0">
-            <div class="status-timeline-track" id="statusTimelineTrack">
-              <div class="status-timeline-loading">加载状态历史…</div>
+        <!-- 下 1/3：状态时间线（禁止整页纵向滚动，时间线仅横向） -->
+        <div class="home-zone home-zone-bot">
+          <div class="status-timeline-section" id="statusTimelineSection" aria-label="个人状态历程">
+            <div class="status-timeline-header">
+              <span class="status-timeline-title"><i class="fas fa-history"></i> 状态历程</span>
+              <span class="status-timeline-hint"> (◍•ᴗ•◍)❤ </span>
+            </div>
+            <div class="status-timeline" id="statusTimeline" tabindex="0">
+              <div class="status-timeline-track" id="statusTimelineTrack">
+                <div class="status-timeline-loading">加载状态历史…</div>
+              </div>
             </div>
           </div>
         </div>

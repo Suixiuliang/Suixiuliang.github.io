@@ -1154,6 +1154,93 @@
 
   /** 自研液态玻璃音乐播放器（替换原生 controls） */
   /** 仿 HTML5 audio 控件：播放/暂停（仅图标）+ 进度 + 时间，无标题/音量条 */
+
+  function parseLrcText(text) {
+    const out = [];
+    const lines = String(text || '').split(/\r?\n/);
+    const tagRe = /\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]/g;
+    for (const raw of lines) {
+      const line = String(raw || '');
+      const times = [];
+      let m;
+      tagRe.lastIndex = 0;
+      let last = 0;
+      while ((m = tagRe.exec(line)) !== null) {
+        const sec =
+          parseInt(m[1], 10) * 60 +
+          parseInt(m[2], 10) +
+          (m[3] ? parseInt(String(m[3]).padEnd(3, '0').slice(0, 3), 10) / 1000 : 0);
+        times.push(sec);
+        last = tagRe.lastIndex;
+      }
+      const content = line.slice(last).trim();
+      if (!times.length || !content) continue;
+      times.forEach((t) => out.push({ t, text: content }));
+    }
+    out.sort((a, b) => a.t - b.t);
+    return out;
+  }
+
+  function bindLyricsToAudio(lyricsEl, audio, cues) {
+    if (!lyricsEl || !audio || !cues.length) return;
+    const nodes = Array.from(lyricsEl.querySelectorAll('.md-lyrics-line'));
+    let active = -1;
+    const tick = () => {
+      const t = audio.currentTime || 0;
+      let idx = 0;
+      for (let i = 0; i < cues.length; i++) {
+        if (cues[i].t <= t + 0.05) idx = i;
+        else break;
+      }
+      if (idx === active) return;
+      if (active >= 0 && nodes[active]) nodes[active].classList.remove('is-active');
+      active = idx;
+      if (nodes[active]) {
+        nodes[active].classList.add('is-active');
+        try { nodes[active].scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+      }
+    };
+    audio.addEventListener('timeupdate', tick);
+    audio.addEventListener('seeked', tick);
+    audio.addEventListener('play', tick);
+  }
+
+  async function hydrateMdLyrics(root) {
+    if (!root) return;
+    const blocks = root.querySelectorAll('.md-lyrics[data-lyrics-src]');
+    for (const el of blocks) {
+      if (el.dataset.lyricsReady === '1') continue;
+      el.dataset.lyricsReady = '1';
+      const src = el.getAttribute('data-lyrics-src') || '';
+      if (!src) {
+        el.innerHTML = '<p class="md-lyrics-error">无效歌词链接</p>';
+        continue;
+      }
+      try {
+        const res = await fetch(src, { credentials: 'omit', cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        const cues = parseLrcText(text);
+        if (cues.length) {
+          el.innerHTML = cues.map((c, i) =>
+            '<div class="md-lyrics-line" data-t="' + c.t + '" data-i="' + i + '">' + escapeHtml(c.text) + '</div>'
+          ).join('');
+          const song = el.closest('.md-song-block');
+          const audio = song ? song.querySelector('audio') : null;
+          if (audio) bindLyricsToAudio(el, audio, cues);
+        } else {
+          const plain = String(text || '').trim();
+          el.innerHTML = plain
+            ? '<pre class="md-lyrics-plain">' + escapeHtml(plain) + '</pre>'
+            : '<p class="md-lyrics-error">歌词为空</p>';
+        }
+      } catch (e) {
+        el.innerHTML = '<p class="md-lyrics-error">歌词加载失败</p>';
+        console.warn('[md-lyrics]', src, e);
+      }
+    }
+  }
+
   function buildGlassAudioPlayer(audio) {
     audio.removeAttribute('controls');
     audio.preload = audio.preload || 'metadata';
@@ -1267,6 +1354,7 @@
     root.querySelectorAll('iframe').forEach((iframe) => {
       if (!iframe.getAttribute('loading')) iframe.setAttribute('loading', 'lazy');
     });
+    hydrateMdLyrics(root);
   }
 
   function simpleMarkdownToHtml(md) {
@@ -1339,6 +1427,23 @@
 
     // 行内代码
     s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
+
+    // 自定义：@[音频链接][歌词链接]@ 或 @[音频链接]@
+    // 例：@[https://cdn.example.com/a.mp3][https://cdn.example.com/a.lrc]@
+    s = s.replace(/@\[([^\]\n]+)\](?:\[([^\]\n]*)\])?@/g, (full, audioUrl, lyricsUrl) => {
+      const a = String(audioUrl || '').trim();
+      const l = String(lyricsUrl || '').trim();
+      const okAudio = /^(https?:\/\/|\/)/i.test(a);
+      if (!okAudio) return full;
+      let html = '<div class="md-song-block">';
+      html += '<audio controls preload="metadata" src="' + esc(a) + '"></audio>';
+      if (l && /^(https?:\/\/|\/)/i.test(l)) {
+        html += '<div class="md-lyrics" data-lyrics-src="' + esc(l) + '">' +
+          '<p class="md-lyrics-loading">歌词加载中…</p></div>';
+      }
+      html += '</div>';
+      return hold(html);
+    });
 
     // 自定义：@...@ 插入 HTML 片段（需含标签；完整文档会经 sanitize 抽 body）
     // 例：@<audio controls src="https://xxx.mp3"></audio>@
