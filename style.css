@@ -612,13 +612,13 @@ body {
   height: 100%;
   overflow: hidden;
 }
-/* 主页纵向三等分：上留白 / 中简介+头像 / 下时间线；禁止纵向滚动 */
+/* 主页分区：简介+头像上移；时间线在下方并与之隔开；禁止纵向滚动 */
 .home-stack {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  display: grid;
-  grid-template-rows: 1fr 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   max-height: 100%;
   min-height: 0;
@@ -626,32 +626,55 @@ body {
 }
 .home-zone {
   min-height: 0;
-  max-height: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.home-zone-top {
-  pointer-events: none;
-}
-.home-zone-mid {
-  align-items: center;
   width: 100%;
+}
+/* 上区不再均分占位：用 mid 的 margin-top 对准页面上 1/3 线 */
+.home-zone-top {
+  display: none;
+  pointer-events: none;
+  flex: 0 0 0;
+}
+/*
+ * 页面上 1/3 线 ≈ stack 高度的 33.33%。
+ * 希望「头像自身的上 1/3 线」落在该处：
+ *   avatar_top + avatar_h/3 ≈ 33.33% * H
+ *   avatar_top ≈ 33.33% * H - avatar_h/3
+ * 头像约 min(200px, 22vh)，取约 5rem≈80px 作为 avatar_h/3 的近似。
+ */
+.home-zone-mid {
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  margin-top: max(0.35rem, calc(33.333% - 5rem));
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .home-zone-mid .home-layout {
   width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
 }
+/* 下区：时间线沉底，与中间行拉开间距 */
 .home-zone-bot {
-  align-items: center;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  justify-content: center;
   width: 100%;
-  padding-bottom: 0.15rem;
+  min-height: 0;
+  margin-top: 1.75rem; /* 与简介/头像行隔开 */
+  padding-top: 0.5rem;
+  padding-bottom: 0.35rem;
 }
 .home-zone-bot .status-timeline-section {
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
-  align-self: center;
+  align-self: flex-end;
 }
 .home-avatar-side {
   display: flex;
