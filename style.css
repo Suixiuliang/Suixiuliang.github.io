@@ -612,17 +612,24 @@ body {
   height: 100%;
   overflow: hidden;
 }
-/* 主页分区：简介+头像上移；时间线在下方并与之隔开；禁止纵向滚动 */
+/* 主页分区（高度百分比用 grid-template-rows，禁止用 margin%——那是按宽度算的）
+ * 第1行：约 33.33%-5rem 空白 → 头像顶部落在「页上1/3线 − 头像高/3」附近（上移）
+ * 第2行：简介+头像
+ * 第3行：时间线（与上一行用 row-gap 隔开）
+ * 禁止纵向滚动
+ */
 .home-stack {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: max(0.5rem, calc(33.333% - 5rem)) auto minmax(0, 1fr);
+  row-gap: 1.75rem;
   height: 100%;
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  align-content: stretch;
 }
 .home-zone {
   min-height: 0;
@@ -632,43 +639,29 @@ body {
   justify-content: center;
   width: 100%;
 }
-/* 上区不再均分占位：用 mid 的 margin-top 对准页面上 1/3 线 */
 .home-zone-top {
-  display: none;
+  display: block;
   pointer-events: none;
-  flex: 0 0 0;
+  min-height: 0;
 }
-/*
- * 页面上 1/3 线 ≈ stack 高度的 33.33%。
- * 希望「头像自身的上 1/3 线」落在该处：
- *   avatar_top + avatar_h/3 ≈ 33.33% * H
- *   avatar_top ≈ 33.33% * H - avatar_h/3
- * 头像约 min(200px, 22vh)，取约 5rem≈80px 作为 avatar_h/3 的近似。
- */
 .home-zone-mid {
-  flex: 0 0 auto;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   width: 100%;
-  margin-top: max(0.35rem, calc(33.333% - 5rem));
-  padding-top: 0;
-  padding-bottom: 0;
+  align-self: center;
 }
 .home-zone-mid .home-layout {
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
 }
-/* 下区：时间线沉底，与中间行拉开间距 */
 .home-zone-bot {
-  flex: 1 1 auto;
   align-items: flex-end;
   justify-content: center;
   width: 100%;
   min-height: 0;
-  margin-top: 1.75rem; /* 与简介/头像行隔开 */
-  padding-top: 0.5rem;
   padding-bottom: 0.35rem;
+  align-self: stretch;
 }
 .home-zone-bot .status-timeline-section {
   width: 100%;
@@ -2762,26 +2755,45 @@ body.is-reading-article .reading-dim-layer {
 }
 .glass-audio-player audio { display: none !important; }
 
-/* @[音频][歌词]@ 块 */
+/* @[音频][歌词]@ 块：歌词面板顶边对齐播放器中线，像从下方拉出 */
 .md-song-block {
+  position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0;
+  isolation: isolate;
+}
+.md-song-block > .md-audio-player,
+.md-song-block > .glass-audio-player {
+  position: relative;
+  z-index: 2;
 }
 .md-lyrics {
-  max-height: 14rem;
+  position: relative;
+  z-index: 1;
+  /* 顶边贴播放器水平中线（播放器约 2.6~2.8rem 高） */
+  margin-top: -1.35rem;
+  padding: 1.85rem 0.9rem 0.85rem;
+  max-height: 15.5rem;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 0.75rem 0.9rem;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.25) transparent;
+  /* 隐藏滚动条，仍允许程序化滚动 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.md-lyrics::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent;
 }
 .md-lyrics-line {
-  padding: 0.22rem 0.15rem;
+  padding: 0.28rem 0.15rem;
   font-size: 0.92rem;
   line-height: 1.55;
   color: rgba(255, 255, 255, 0.55);

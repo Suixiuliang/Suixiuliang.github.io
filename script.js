@@ -1184,12 +1184,32 @@
   function bindLyricsToAudio(lyricsEl, audio, cues) {
     if (!lyricsEl || !audio || !cues.length) return;
     const nodes = Array.from(lyricsEl.querySelectorAll('.md-lyrics-line'));
+    if (!nodes.length) return;
     let active = -1;
-    const tick = () => {
+
+    const scrollLineIntoCenter = (node, smooth) => {
+      if (!node || !lyricsEl) return;
+      const box = lyricsEl.getBoundingClientRect();
+      const line = node.getBoundingClientRect();
+      const delta = (line.top + line.height / 2) - (box.top + box.height / 2);
+      const top = lyricsEl.scrollTop + delta;
+      try {
+        if (smooth && typeof lyricsEl.scrollTo === 'function') {
+          lyricsEl.scrollTo({ top: top, behavior: 'smooth' });
+        } else {
+          lyricsEl.scrollTop = top;
+        }
+      } catch (_) {
+        lyricsEl.scrollTop = top;
+      }
+    };
+
+    const tick = (opts) => {
+      const smooth = !(opts && opts.instant);
       const t = audio.currentTime || 0;
       let idx = 0;
       for (let i = 0; i < cues.length; i++) {
-        if (cues[i].t <= t + 0.05) idx = i;
+        if (cues[i].t <= t + 0.08) idx = i;
         else break;
       }
       if (idx === active) return;
@@ -1197,12 +1217,14 @@
       active = idx;
       if (nodes[active]) {
         nodes[active].classList.add('is-active');
-        try { nodes[active].scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+        scrollLineIntoCenter(nodes[active], smooth);
       }
     };
-    audio.addEventListener('timeupdate', tick);
-    audio.addEventListener('seeked', tick);
-    audio.addEventListener('play', tick);
+
+    audio.addEventListener('timeupdate', function() { tick({ instant: false }); });
+    audio.addEventListener('seeked', function() { tick({ instant: true }); });
+    audio.addEventListener('play', function() { tick({ instant: true }); });
+    tick({ instant: true });
   }
 
   async function hydrateMdLyrics(root) {
