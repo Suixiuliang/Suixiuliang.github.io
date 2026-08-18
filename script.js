@@ -1266,6 +1266,211 @@
     root.querySelectorAll('iframe').forEach((iframe) => {
       if (!iframe.getAttribute('loading')) iframe.setAttribute('loading', 'lazy');
     });
+    bindIframeCursorVisibility(root);
+  }
+
+  // ============================================================
+  // 自定义 Markdown 音频语法：@[音频链接][歌词链接]@
+  // 支持 mp3 / wav / flac / ogg / m4a / aac / opus 等浏览器可播放格式。
+  // 歌词支持 LRC / SRT / VTT / 纯文本；歌词按 ArrayBuffer 解码，兼容 UTF-8 / UTF-16 / GB18030。
+  // ============================================================
+  function normalizeMediaUrl(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    try {
+      const url = new URL(value, window.location.href);
+      if (!/^https?:$/i.test(url.protocol)) return '';
+      return url.href;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function getAudioMime(url) {
+    const path = String(url || '').split(/[?#]/)[0].toLowerCase();
+    if (/\.mp3$/.test(path)) return 'audio/mpeg';
+    if (/\.wav$/.test(path)) return 'audio/wav';
+    if (/\.flac$/.test(path)) return 'audio/flac';
+    if (/\.ogg$/.test(path)) return 'audio/ogg';
+    if (/\.opus$/.test(path)) return 'audio/opus';
+    if (/\.m4a$/.test(path)) return 'audio/mp4';
+    if (/\.aac$/.test(path)) return 'audio/aac';
+    return '';
+  }
+
+  function decodeLyricsBuffer(buffer) {
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes.subarray(3));
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+    }
+
+    const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    // UTF-8 解码出现大量替换字符时，再尝试常见中文歌词编码。
+    const replacementCount = (utf8.match(/\uFFFD/g) || []).length;
+    if (replacementCount === 0) return utf8;
+    try {
+      const gb = new TextDecoder('gb18030', { fatal: false }).decode(bytes);
+      if ((gb.match(/\uFFFD/g) || []).length < replacementCount) return gb;
+    } catch (_) {}
+    try {
+      const big5 = new TextDecoder('big5', { fatal: false }).decode(bytes);
+      if ((big5.match(/\uFFFD/g) || []).length < replacementCount) return big5;
+    } catch (_) {}
+    return utf8;
+  }
+
+  function parseLyricsText(text, url) {
+    const raw = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+    const lines = raw.split('\n');
+    const result = [];
+    const timeRe = /\[(\d{1,3}):([0-5]?\d)(?:[.:](\d{1,3}))?\]/g;
+    const isVtt = /^\s*WEBVTT(?:\s|$)/i.test(raw);
+    const ext = String(url || '').split(/[?#]/)[0].toLowerCase();
+    const isSrt = /\.srt$/.test(ext) || lines.some((line, i) => i < 3 && /^\s*\d+\s*$/.test(line));
+
+    if (isVtt || isSrt) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const m = line.match(/(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})\s+-->\s+(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})/);
+        if (!m) continue;
+        const start = (+m[1] * 3600) + (+m[2] * 60) + (+m[3]) + (+m[4]) / 1000;
+        const body = [];
+        for (let j = i + 1; j < lines.length; j++) {
+          if (!lines[j].trim()) break;
+          body.push(lines[j].trim());
+        }
+        const lyric = body.join(' ').replace(/<[^>]+>/g, '').trim();
+        if (lyric) result.push({ time: start, text: lyric });
+      }
+      return result;
+    }
+
+    for (const line of lines) {
+      let match;
+      let found = false;
+      timeRe.lastIndex = 0;
+      while ((match = timeRe.exec(line))) {
+        found = true;
+        const minutes = Number(match[1]);
+        const seconds = Number(match[2]);
+        const fraction = match[3] ? Number('0.' + String(match[3]).padEnd(3, '0')) : 0;
+        const time = minutes * 60 + seconds + fraction;
+        const lyric = line.slice(timeRe.lastIndex).trim();
+        result.push({ time, text: lyric });
+      }
+      if (!found && line.trim()) {
+        // 非时间轴文本也保留，显示在歌词面板中，但不参与自动同步。
+        result.push({ time: null, text: line.trim() });
+      }
+    }
+    return result.sort((a, b) => (a.time == null ? Infinity : a.time) - (b.time == null ? Infinity : b.time));
+  }
+
+  async function loadLyricsIntoPanel(panel, lyricsUrl, audio) {
+    if (!lyricsUrl || panel.dataset.loaded === '1' || panel.dataset.loading === '1') return;
+    panel.dataset.loading = '1';
+    const list = panel.querySelector('.md-lyrics-list');
+    try {
+      list.innerHTML = '<div class="md-lyrics-state">正在读取歌词…</div>';
+      const response = await fetch(lyricsUrl, { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      const text = decodeLyricsBuffer(buffer);
+      const lyrics = parseLyricsText(text, lyricsUrl);
+      list.innerHTML = '';
+      if (!lyrics.length) {
+        list.innerHTML = '<div class="md-lyrics-state">未找到可识别的歌词内容。</div>';
+      } else {
+        const frag = document.createDocumentFragment();
+        lyrics.forEach((item, index) => {
+          const row = document.createElement('div');
+          row.className = 'md-lyrics-line' + (item.time == null ? ' is-static' : '');
+          row.dataset.index = String(index);
+          if (item.time != null) row.dataset.time = String(item.time);
+          row.textContent = item.text || '♪';
+          frag.appendChild(row);
+        });
+        list.appendChild(frag);
+        panel._lyrics = lyrics;
+        panel._audio = audio;
+      }
+      panel.dataset.loaded = '1';
+    } catch (err) {
+      console.error('[lyrics] 歌词读取失败：', lyricsUrl, err);
+      list.innerHTML = '<div class="md-lyrics-state">歌词加载失败，请检查链接、CORS 或文件编码。</div>';
+    } finally {
+      delete panel.dataset.loading;
+    }
+  }
+
+  function buildMarkdownAudioCard(audioUrl, lyricsUrl) {
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.setAttribute('playsinline', '');
+    audio.src = audioUrl;
+    const mime = getAudioMime(audioUrl);
+    if (mime) audio.setAttribute('type', mime);
+
+    const shell = document.createElement('div');
+    shell.className = 'md-media-audio-card';
+    shell.appendChild(buildGlassAudioPlayer(audio));
+
+    if (lyricsUrl) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'md-lyrics-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.innerHTML = '<span><i class="fas fa-music"></i> 歌词</span><i class="fas fa-chevron-down md-lyrics-chevron"></i>';
+      const panel = document.createElement('div');
+      panel.className = 'md-lyrics-panel';
+      panel.hidden = true;
+      panel.innerHTML = '<div class="md-lyrics-list"><div class="md-lyrics-state">点击展开歌词</div></div>';
+      toggle.addEventListener('click', () => {
+        const open = panel.hidden;
+        panel.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        shell.classList.toggle('is-lyrics-open', open);
+        if (open) loadLyricsIntoPanel(panel, lyricsUrl, audio);
+      });
+      shell.appendChild(toggle);
+      shell.appendChild(panel);
+
+      let raf = 0;
+      let activeIndex = -1;
+      const syncLyrics = () => {
+        raf = 0;
+        if (panel.hidden || !panel._lyrics) return;
+        const t = audio.currentTime || 0;
+        let idx = -1;
+        for (let i = 0; i < panel._lyrics.length; i++) {
+          if (panel._lyrics[i].time != null && panel._lyrics[i].time <= t) idx = i;
+          else if (panel._lyrics[i].time != null && panel._lyrics[i].time > t) break;
+        }
+        if (idx === activeIndex) return;
+        activeIndex = idx;
+        panel.querySelectorAll('.md-lyrics-line.is-active').forEach((el) => el.classList.remove('is-active'));
+        if (idx >= 0) {
+          const row = panel.querySelector(`.md-lyrics-line[data-index="${idx}"]`);
+          if (row) {
+            row.classList.add('is-active');
+            row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+        }
+      };
+      const schedule = () => {
+        if (!raf) raf = requestAnimationFrame(syncLyrics);
+      };
+      audio.addEventListener('timeupdate', schedule);
+      audio.addEventListener('play', schedule);
+      audio.addEventListener('seeked', schedule);
+    }
+    return shell;
   }
 
   function simpleMarkdownToHtml(md) {
@@ -1339,11 +1544,19 @@
     // 行内代码
     s = s.replace(/`([^`\n]+)`/g, (_, c) => hold(`<code>${esc(c)}</code>`));
 
-    // 自定义：@...@ 插入 HTML 片段（需含标签；完整文档会经 sanitize 抽 body）
-    // 例：@<audio controls src="https://xxx.mp3"></audio>@
+    // 自定义 Markdown 音频：@[音频链接][歌词链接]@
+    // 歌词链接可留空：@[音频链接][]@；也支持 @[音频链接]@。
+    s = s.replace(/@\[([^\]]+)\](?:\[([^\]]*)\])?@/g, (full, audioRaw, lyricsRaw) => {
+      const audioUrl = normalizeMediaUrl(audioRaw);
+      const lyricsUrl = normalizeMediaUrl(lyricsRaw || '');
+      if (!audioUrl) return full;
+      return hold(buildMarkdownAudioCard(audioUrl, lyricsUrl).outerHTML);
+    });
+
+    // 保留旧版 @<HTML>@ 语法兼容，避免已有文章失效。
     s = s.replace(/@([\s\S]+?)@/g, (full, inner) => {
       const t = String(inner || '').trim();
-      if (!t || !/<[a-zA-Z]/.test(t)) return full; // 非 HTML，原样保留（如邮箱）
+      if (!t || !/<[a-zA-Z]/.test(t)) return full;
       return hold(sanitizeAdminHtml(t) || '');
     });
 
@@ -4803,6 +5016,30 @@
     trailHasLast = false;
   }, { passive: true });
 
+  // iframe 拥有独立的浏览上下文，鼠标进入 iframe 后父文档不再收到 mousemove。
+  // 因此在 iframe 元素本身进入/离开时控制自定义小圆点，避免它卡在 iframe 边框。
+  function bindIframeCursorVisibility(root = document) {
+    if (!customCursor || !root || !root.querySelectorAll) return;
+    root.querySelectorAll('iframe').forEach((iframe) => {
+      if (iframe.dataset.cursorBridge === '1') return;
+      iframe.dataset.cursorBridge = '1';
+      iframe.addEventListener('mouseenter', () => {
+        setCursorVisible(false);
+        trailHasLast = false;
+      }, { passive: true });
+      iframe.addEventListener('mouseleave', (e) => {
+        // 离开 iframe 后父文档下一次 mousemove 会重新定位小圆点。
+        setCursorVisible(false);
+        trailHasLast = false;
+        if (e.relatedTarget && e.relatedTarget.nodeType === 1) {
+          const r = e.relatedTarget.getBoundingClientRect?.();
+          if (r) moveCustomCursor(e.clientX, e.clientY);
+        }
+      }, { passive: true });
+    });
+  }
+  bindIframeCursorVisibility();
+
   document.addEventListener('mousedown', function(e) {
     if (e.button !== 0 && e.button !== 2) return;
     startPointerEffects(e.clientX, e.clientY, e.button === 2, e.target);
@@ -5270,19 +5507,44 @@
     if (revealActive) revealActive.classList.add('is-reveal-active');
   }
 
+  function findRevealHostAtPoint(clientX, clientY) {
+    // elementFromPoint 使用浏览器当前实际布局/transform 后的坐标，
+    // 避免仅依赖缓存 rect 导致动画、视差或滚动期间出现 Reveal 错位。
+    let node = document.elementFromPoint(clientX, clientY);
+    if (!node) return null;
+    if (node.nodeType !== 1) node = node.parentElement;
+    if (!node) return null;
+
+    const selector = REVEAL_SELECTOR;
+    let host = node.closest && node.closest(selector);
+    if (host && host.isConnected) return host;
+
+    // iframe 内部 DOM 不属于父文档；elementFromPoint 会返回 iframe 本身，
+    // 因此从 iframe 向父级继续找 Reveal 容器。
+    if (node.tagName === 'IFRAME') {
+      host = node.parentElement && node.parentElement.closest(selector);
+      if (host && host.isConnected) return host;
+    }
+    return null;
+  }
+
   function updateRevealAt(clientX, clientY) {
     if (!revealEnabled) return;
-    refreshRevealGeometry();
 
-    let hit = null;
-    // 从后往前更接近视觉层级，避免嵌套玻璃卡片重复亮起。
-    for (let i = revealHosts.length - 1; i >= 0; i--) {
-      const el = revealHosts[i];
-      const rect = el._revealRect;
-      if (!rect) continue;
-      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-        hit = el;
-        break;
+    let hit = findRevealHostAtPoint(clientX, clientY);
+
+    // elementFromPoint 在某些 pointer-events/玻璃层组合下可能拿不到宿主，
+    // 仅在失败时使用缓存 rect 做兜底；正常路径不会遍历所有卡片。
+    if (!hit) {
+      refreshRevealGeometry();
+      for (let i = revealHosts.length - 1; i >= 0; i--) {
+        const el = revealHosts[i];
+        const rect = el._revealRect;
+        if (!rect) continue;
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+          hit = el;
+          break;
+        }
       }
     }
 
@@ -5291,14 +5553,16 @@
       return;
     }
 
-    const rect = hit._revealRect;
+    // 每次真正命中时重新读取当前 rect，确保 transform/scroll/动画中的坐标绝对准确。
+    const r = hit.getBoundingClientRect();
+    const rect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     hit.style.setProperty('--reveal-x', x + 'px');
     hit.style.setProperty('--reveal-y', y + 'px');
 
     const edgeDist = Math.min(x, rect.width - x, y, rect.height - y);
-    const edgeBoost = Math.max(0, Math.min(1, 1 - edgeDist / 96));
+    const edgeBoost = Math.max(0.22, Math.min(1, 1 - edgeDist / 360));
     hit.style.setProperty('--reveal-edge', String(edgeBoost));
     setRevealActive(hit);
   }
