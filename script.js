@@ -1727,26 +1727,41 @@
   function highlightArticleCode(root) {
     if (!root) return;
     bindCodeCopyButtons(root);
-    const blocks = root.querySelectorAll('pre code');
+    const blocks = Array.from(root.querySelectorAll('pre code'));
     if (!blocks.length) return;
+
+    const normalizeLanguage = (raw) => {
+      let lang = (raw || '').trim().toLowerCase();
+      if (lang === 'c++' || lang === 'cpp') return 'cpp';
+      if (lang === 'c#' || lang === 'cs' || lang === 'csharp') return 'csharp';
+      if (lang === 'js') return 'javascript';
+      if (lang === 'ts') return 'typescript';
+      if (lang === 'py') return 'python';
+      if (lang === 'sh' || lang === 'bash' || lang === 'zsh') return 'shell';
+      if (lang === 'html') return 'xml';
+      if (lang === 'md') return 'markdown';
+      if (lang === 'text' || lang === 'plain') return '';
+      return lang;
+    };
 
     const run = () => {
       const hasHljs = typeof window.hljs !== 'undefined';
       blocks.forEach((block) => {
         if (block.dataset.hljsDone === '1') return;
         try {
-          let lang = '';
           const m = (block.className || '').match(/language-([a-zA-Z0-9_+#.-]+)/);
-          if (m) lang = m[1].toLowerCase();
-          if (lang === 'c++') lang = 'cpp';
-          if (lang === 'c#') lang = 'csharp';
-          if (lang === 'text' || lang === 'plain') lang = '';
+          const originalLang = m ? m[1] : '';
+          const lang = normalizeLanguage(originalLang);
           const src = block.textContent || '';
 
-          if (hasHljs && lang && window.hljs.getLanguage && window.hljs.getLanguage(lang) && window.hljs.highlight) {
+          // cpp 与 c++ 使用同一套 C++ grammar；显示标签仍由 Markdown 原始语言决定。
+          if (lang === 'cpp') block.classList.add('language-cpp');
+
+          if (hasHljs && lang && typeof window.hljs.getLanguage === 'function' &&
+              window.hljs.getLanguage(lang) && typeof window.hljs.highlight === 'function') {
             const result = window.hljs.highlight(src, { language: lang, ignoreIllegals: true });
             block.innerHTML = result.value;
-            block.classList.add('hljs', 'language-' + lang);
+            block.classList.add('hljs');
           } else if (hasHljs && typeof window.hljs.highlightElement === 'function') {
             block.classList.add('hljs');
             window.hljs.highlightElement(block);
@@ -1756,8 +1771,10 @@
           }
           block.dataset.hljsDone = '1';
         } catch (err) {
-          console.warn('[code-highlight]', err);
-          block.innerHTML = fallbackHighlightCode(block.textContent || '', lang);
+          console.warn('[code-highlight] highlight failed; using fallback:', err);
+          block.innerHTML = fallbackHighlightCode(block.textContent || '', normalizeLanguage(
+            ((block.className || '').match(/language-([a-zA-Z0-9_+#.-]+)/) || [,''])[1]
+          ));
           block.classList.add('hljs');
           block.dataset.hljsDone = '1';
         }
@@ -1765,7 +1782,7 @@
       return hasHljs;
     };
 
-    // 先立即兜底着色；highlight.js 到达后再用其完整语法树重新着色。
+    // 立即使用轻量本地高亮，避免 CDN 延迟导致白色代码块；highlight.js 加载后再替换为完整语法树。
     run();
     if (typeof window.hljs === 'undefined') {
       let n = 0;
@@ -1775,8 +1792,9 @@
           blocks.forEach((block) => { delete block.dataset.hljsDone; });
           run();
           clearInterval(timer);
-        } else if (n > 100) {
+        } else if (n >= 100) {
           clearInterval(timer);
+          console.error('[code-highlight] highlight.js 加载失败或超时（5 秒）。当前代码块已使用本地 fallback 高亮。请检查 highlight.js CDN、网络或 CSP 设置。');
         }
       }, 50);
     }
@@ -5194,14 +5212,18 @@
 
 
   // ============================================================
-  //  Fluent Reveal Highlight（液态玻璃边框光 + 内部光斑，仅桌面）
-  //  使用真实 DOM 层而非 ::before/::after，避免与玻璃伪元素冲突
+  // Fluent Reveal Highlight（仅保留液态玻璃局部高亮边框）
+  // 性能优化：缓存节点与几何信息；每帧只更新鼠标所在卡片。
   // ============================================================
   const REVEAL_SELECTOR = '.glass-card, .blog-list .blog-card, .work-card, .blog-white-box, .theme-rail-inner';
   let revealEnabled = false;
   let revealRaf = 0;
   let revealLastX = 0;
   let revealLastY = 0;
+  let revealHosts = [];
+  let revealActive = null;
+  let revealGeometryDirty = true;
+  let revealObservers = [];
 
   function canUseRevealHighlight() {
     try {
@@ -5217,52 +5239,68 @@
     if (!el || el.dataset.revealReady === '1') return;
     el.dataset.revealReady = '1';
     el.classList.add('reveal-host');
-    const fill = document.createElement('span');
-    fill.className = 'reveal-fill';
-    fill.setAttribute('aria-hidden', 'true');
+    // 只保留边框层；不再创建鼠标周围的 fill 光晕。
     const border = document.createElement('span');
     border.className = 'reveal-border';
     border.setAttribute('aria-hidden', 'true');
     el.insertBefore(border, el.firstChild);
-    el.insertBefore(fill, el.firstChild);
   }
 
   function prepareRevealHosts() {
     if (!revealEnabled) return;
     document.querySelectorAll(REVEAL_SELECTOR).forEach(ensureRevealLayers);
+    revealHosts = Array.from(document.querySelectorAll(REVEAL_SELECTOR));
+    revealGeometryDirty = true;
+  }
+
+  function refreshRevealGeometry() {
+    if (!revealEnabled || !revealGeometryDirty) return;
+    revealHosts = revealHosts.filter((el) => el && el.isConnected);
+    revealHosts.forEach((el) => {
+      const r = el.getBoundingClientRect();
+      el._revealRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    });
+    revealGeometryDirty = false;
+  }
+
+  function setRevealActive(el) {
+    if (revealActive === el) return;
+    if (revealActive) revealActive.classList.remove('is-reveal-active');
+    revealActive = el || null;
+    if (revealActive) revealActive.classList.add('is-reveal-active');
   }
 
   function updateRevealAt(clientX, clientY) {
     if (!revealEnabled) return;
-    prepareRevealHosts();
-    document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
-      const rect = el.getBoundingClientRect();
-      const pad = 56;
-      if (
-        clientX < rect.left - pad ||
-        clientX > rect.right + pad ||
-        clientY < rect.top - pad ||
-        clientY > rect.bottom + pad
-      ) {
-        el.classList.remove('is-reveal-active');
-        return;
+    refreshRevealGeometry();
+
+    let hit = null;
+    // 从后往前更接近视觉层级，避免嵌套玻璃卡片重复亮起。
+    for (let i = revealHosts.length - 1; i >= 0; i--) {
+      const el = revealHosts[i];
+      const rect = el._revealRect;
+      if (!rect) continue;
+      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+        hit = el;
+        break;
       }
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      el.style.setProperty('--reveal-x', x + 'px');
-      el.style.setProperty('--reveal-y', y + 'px');
-      // Windows 10 Reveal：鼠标越靠近玻璃边缘，边缘高光越强。
-      // 卡片中心仍保留很弱的玻璃折射光，不出现整圈常亮白边。
-      const dl = x;
-      const dr = rect.width - x;
-      const dt = y;
-      const db = rect.height - y;
-      const edgeDist = Math.min(dl, dr, dt, db);
-      const edgeBoost = Math.max(0, 1 - edgeDist / 96);
-      const revealEdge = Math.min(1, edgeBoost * 0.92);
-      el.style.setProperty('--reveal-edge', String(revealEdge));
-      el.classList.add('is-reveal-active');
-    });
+    }
+
+    if (!hit) {
+      setRevealActive(null);
+      return;
+    }
+
+    const rect = hit._revealRect;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    hit.style.setProperty('--reveal-x', x + 'px');
+    hit.style.setProperty('--reveal-y', y + 'px');
+
+    const edgeDist = Math.min(x, rect.width - x, y, rect.height - y);
+    const edgeBoost = Math.max(0, Math.min(1, 1 - edgeDist / 96));
+    hit.style.setProperty('--reveal-edge', String(edgeBoost));
+    setRevealActive(hit);
   }
 
   function onRevealPointerMove(e) {
@@ -5276,8 +5314,16 @@
   }
 
   function onRevealPointerLeave() {
-    document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
-      el.classList.remove('is-reveal-active');
+    setRevealActive(null);
+  }
+
+  function markRevealGeometryDirty() {
+    revealGeometryDirty = true;
+    if (revealRaf) return;
+    revealRaf = requestAnimationFrame(() => {
+      revealRaf = 0;
+      refreshRevealGeometry();
+      if (revealActive) updateRevealAt(revealLastX, revealLastY);
     });
   }
 
@@ -5288,33 +5334,39 @@
       return;
     }
     revealEnabled = enable;
+
     if (enable) {
       document.addEventListener('pointermove', onRevealPointerMove, { passive: true });
-      window.addEventListener('blur', onRevealPointerLeave);
+      window.addEventListener('blur', onRevealPointerLeave, { passive: true });
+      window.addEventListener('resize', markRevealGeometryDirty, { passive: true });
+      window.addEventListener('scroll', markRevealGeometryDirty, { passive: true });
       document.body.classList.add('has-reveal-highlight');
       prepareRevealHosts();
-      // 博客列表异步渲染后补一次
-      const blogList = document.getElementById('blogList');
-      if (blogList && !blogList._revealObs) {
-        blogList._revealObs = new MutationObserver(() => prepareRevealHosts());
-        blogList._revealObs.observe(blogList, { childList: true, subtree: true });
-      }
-      const worksGrid = document.getElementById('worksGrid');
-      if (worksGrid && !worksGrid._revealObs) {
-        worksGrid._revealObs = new MutationObserver(() => prepareRevealHosts());
-        worksGrid._revealObs.observe(worksGrid, { childList: true, subtree: true });
-      }
 
-      // 其它弹窗/动态区域中的 glass-card 也自动获得 Reveal。
-      if (!document.body._revealObs) {
-        document.body._revealObs = new MutationObserver(() => prepareRevealHosts());
-        document.body._revealObs.observe(document.body, { childList: true, subtree: true });
-      }
+      const watch = (selector) => {
+        const target = document.querySelector(selector);
+        if (!target || target._revealObs) return;
+        const obs = new MutationObserver(() => {
+          prepareRevealHosts();
+          markRevealGeometryDirty();
+        });
+        target._revealObs = obs;
+        obs.observe(target, { childList: true, subtree: true });
+        revealObservers.push(obs);
+      };
+      watch('#blogList');
+      watch('#worksGrid');
     } else {
       document.removeEventListener('pointermove', onRevealPointerMove);
       window.removeEventListener('blur', onRevealPointerLeave);
+      window.removeEventListener('resize', markRevealGeometryDirty);
+      window.removeEventListener('scroll', markRevealGeometryDirty);
+      revealObservers.forEach((obs) => obs.disconnect());
+      revealObservers = [];
       document.body.classList.remove('has-reveal-highlight');
-      onRevealPointerLeave();
+      setRevealActive(null);
+      revealHosts = [];
+      revealGeometryDirty = true;
     }
   }
 

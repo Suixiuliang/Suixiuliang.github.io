@@ -3531,11 +3531,7 @@ body.api-offline-lock #homeAvatarPlaceholder {
 
 /* ============================================================
    Windows 10 Fluent Reveal + Liquid Glass Highlight
-   鼠标靠近卡片边缘时，光不是“描一圈白边”，而是：
-   1. 玻璃内部出现跟随鼠标的柔和折射光斑
-   2. 玻璃边缘出现局部高光带
-   3. 高光带随鼠标距离边缘实时增强/减弱
-   4. 保留原有液态玻璃背景、模糊、饱和度和阴影
+   仅保留鼠标附近的液态玻璃高亮边框；不显示内部光晕。
    ============================================================ */
 .reveal-host {
   --reveal-x: 50%;
@@ -3544,47 +3540,23 @@ body.api-offline-lock #homeAvatarPlaceholder {
   --reveal-radius: 150px;
   position: relative;
   isolation: isolate;
-  overflow: hidden;
 }
 
-.reveal-host > .reveal-fill,
 .reveal-host > .reveal-border {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 120ms ease;
-  will-change: opacity, background;
-}
-
-/* 玻璃内部跟随鼠标的局部光学照明 */
-.reveal-host > .reveal-fill {
-  z-index: 0;
-  background:
-    radial-gradient(
-      circle var(--reveal-radius) at var(--reveal-x) var(--reveal-y),
-      rgba(255, 255, 255, 0.30) 0,
-      rgba(255, 255, 255, 0.15) 24%,
-      rgba(220, 238, 255, 0.075) 46%,
-      rgba(255, 255, 255, 0.025) 62%,
-      transparent 76%
-    );
-  mix-blend-mode: screen;
-  filter: saturate(125%);
-}
-
-/* 液态玻璃边缘高光：只有鼠标靠近边缘时才明显 */
-.reveal-host > .reveal-border {
   z-index: 4;
   padding: 1.35px;
   background:
     radial-gradient(
       circle var(--reveal-radius) at var(--reveal-x) var(--reveal-y),
-      rgba(255, 255, 255, calc(0.98 * var(--reveal-edge))) 0,
-      rgba(238, 248, 255, calc(0.78 * var(--reveal-edge))) 18%,
-      rgba(190, 225, 255, calc(0.42 * var(--reveal-edge))) 36%,
-      rgba(255, 255, 255, calc(0.12 * var(--reveal-edge))) 52%,
+      rgba(255,255,255,calc(0.98 * var(--reveal-edge))) 0,
+      rgba(238,248,255,calc(0.78 * var(--reveal-edge))) 18%,
+      rgba(190,225,255,calc(0.42 * var(--reveal-edge))) 36%,
+      rgba(255,255,255,calc(0.12 * var(--reveal-edge))) 52%,
       transparent 72%
     );
   -webkit-mask:
@@ -3595,39 +3567,19 @@ body.api-offline-lock #homeAvatarPlaceholder {
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   mask-composite: exclude;
-  filter:
-    drop-shadow(0 0 1px rgba(255,255,255,0.42))
-    drop-shadow(0 0 8px rgba(210,235,255,calc(0.28 * var(--reveal-edge))));
+  will-change: opacity, background;
+  transition: opacity 120ms ease;
 }
 
-/* 一点玻璃折射高光，避免看起来只是普通发光描边 */
-.reveal-host > .reveal-fill::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    radial-gradient(
-      ellipse 90px 38px at var(--reveal-x) var(--reveal-y),
-      rgba(255,255,255,0.16),
-      transparent 72%
-    );
-  opacity: calc(0.75 * var(--reveal-edge));
-  mix-blend-mode: overlay;
-}
-
-.reveal-host.is-reveal-active > .reveal-fill,
 .reveal-host.is-reveal-active > .reveal-border {
   opacity: 1;
 }
 
-/* 原内容压在 Reveal 光效之上 */
-.reveal-host > :not(.reveal-fill):not(.reveal-border) {
+.reveal-host > :not(.reveal-border) {
   position: relative;
   z-index: 1;
 }
 
-/* Reveal 接管 hover 后，取消原来的整卡片突然变亮 */
 body.has-reveal-highlight .glass-card:hover,
 body.has-reveal-highlight .blog-list .blog-card:hover,
 body.has-reveal-highlight .work-card:hover,
@@ -3636,17 +3588,12 @@ body.has-reveal-highlight .theme-rail-inner:hover {
   transform: none;
 }
 
-body.has-reveal-highlight .glass-card:hover {
-  background: rgba(255, 255, 255, 0.10);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
 @media (max-width: 480px), (hover: none), (pointer: coarse) {
-  .reveal-host > .reveal-fill,
   .reveal-host > .reveal-border {
     display: none !important;
   }
 }
+
 
 /* 圆形按钮：以自身圆心为缩放原点，悬停放大 1/12 */
 .work-circle-btn,
