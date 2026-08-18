@@ -163,11 +163,15 @@
         <div class="home-text" id="profileContainer">
           <div class="loading-placeholder">加载中...</div>
         </div>
-        <div class="home-avatar-side" id="avatarContainer"></div>
+        <div class="home-avatar-col">
+          <div class="home-avatar-side" id="avatarContainer"></div>
+          <!-- 当前状态：显示在头像正下方（1.2×） -->
+          <div class="status-current-under-avatar" id="statusCurrentUnderAvatar" aria-label="当前状态"></div>
+        </div>
       </div>
     </div>
 
-    <!-- ===== 个人状态历史时间线 ===== -->
+    <!-- ===== 个人状态历史时间线（历史状态在右侧横向滚动） ===== -->
     <div class="status-timeline-section" id="statusTimelineSection" aria-label="个人状态历程">
       <div class="status-timeline-header">
         <span class="status-timeline-title"><i class="fas fa-history"></i> 状态历程</span>

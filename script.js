@@ -3265,57 +3265,296 @@
     if (!button) return;
     const summary = String(profileData.statusSummary || '').trim();
     if (!summary) { button.removeAttribute('title'); return; }
-    let timer = 0;
-    button.addEventListener('click', () => {
-      if (button.classList.contains('is-detail')) return;
-      const textEl = button.querySelector('.home-status-text');
-      if (!textEl) return;
-      button.classList.add('is-switching');
-      window.clearTimeout(timer);
-      window.setTimeout(() => {
-        textEl.textContent = summary;
-        button.classList.remove('is-switching');
+    button.classList.add('has-summary');
+    button.setAttribute('title', '点击查看状态简述');
+
+    const row = button.closest('.home-name-row');
+    const textEl = button.querySelector('.home-status-text');
+    if (!textEl) return;
+
+    let cursorEl = button.querySelector('.home-status-cursor');
+    if (!cursorEl) {
+      cursorEl = document.createElement('span');
+      cursorEl.className = 'home-status-cursor';
+      cursorEl.setAttribute('aria-hidden', 'true');
+      button.appendChild(cursorEl);
+    }
+
+    const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const prefersReduced = () => {
+      try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (_) { return false; }
+    };
+    const statusLabel = () => String(profileData.status || '在线');
+
+    let runId = 0;
+    let busy = false;
+    let autoBackTimer = 0;
+    let expanded = false;
+
+    function showCursor(on) {
+      cursorEl.classList.toggle('is-on', !!on);
+    }
+
+    function measureTextWidth(str) {
+      const probe = document.createElement('span');
+      probe.className = 'home-status-text';
+      probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;pointer-events:none;';
+      probe.textContent = str;
+      button.appendChild(probe);
+      const w = probe.getBoundingClientRect().width;
+      probe.remove();
+      return w;
+    }
+
+    function needsExpandForDetail(detail) {
+      const maxInline = Math.min(12 * 16, Math.max(80, (row ? row.getBoundingClientRect().width : 320) * 0.42));
+      return measureTextWidth(detail) > maxInline || detail.length > 18 || /[\n\r]/.test(detail);
+    }
+
+    async function typewriterDelete(fromText, token) {
+      let t = String(fromText || '');
+      if (t.length) {
+        // 光标替换掉最后一个字符
+        textEl.textContent = t.slice(0, -1);
+        showCursor(true);
+        await sleep(prefersReduced() ? 40 : 70);
+        if (token !== runId) return false;
+        t = textEl.textContent || '';
+      } else {
+        showCursor(true);
+      }
+      // 极快删除剩余文本
+      while (t.length) {
+        if (token !== runId) return false;
+        t = t.slice(0, -1);
+        textEl.textContent = t;
+        await sleep(prefersReduced() ? 8 : (10 + Math.random() * 10));
+      }
+      textEl.textContent = '';
+      return true;
+    }
+
+    async function typewriterType(full, token) {
+      const s = String(full || '');
+      textEl.textContent = '';
+      showCursor(true);
+      if (prefersReduced()) {
+        textEl.textContent = s;
+        return token === runId;
+      }
+      for (let i = 0; i < s.length; i++) {
+        if (token !== runId) return false;
+        textEl.textContent = s.slice(0, i + 1);
+        const ch = s[i];
+        let delay = 22 + Math.random() * 36;
+        if (/[，。！？；、,.!?;:]/.test(ch)) delay += 28 + Math.random() * 36;
+        if (ch === ' ' || ch === '\n') delay += 12;
+        await sleep(delay);
+      }
+      return true;
+    }
+
+    function flipLayout(toExpanded) {
+      if (!row) {
+        button.classList.toggle('is-detail', toExpanded);
+        expanded = toExpanded;
+        return Promise.resolve();
+      }
+      if (prefersReduced()) {
+        row.classList.toggle('is-status-expanded', toExpanded);
+        button.classList.toggle('is-detail', toExpanded);
+        expanded = toExpanded;
+        return Promise.resolve();
+      }
+
+      const first = button.getBoundingClientRect();
+      row.classList.toggle('is-status-expanded', toExpanded);
+      button.classList.toggle('is-detail', toExpanded);
+      void button.offsetWidth;
+      const last = button.getBoundingClientRect();
+
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      const sx = first.width / Math.max(last.width, 1);
+      const sy = first.height / Math.max(last.height, 1);
+
+      button.classList.add('is-flipping');
+      button.style.transformOrigin = 'left top';
+      button.style.transition = 'none';
+      button.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ', ' + sy + ')';
+
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            button.style.transition = 'transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
+            button.style.transform = 'translate(0px, 0px) scale(1, 1)';
+            let settled = false;
+            const done = () => {
+              if (settled) return;
+              settled = true;
+              button.style.transition = '';
+              button.style.transform = '';
+              button.style.transformOrigin = '';
+              button.classList.remove('is-flipping');
+              expanded = toExpanded;
+              resolve();
+            };
+            const onEnd = (e) => {
+              if (e.propertyName && e.propertyName !== 'transform') return;
+              button.removeEventListener('transitionend', onEnd);
+              done();
+            };
+            button.addEventListener('transitionend', onEnd);
+            window.setTimeout(done, 520);
+          });
+        });
+      });
+    }
+
+    async function playToDetail(token) {
+      const okDel = await typewriterDelete(textEl.textContent || statusLabel(), token);
+      if (!okDel || token !== runId) return;
+
+      const willExpand = needsExpandForDetail(summary);
+      if (willExpand && !expanded) {
+        await flipLayout(true);
+        if (token !== runId) return;
+      } else if (!willExpand) {
         button.classList.add('is-detail');
-        timer = window.setTimeout(() => {
-          button.classList.add('is-switching');
-          window.setTimeout(() => {
-            textEl.textContent = (profileData.status || '在线');
-            button.classList.remove('is-detail', 'is-switching');
-          }, 190);
-        }, estimateStatusReadMs(summary));
-      }, 190);
+      }
+
+      const okType = await typewriterType(summary, token);
+      if (!okType || token !== runId) return;
+      showCursor(false);
+      // 展示期间允许再次点击提前返回
+      if (token === runId) busy = false;
+
+      window.clearTimeout(autoBackTimer);
+      autoBackTimer = window.setTimeout(() => {
+        if (token !== runId) return;
+        if (busy) return;
+        busy = true;
+        button.classList.add('is-typing');
+        playToStatus(token).finally(() => {
+          if (token === runId) {
+            button.classList.remove('is-typing');
+            busy = false;
+          }
+        });
+      }, estimateStatusReadMs(summary));
+    }
+
+    async function playToStatus(token) {
+      const okDel = await typewriterDelete(textEl.textContent || summary, token);
+      if (!okDel || token !== runId) return;
+
+      if (expanded) {
+        await flipLayout(false);
+        if (token !== runId) return;
+      } else {
+        button.classList.remove('is-detail');
+      }
+
+      const label = statusLabel();
+      const okType = await typewriterType(label, token);
+      if (!okType || token !== runId) return;
+      showCursor(false);
+      button.classList.remove('is-detail');
+      if (row) row.classList.remove('is-status-expanded');
+      expanded = false;
+    }
+
+    button.addEventListener('click', async () => {
+      if (busy) return;
+      const summaryNow = String(profileData.statusSummary || '').trim();
+      if (!summaryNow) return;
+      busy = true;
+      window.clearTimeout(autoBackTimer);
+      runId += 1;
+      const token = runId;
+      button.classList.add('is-typing');
+      try {
+        if (button.classList.contains('is-detail') || expanded) {
+          await playToStatus(token);
+        } else {
+          await playToDetail(token);
+        }
+      } catch (_) {
+        /* ignore */
+      } finally {
+        if (token === runId) {
+          const showingDetail = button.classList.contains('is-detail') || expanded;
+          if (!showingDetail) {
+            button.classList.remove('is-typing');
+            busy = false;
+          } else {
+            // 详情展示中：可再次点击返回
+            button.classList.remove('is-typing');
+            busy = false;
+          }
+        }
+      }
     });
+  }
+
+  function buildStatusTimelineItemHtml(item, labels, { isCurrent = false } = {}) {
+    const type = labels[item.status_type] ? item.status_type : 'custom';
+    return `<article class="status-timeline-item${isCurrent ? ' is-current' : ''}">
+      <span class="status-timeline-dot ${type}"></span>
+      <div class="status-timeline-card">
+        <div class="status-timeline-status"><span class="status-timeline-dot-mini ${type}"></span>${escapeHtml(item.status_text || labels[type])}${isCurrent ? '<span class="status-timeline-now">现在</span>' : ''}</div>
+        ${item.status_summary ? `<div class="status-timeline-summary">${escapeHtml(item.status_summary)}</div>` : ''}
+        <div class="status-timeline-time">${escapeHtml(formatDateUTC8(item.started_at))}${item.ended_at ? ` — ${escapeHtml(formatDateUTC8(item.ended_at))}` : ' — 至今'}</div>
+      </div>
+    </article>`;
   }
 
   async function loadStatusTimeline() {
     const timeline = document.getElementById('statusTimeline');
     const track = document.getElementById('statusTimelineTrack');
+    const currentSlot = document.getElementById('statusCurrentUnderAvatar');
     if (!timeline || !track) return;
     try {
       const res = await fetch(`${API_BASE_URL}/profile/status-history?limit=300`, { credentials: 'include' });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || '状态历史加载失败');
       const history = Array.isArray(data.history) ? data.history : [];
+      const labels = { online:'在线', busy:'忙碌', away:'离开', dnd:'请勿打扰', invisible:'隐身', offline:'离线', custom:'自定义' };
+
+      const currentItems = history.filter((item) => !item.ended_at);
+      const pastItems = history.filter((item) => !!item.ended_at);
+      // 历史按时间从新到旧，显示在右侧
+      pastItems.sort((a, b) => {
+        const ta = new Date(a.started_at || 0).getTime();
+        const tb = new Date(b.started_at || 0).getTime();
+        return tb - ta;
+      });
+
+      if (currentSlot) {
+        if (currentItems.length) {
+          currentSlot.innerHTML = buildStatusTimelineItemHtml(currentItems[0], labels, { isCurrent: true });
+        } else {
+          currentSlot.innerHTML = '';
+        }
+      }
+
       if (!history.length) {
         track.innerHTML = '<div class="status-timeline-empty">还没有可显示的状态历程</div>';
         return;
       }
-      const labels = { online:'在线', busy:'忙碌', away:'离开', dnd:'请勿打扰', invisible:'隐身', offline:'离线', custom:'自定义' };
-      track.innerHTML = `<div class="status-timeline-line"></div>` + history.map((item, i) => {
-        const type = labels[item.status_type] ? item.status_type : 'custom';
-        const active = !item.ended_at;
-        return `<article class="status-timeline-item${active ? ' is-current' : ''}">
-          <span class="status-timeline-dot ${type}"></span>
-          <div class="status-timeline-card">
-            <div class="status-timeline-status"><span class="status-timeline-dot-mini ${type}"></span>${escapeHtml(item.status_text || labels[type])}${active ? '<span class="status-timeline-now">现在</span>' : ''}</div>
-            ${item.status_summary ? `<div class="status-timeline-summary">${escapeHtml(item.status_summary)}</div>` : ''}
-            <div class="status-timeline-time">${escapeHtml(formatDateUTC8(item.started_at))}${item.ended_at ? ` — ${escapeHtml(formatDateUTC8(item.ended_at))}` : ' — 至今'}</div>
-          </div>
-        </article>`;
-      }).join('');
-      requestAnimationFrame(() => { timeline.scrollLeft = Math.max(0, timeline.scrollWidth - timeline.clientWidth); });
+
+      if (!pastItems.length) {
+        track.innerHTML = '<div class="status-timeline-empty">暂无历史状态</div>';
+        return;
+      }
+
+      track.innerHTML = `<div class="status-timeline-line"></div>` + pastItems.map((item) =>
+        buildStatusTimelineItemHtml(item, labels, { isCurrent: false })
+      ).join('');
+      requestAnimationFrame(() => { timeline.scrollLeft = 0; });
     } catch (e) {
       track.innerHTML = `<div class="status-timeline-empty">状态历程暂时无法加载</div>`;
+      if (currentSlot) currentSlot.innerHTML = '';
       console.warn('[status-timeline]', e);
     }
   }
@@ -3977,11 +4216,51 @@
     }, { passive: false });
   }
 
+  function isDesktopFinePointer() {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /** 电脑端禁止鼠标左右滑动切页；触屏仍可横滑；导航点击不受影响 */
+  function setupDesktopPageSwipeLock() {
+    if (!scrollContainer || scrollContainer.dataset.pageSwipeLock === '1') return;
+    scrollContainer.dataset.pageSwipeLock = '1';
+
+    const applyOverflow = () => {
+      if (isDesktopFinePointer()) {
+        scrollContainer.style.overflowX = 'hidden';
+      } else {
+        scrollContainer.style.overflowX = '';
+      }
+    };
+    applyOverflow();
+    try {
+      const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+      const onChange = () => applyOverflow();
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    } catch (_) {}
+
+    scrollContainer.addEventListener('wheel', (e) => {
+      if (!isDesktopFinePointer()) return;
+      // 拦截横向滚轮 / Shift+滚轮 导致的切页
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  }
+  setupDesktopPageSwipeLock();
+
   function setupBlogHorizontalPassthrough() {
     if (!blogPanel || !scrollContainer || blogPanel.dataset.hzPass === '1') return;
     blogPanel.dataset.hzPass = '1';
 
     blogPanel.addEventListener('wheel', (e) => {
+      // 电脑端不通过横向滚轮切页
+      if (isDesktopFinePointer()) return;
       const absX = Math.abs(e.deltaX);
       const absY = Math.abs(e.deltaY);
       if (absX > absY && absX > 1.5) {
@@ -4003,6 +4282,7 @@
 
     blogPanel.addEventListener('touchmove', (e) => {
       if (e.touches.length !== 1) return;
+      // 触屏仍允许横滑切页
       const x = e.touches[0].clientX;
       const y = e.touches[0].clientY;
       const dx = x - touchStartX;

@@ -595,7 +595,7 @@ body {
 
 .panel-home {
   align-items: stretch;
-  padding: 0.9rem 1.8rem 1.3rem;
+  padding: 0.9rem 1.8rem 1.0rem;
   overflow-y: auto;
   overflow-x: hidden;
   display: block;
@@ -603,8 +603,9 @@ body {
 .home-content {
   display: flex;
   align-items: center;
-  min-height: calc(100vh - 110px);
-  height: calc(100vh - 110px);
+  min-height: 0;
+  height: auto;
+  padding-bottom: 0.4rem;
 }
 .home-layout {
   display: grid;
@@ -659,6 +660,55 @@ body {
   -webkit-backdrop-filter: blur(10px);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28);
   max-width: 100%;
+  will-change: transform;
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+/* 打字机粗下划线光标 */
+.home-status-cursor {
+  display: none;
+  width: 0.62em;
+  height: 2.5px;
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: 0 0 0.22em 1px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
+  animation: statusCaretBlink 0.9s steps(1, end) infinite;
+}
+.home-status-cursor.is-on { display: inline-block; }
+@keyframes statusCaretBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.home-status.is-typing { cursor: default; }
+.home-status.is-flipping {
+  pointer-events: none;
+}
+/* 详情过长：整行换到名字下方并横向撑开 */
+.home-name-row.is-status-expanded {
+  align-items: flex-start;
+}
+.home-name-row.is-status-expanded .home-name {
+  flex: 0 0 auto;
+}
+.home-name-row.is-status-expanded .home-status {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: min(32rem, 100%);
+  align-items: flex-start;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+.home-name-row.is-status-expanded .home-status-text {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  max-width: none;
+  line-height: 1.45;
 }
 .home-status-dot {
   width: 8px;
@@ -738,11 +788,63 @@ body {
   padding: 0.55rem 1.2rem;
   font-size: 0.9rem;
 }
+.home-avatar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  flex-shrink: 0;
+  min-width: 0;
+}
 .home-avatar-side {
   display: flex;
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
+}
+/* 头像下方当前状态（1.2× 基准字号/圆点） */
+.status-current-under-avatar {
+  width: 100%;
+  max-width: 280px;
+  text-align: center;
+  padding: 0 0.25rem;
+}
+.status-current-under-avatar:empty { display: none; }
+.status-current-under-avatar .status-timeline-item {
+  width: 100%;
+  flex: none;
+  padding-top: 0;
+}
+.status-current-under-avatar .status-timeline-dot {
+  width: 12px; /* 10 * 1.2 */
+  height: 12px;
+  margin: 0 auto 0.7rem;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.08), 0 0 22px rgba(100,210,255,.24);
+}
+.status-current-under-avatar .status-timeline-status {
+  font-size: 1.008rem; /* 0.84 * 1.2 */
+  gap: 0.45rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.status-current-under-avatar .status-timeline-dot-mini {
+  width: 7.2px; /* 6 * 1.2 */
+  height: 7.2px;
+}
+.status-current-under-avatar .status-timeline-summary {
+  font-size: 0.816rem; /* 0.68 * 1.2 */
+  max-width: 260px;
+  margin-top: 0.35rem;
+}
+.status-current-under-avatar .status-timeline-time {
+  font-size: 0.744rem; /* 0.62 * 1.2 */
+  margin-top: 0.4rem;
+  white-space: normal;
+}
+.status-current-under-avatar .status-timeline-now {
+  font-size: 0.696rem; /* 0.58 * 1.2 */
+  padding: 0.1rem 0.36rem;
 }
 .avatar-circle-placeholder {
   width: 200px;
@@ -2024,10 +2126,12 @@ a.blog-list .blog-card,
 @media (max-width: 800px) {
   .panel-home { padding-left: .85rem; padding-right: .85rem; }
   .home-content { height: auto; min-height: calc(100vh - 105px); }
-  .status-timeline-section { width: 100%; margin-top: 1.2rem; }
-  .status-timeline-item { width: 190px; flex-basis: 190px; }
+  .status-timeline-section { width: 100%; max-width: none; margin-top: 0.8rem; }
+  .status-timeline-item { width: 152px; flex-basis: 152px; }
   .status-timeline-track { padding-left: 1rem; padding-right: 1rem; }
-  .status-timeline-line { left: 1rem; right: 1rem; }
+  .status-timeline-line { left: 1rem; right: 1rem; top: 9.6px; }
+  .home-content { height: auto; min-height: 0; }
+  .status-current-under-avatar { max-width: 240px; }
   .glass-nav { max-width: 95vw; }
   .win7-business-card { flex-direction: column; text-align: center; padding: 2rem 1.5rem; }
   .win7-info-list { align-items: center; }
@@ -3562,18 +3666,37 @@ body.has-reveal-highlight .glass-card:hover {
   .reveal-host > .reveal-border { display: none !important; }
 }
 
-/* ===== 主页横向状态时间线：不使用独立玻璃面板 ===== */
+/* ===== 主页横向状态时间线：历史在右侧；当前状态在头像下方 ===== */
 .status-timeline-section {
   width: min(1180px, calc(100% - 2rem));
-  margin: 2.4rem auto 0;
-  padding: 0 0 2.2rem;
+  max-width: 980px;
+  margin: 0.6rem auto 0;
+  padding: 0 0 1.4rem;
+}
+/* 桌面：历史时间线对齐头像列，视觉上在右侧延伸 */
+@media (min-width: 901px) {
+  .status-timeline-section {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 2.5rem;
+    align-items: start;
+  }
+  .status-timeline-header {
+    grid-column: 2;
+  }
+  .status-timeline {
+    grid-column: 2;
+    /* 允许向右溢出滚动，占满剩余视口感 */
+    width: calc(100% + min(12vw, 120px));
+    max-width: calc(100vw - 4rem);
+  }
 }
 .status-timeline-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
-  margin-bottom: .75rem;
+  margin-bottom: .55rem;
   padding: 0 .25rem;
 }
 .status-timeline-title { font-size: .98rem; font-weight: 650; color: rgba(255,255,255,.88); }
@@ -3588,7 +3711,7 @@ body.has-reveal-highlight .glass-card:hover {
   cursor: grab;
   overscroll-behavior-x: contain;
   scroll-behavior: smooth;
-  padding: 1.2rem .25rem 1.45rem;
+  padding: 0.85rem .25rem 1.1rem;
 }
 .status-timeline:active { cursor: grabbing; }
 .status-timeline-track {
@@ -3597,32 +3720,51 @@ body.has-reveal-highlight .glass-card:hover {
   align-items: flex-start;
   gap: 0;
   min-width: max-content;
-  padding: 0 2rem;
+  padding: 0 1.25rem;
 }
 .status-timeline-line {
   position: absolute;
-  left: 2rem; right: 2rem; top: 12px; height: 1px;
+  left: 1.25rem; right: 1.25rem; top: 9.6px; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.28) 3%, rgba(255,255,255,.28) 97%, transparent);
 }
+/* 历史状态：0.8× 基准字号/圆点 */
 .status-timeline-item {
   position: relative;
-  width: 230px;
-  flex: 0 0 230px;
+  width: 184px; /* 230 * 0.8 */
+  flex: 0 0 184px;
   padding-top: 0;
 }
 .status-timeline-dot {
-  position: relative; z-index: 2; display: block; width: 10px; height: 10px;
-  margin: 0 auto .72rem; border-radius: 50%;
-  box-shadow: 0 0 0 4px rgba(255,255,255,.07), 0 0 16px rgba(255,255,255,.08);
+  position: relative; z-index: 2; display: block;
+  width: 8px; /* 10 * 0.8 */
+  height: 8px;
+  margin: 0 auto .58rem; border-radius: 50%;
+  box-shadow: 0 0 0 3.2px rgba(255,255,255,.07), 0 0 13px rgba(255,255,255,.08);
 }
 .status-timeline-card {
-  padding: 0 .65rem; text-align: center;
+  padding: 0 .5rem; text-align: center;
 }
-.status-timeline-status { display:flex; align-items:center; justify-content:center; gap:.38rem; font-size:.84rem; font-weight:600; color:rgba(255,255,255,.9); white-space:nowrap; }
-.status-timeline-dot-mini { width:6px; height:6px; border-radius:50%; flex:0 0 auto; }
-.status-timeline-summary { margin-top:.3rem; font-size:.68rem; line-height:1.45; color:rgba(255,255,255,.5); max-width:210px; margin-left:auto; margin-right:auto; }
-.status-timeline-time { margin-top:.38rem; font-size:.62rem; line-height:1.35; color:rgba(255,255,255,.34); font-variant-numeric:tabular-nums; white-space:nowrap; }
-.status-timeline-now { font-size:.58rem; font-weight:500; color:rgba(255,255,255,.55); padding:.08rem .3rem; border:1px solid rgba(255,255,255,.15); border-radius:999px; }
+.status-timeline-status {
+  display:flex; align-items:center; justify-content:center;
+  gap:.3rem; font-size:.672rem; /* 0.84 * 0.8 */
+  font-weight:600; color:rgba(255,255,255,.9); white-space:nowrap;
+}
+.status-timeline-dot-mini { width:4.8px; height:4.8px; border-radius:50%; flex:0 0 auto; } /* 6 * 0.8 */
+.status-timeline-summary {
+  margin-top:.24rem; font-size:.544rem; /* 0.68 * 0.8 */
+  line-height:1.45; color:rgba(255,255,255,.5);
+  max-width:168px; margin-left:auto; margin-right:auto;
+}
+.status-timeline-time {
+  margin-top:.3rem; font-size:.496rem; /* 0.62 * 0.8 */
+  line-height:1.35; color:rgba(255,255,255,.34);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.status-timeline-now {
+  font-size:.464rem; /* 0.58 * 0.8 */
+  font-weight:500; color:rgba(255,255,255,.55);
+  padding:.06rem .24rem; border:1px solid rgba(255,255,255,.15); border-radius:999px;
+}
 .status-timeline-empty, .status-timeline-loading { padding:.7rem 0; font-size:.78rem; color:rgba(255,255,255,.4); }
 .status-timeline-dot.online,.status-timeline-dot-mini.online { background:#34c759; }
 .status-timeline-dot.busy,.status-timeline-dot-mini.busy { background:#ff3b30; }
@@ -3633,12 +3775,26 @@ body.has-reveal-highlight .glass-card:hover {
 .status-timeline-dot.custom,.status-timeline-dot-mini.custom { background:#64d2ff; }
 .status-timeline-item.is-current .status-timeline-dot { box-shadow: 0 0 0 5px rgba(255,255,255,.08), 0 0 22px rgba(100,210,255,.24); }
 
-/* 状态标签：点击后淡出 → 简述淡入；再次自动恢复 */
+/* 电脑端：禁止鼠标横向滑动切页（导航点击仍可用） */
+@media (hover: hover) and (pointer: fine) {
+  .horizontal-scroll-container {
+    overflow-x: hidden;
+  }
+}
+
+/* 状态标签：打字机展开详情 */
 .home-status { cursor: default; appearance:none; font:inherit; }
 .home-status.has-summary { cursor:pointer; }
-.home-status .home-status-text { transition: opacity .18s ease, transform .18s ease; }
-.home-status.is-switching .home-status-text { opacity:0; transform:translateY(-3px); }
-.home-status.is-detail .home-status-text { max-width: min(24rem, 65vw); white-space:normal; overflow:visible; text-overflow:clip; }
+.home-status.is-detail .home-status-text {
+  max-width: min(32rem, 100%);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-status-cursor { animation: none; opacity: 1; }
+  .home-status.is-flipping { transition: none !important; }
+}
 
 /* 管理员状态简述 */
 .admin-field-hint { display:block; margin-top:.35rem; font-size:.68rem; color:rgba(255,255,255,.42); line-height:1.45; }
