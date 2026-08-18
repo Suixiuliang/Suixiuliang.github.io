@@ -3360,54 +3360,18 @@
         expanded = toExpanded;
         return Promise.resolve();
       }
-      if (prefersReduced()) {
-        row.classList.toggle('is-status-expanded', toExpanded);
-        button.classList.toggle('is-detail', toExpanded);
-        expanded = toExpanded;
-        return Promise.resolve();
-      }
-
-      const first = button.getBoundingClientRect();
+      // 不用 transform:scale（会打坏 backdrop-filter 玻璃层，产生错位/空白）
+      // 只切换布局 class，由 CSS max-width / flex-basis 平滑过渡
+      button.classList.add('is-flipping');
       row.classList.toggle('is-status-expanded', toExpanded);
       button.classList.toggle('is-detail', toExpanded);
-      void button.offsetWidth;
-      const last = button.getBoundingClientRect();
-
-      const dx = first.left - last.left;
-      const dy = first.top - last.top;
-      const sx = first.width / Math.max(last.width, 1);
-      const sy = first.height / Math.max(last.height, 1);
-
-      button.classList.add('is-flipping');
-      button.style.transformOrigin = 'left top';
-      button.style.transition = 'none';
-      button.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ', ' + sy + ')';
-
+      expanded = toExpanded;
+      const ms = prefersReduced() ? 0 : 420;
       return new Promise((resolve) => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            button.style.transition = 'transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)';
-            button.style.transform = 'translate(0px, 0px) scale(1, 1)';
-            let settled = false;
-            const done = () => {
-              if (settled) return;
-              settled = true;
-              button.style.transition = '';
-              button.style.transform = '';
-              button.style.transformOrigin = '';
-              button.classList.remove('is-flipping');
-              expanded = toExpanded;
-              resolve();
-            };
-            const onEnd = (e) => {
-              if (e.propertyName && e.propertyName !== 'transform') return;
-              button.removeEventListener('transitionend', onEnd);
-              done();
-            };
-            button.addEventListener('transitionend', onEnd);
-            window.setTimeout(done, 520);
-          });
-        });
+        window.setTimeout(() => {
+          button.classList.remove('is-flipping');
+          resolve();
+        }, ms);
       });
     }
 
@@ -3565,6 +3529,29 @@
       e.preventDefault();
       timeline.scrollLeft += e.deltaY;
     }, { passive: false });
+  }
+
+  /** 主页禁止纵向滚动（内容一屏展示） */
+  function setupHomeNoVerticalScroll() {
+    const home = document.getElementById('home');
+    if (!home || home.dataset.noVScroll === '1') return;
+    home.dataset.noVScroll = '1';
+    home.style.overflowY = 'hidden';
+    home.addEventListener('wheel', (e) => {
+      // 时间线横向滚已单独处理；其余纵向滚轮在主页吞掉
+      const tl = document.getElementById('statusTimeline');
+      if (tl && (e.target === tl || (tl.contains && tl.contains(e.target)))) return;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+    // 触控板/触摸：阻止主页纵向拖动
+    home.addEventListener('touchmove', (e) => {
+      const tl = document.getElementById('statusTimeline');
+      if (tl && e.target && tl.contains(e.target)) return;
+      // 仅当主页自身在滚时拦截
+      if (home.scrollTop !== 0) home.scrollTop = 0;
+    }, { passive: true });
   }
 
     function setupAdminLoginUI() {
@@ -4448,6 +4435,7 @@
       routeLoadState.profile = true;
       renderProfile();
       setupStatusTimelineWheel();
+      setupHomeNoVerticalScroll();
       loadStatusTimeline();
       return profileData;
     })();
@@ -5701,6 +5689,7 @@
 
     renderProfile();
     setupStatusTimelineWheel();
+    setupHomeNoVerticalScroll();
     // 博客/作品改为路由懒加载，初始化只放占位
     const worksGrid = document.getElementById('worksGrid');
     if (worksGrid) worksGrid.innerHTML = '<div class="loading-placeholder">滑动进入后加载作品...</div>';
