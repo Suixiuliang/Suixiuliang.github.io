@@ -3263,8 +3263,9 @@
   function setupHomeStatusDetail() {
     const button = document.getElementById('homeStatusButton');
     if (!button) return;
-    const summary = String(profileData.statusSummary || '').trim();
-    if (!summary) { button.removeAttribute('title'); return; }
+    const summaryRaw = String(profileData.statusSummary || '').trim();
+    if (!summaryRaw) { button.removeAttribute('title'); return; }
+    const summary = summaryRaw.replace(/\s+$/g, '');
     button.classList.add('has-summary');
     button.setAttribute('title', '点击查看状态简述');
 
@@ -3281,10 +3282,11 @@
     }
 
     const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const prefersReduced = () => {
       try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (_) { return false; }
     };
-    const statusLabel = () => String(profileData.status || '在线');
+    const statusLabel = () => String(profileData.status || '在线').trim();
 
     let runId = 0;
     let busy = false;
@@ -3293,14 +3295,23 @@
 
     function showCursor(on) {
       cursorEl.classList.toggle('is-on', !!on);
+      if (!on) {
+        // 彻底去掉光标占位，避免末尾“幽灵空隙”
+        cursorEl.style.display = 'none';
+      } else {
+        cursorEl.style.display = '';
+      }
     }
 
     function measureTextWidth(str) {
       const probe = document.createElement('span');
-      probe.className = 'home-status-text';
-      probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;pointer-events:none;';
-      probe.textContent = str;
-      button.appendChild(probe);
+      probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;pointer-events:none;font:inherit;letter-spacing:inherit;';
+      const cs = window.getComputedStyle(button);
+      probe.style.font = cs.font;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.textContent = str || '';
+      document.body.appendChild(probe);
       const w = probe.getBoundingClientRect().width;
       probe.remove();
       return w;
@@ -3311,40 +3322,62 @@
       return measureTextWidth(detail) > maxInline || detail.length > 18 || /[\n\r]/.test(detail);
     }
 
+    /** 内容驱动宽度，避免 max-width 把玻璃条撑出空白 */
+    function fitWidthToContent() {
+      button.style.width = 'max-content';
+      // 读一次布局让 max-content 生效
+      const w = button.getBoundingClientRect().width;
+      button.style.width = Math.ceil(w) + 'px';
+    }
+
+    function clearInlineSize() {
+      button.style.width = '';
+      button.style.height = '';
+      button.style.minHeight = '';
+      button.style.transform = '';
+      button.style.transition = '';
+    }
+
     async function typewriterDelete(fromText, token) {
       let t = String(fromText || '');
+      // 清掉可能残留的尾部空白
+      t = t.replace(/\s+$/g, '');
       if (t.length) {
-        // 光标替换掉最后一个字符
         textEl.textContent = t.slice(0, -1);
         showCursor(true);
+        fitWidthToContent();
         await sleep(prefersReduced() ? 40 : 70);
         if (token !== runId) return false;
-        t = textEl.textContent || '';
+        t = (textEl.textContent || '').replace(/\s+$/g, '');
       } else {
         showCursor(true);
       }
-      // 极快删除剩余文本
       while (t.length) {
         if (token !== runId) return false;
         t = t.slice(0, -1);
         textEl.textContent = t;
+        fitWidthToContent();
         await sleep(prefersReduced() ? 8 : (10 + Math.random() * 10));
       }
       textEl.textContent = '';
+      fitWidthToContent();
       return true;
     }
 
     async function typewriterType(full, token) {
-      const s = String(full || '');
+      const s = String(full || '').replace(/\s+$/g, '');
       textEl.textContent = '';
       showCursor(true);
+      fitWidthToContent();
       if (prefersReduced()) {
         textEl.textContent = s;
+        fitWidthToContent();
         return token === runId;
       }
       for (let i = 0; i < s.length; i++) {
         if (token !== runId) return false;
         textEl.textContent = s.slice(0, i + 1);
+        fitWidthToContent();
         const ch = s[i];
         let delay = 22 + Math.random() * 36;
         if (/[，。！？；、,.!?;:]/.test(ch)) delay += 28 + Math.random() * 36;
@@ -3354,25 +3387,86 @@
       return true;
     }
 
-    function flipLayout(toExpanded) {
+    /**
+     * 删除文案后、打详情前：玻璃条 translate 移到 MaxSui 下方，同时像素宽度横向扩展。
+     * 不用 scale，避免 backdrop-filter 错位。
+     */
+    async function flipLayout(toExpanded) {
       if (!row) {
         button.classList.toggle('is-detail', toExpanded);
         expanded = toExpanded;
-        return Promise.resolve();
+        return;
       }
-      // 不用 transform:scale（会打坏 backdrop-filter 玻璃层，产生错位/空白）
-      // 只切换布局 class，由 CSS max-width / flex-basis 平滑过渡
-      button.classList.add('is-flipping');
+      if (prefersReduced()) {
+        row.classList.toggle('is-status-expanded', toExpanded);
+        button.classList.toggle('is-detail', toExpanded);
+        expanded = toExpanded;
+        clearInlineSize();
+        return;
+      }
+
+      // 空文案时保持高度，指示点仍居中
+      const startRect = button.getBoundingClientRect();
+      const startW = startRect.width;
+      const startH = Math.max(startRect.height, 28);
+      button.style.minHeight = startH + 'px';
+      button.style.width = Math.ceil(startW) + 'px';
+      button.style.boxSizing = 'border-box';
+
+      const first = button.getBoundingClientRect();
+
       row.classList.toggle('is-status-expanded', toExpanded);
       button.classList.toggle('is-detail', toExpanded);
-      expanded = toExpanded;
-      const ms = prefersReduced() ? 0 : 420;
-      return new Promise((resolve) => {
-        window.setTimeout(() => {
-          button.classList.remove('is-flipping');
+      // 目标态先用 max-content 量一次（可能只有圆点，宽度小；展开后目标用预计详情宽）
+      button.style.width = 'max-content';
+      void button.offsetWidth;
+      let targetW = button.getBoundingClientRect().width;
+      if (toExpanded) {
+        // 预留详情宽度，横向扩展有“伸展”感；打字时再 fit
+        const detailW = measureTextWidth(summary) + 8 + 6 + 16; // dot + gap + padding
+        targetW = Math.min(Math.max(targetW, detailW), Math.min(32 * 16, (row.getBoundingClientRect().width || 480)));
+      }
+      targetW = Math.max(targetW, 40);
+
+      void button.offsetWidth;
+      const last = button.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+
+      button.classList.add('is-flipping');
+      button.style.transition = 'none';
+      button.style.width = Math.ceil(first.width) + 'px';
+      button.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      await nextFrame();
+
+      button.style.transition =
+        'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), width 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
+      button.style.width = Math.ceil(targetW) + 'px';
+      button.style.transform = 'translate(0px, 0px)';
+
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          button.removeEventListener('transitionend', onEnd);
           resolve();
-        }, ms);
+        };
+        const onEnd = (e) => {
+          if (e.target !== button) return;
+          if (e.propertyName !== 'transform' && e.propertyName !== 'width') return;
+          finish();
+        };
+        button.addEventListener('transitionend', onEnd);
+        window.setTimeout(finish, 520);
       });
+
+      button.classList.remove('is-flipping');
+      button.style.transition = '';
+      button.style.transform = '';
+      // 保留像素宽到打字阶段，由 fitWidthToContent 继续收/放
+      button.style.width = Math.ceil(targetW) + 'px';
+      expanded = toExpanded;
     }
 
     async function playToDetail(token) {
@@ -3390,7 +3484,7 @@
       const okType = await typewriterType(summary, token);
       if (!okType || token !== runId) return;
       showCursor(false);
-      // 展示期间允许再次点击提前返回
+      fitWidthToContent();
       if (token === runId) busy = false;
 
       window.clearTimeout(autoBackTimer);
@@ -3423,6 +3517,7 @@
       const okType = await typewriterType(label, token);
       if (!okType || token !== runId) return;
       showCursor(false);
+      clearInlineSize();
       button.classList.remove('is-detail');
       if (row) row.classList.remove('is-status-expanded');
       expanded = false;
@@ -3447,15 +3542,8 @@
         /* ignore */
       } finally {
         if (token === runId) {
-          const showingDetail = button.classList.contains('is-detail') || expanded;
-          if (!showingDetail) {
-            button.classList.remove('is-typing');
-            busy = false;
-          } else {
-            // 详情展示中：可再次点击返回
-            button.classList.remove('is-typing');
-            busy = false;
-          }
+          button.classList.remove('is-typing');
+          busy = false;
         }
       }
     });

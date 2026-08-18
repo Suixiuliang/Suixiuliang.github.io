@@ -670,13 +670,16 @@ body {
   margin: 0;
   color: #ffffff;
 }
+/* 状态玻璃条：固定最小高度，空文本时也不变扁；指示点始终条内竖直居中 */
 .home-status {
   display: inline-flex;
-  align-items: center;
+  align-items: center; /* 指示点在条内竖直居中 */
   gap: 6px;
-  padding: 0.28rem 0.7rem 0.28rem 0.55rem;
+  padding: 0.28rem 0.55rem 0.28rem 0.55rem;
+  min-height: 1.9em;
   font-size: 0.78rem;
   font-weight: 500;
+  line-height: 1.35;
   color: rgba(255, 255, 255, 0.92);
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -685,21 +688,24 @@ body {
   -webkit-backdrop-filter: blur(10px);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28);
   box-sizing: border-box;
+  width: max-content;
+  max-width: min(14rem, 100%);
+  vertical-align: middle;
 }
-/* 打字机粗下划线光标 */
+/* 打字机粗下划线光标：紧贴最后一个字符，不额外占一截空白 */
 .home-status-cursor {
   display: none;
-  width: 0.62em;
+  width: 0.55em;
   height: 2.5px;
   flex: 0 0 auto;
   align-self: flex-end;
-  margin: 0 0 0.22em 1px;
+  margin: 0 0 0.18em 0;
   border-radius: 1px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 0 6px rgba(255, 255, 255, 0.35);
   animation: statusCaretBlink 0.9s steps(1, end) infinite;
 }
-.home-status-cursor.is-on { display: inline-block; }
+.home-status-cursor.is-on { display: block; }
 @keyframes statusCaretBlink {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
@@ -707,47 +713,44 @@ body {
 .home-status.is-typing { cursor: default; }
 .home-status.is-flipping {
   pointer-events: none;
-}
-/* 状态玻璃层：用 max-width 平滑扩展，禁止 scale 以免 backdrop-filter 错位 */
-.home-status {
-  max-width: min(14rem, 100%);
-  width: max-content;
-  box-sizing: border-box;
-  transition:
-    background 0.22s ease,
-    border-color 0.22s ease,
-    box-shadow 0.22s ease,
-    max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    padding 0.35s ease;
+  /* 动画期间用像素宽，避免 flex 把条拉满 */
 }
 .home-status-text {
   display: inline;
-  /* 避免打字机过程中预留空白 */
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
-/* 详情过长：换到名字正下方；宽度跟内容走，不拉满整行留空玻璃 */
+/* 展开：换到 MaxSui 正下方；宽度跟内容，绝不拉满整行 */
 .home-name-row.is-status-expanded {
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 0.85rem;
+  row-gap: 0.35rem;
 }
 .home-name-row.is-status-expanded .home-name {
-  flex: 0 0 auto;
-  max-width: 100%;
+  grid-column: 1;
+  grid-row: 1;
 }
 .home-name-row.is-status-expanded .home-status {
-  flex: 0 1 auto;
-  flex-basis: 100%; /* 换行到名字下方 */
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: start;
+  align-items: center; /* 指示点在条左边竖直居中 */
   width: max-content;
   max-width: min(32rem, 100%);
-  align-items: flex-start;
-  padding-top: 0.36rem;
-  padding-bottom: 0.36rem;
-  margin-top: 0.15rem;
+  padding: 0.32rem 0.55rem;
+  min-height: 1.9em;
 }
 .home-name-row.is-status-expanded .home-status-text {
   white-space: pre-wrap;
   overflow: visible;
   text-overflow: clip;
-  max-width: none;
   line-height: 1.45;
   word-break: break-word;
 }
@@ -756,6 +759,7 @@ body {
   height: 8px;
   border-radius: var(--radius-circle);
   flex-shrink: 0;
+  align-self: center; /* 始终相对整条竖直居中 */
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
 }
 .home-status-dot.online { background: #34c759; }
@@ -763,12 +767,6 @@ body {
 .home-status-dot.away { background: #ffcc00; }
 .home-status-dot.offline { background: #8e8e93; }
 .home-status-dot.custom { background: #64d2ff; }
-.home-status-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
 .home-meta-row {
   font-size: 0.88rem;
   color: rgba(255, 255, 255, 0.55);
@@ -3799,7 +3797,7 @@ body.has-reveal-highlight .glass-card:hover {
 .home-status { cursor: default; appearance:none; font:inherit; }
 .home-status.has-summary { cursor:pointer; }
 .home-status.is-detail .home-status-text {
-  max-width: min(32rem, 100%);
+  max-width: none;
   white-space: pre-wrap;
   overflow: visible;
   text-overflow: clip;
