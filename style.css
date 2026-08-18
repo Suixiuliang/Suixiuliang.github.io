@@ -2755,8 +2755,13 @@ body.is-reading-article .reading-dim-layer {
 }
 .glass-audio-player audio { display: none !important; }
 
-/* @[音频][歌词]@ 块：歌词面板顶边对齐播放器中线，像从下方拉出 */
+/* @[音频][歌词]@ 块：歌词面板顶边对齐播放器中线，像从下方拉出；圆角与播放器一致 */
 .md-song-block {
+  --gap-pad: 8px;
+  --gap-btn: 34px;
+  --player-h: calc(var(--gap-btn) + var(--gap-pad) * 2);
+  --player-half: calc(var(--player-h) / 2);
+  --player-radius: 999px;
   position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
@@ -2764,35 +2769,64 @@ body.is-reading-article .reading-dim-layer {
   gap: 0;
   isolation: isolate;
 }
+.blog-article-body .md-song-block > .md-audio-player,
+.blog-article-body .md-song-block > .glass-audio-player,
 .md-song-block > .md-audio-player,
 .md-song-block > .glass-audio-player {
   position: relative;
   z-index: 2;
+  margin: 0 !important; /* 与歌词面板贴合，避免中间空隙 */
+  /* 略提高不透明度，盖住下方歌词顶边/圆角边框，避免边框从玻璃里透上来 */
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.38),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1),
+    0 1px 0 rgba(0, 0, 0, 0.06);
 }
 .md-lyrics {
   position: relative;
   z-index: 1;
-  /* 顶边贴播放器水平中线（播放器约 2.6~2.8rem 高） */
-  margin-top: -1.35rem;
-  padding: 1.85rem 0.9rem 0.85rem;
+  /* 顶边精确贴在播放器水平中线 */
+  margin-top: calc(-1 * var(--player-half));
+  /* 内容从中线以下开始，避免被播放器挡住 */
+  padding: calc(var(--player-half) + 0.55rem) 0.9rem 0.85rem;
   max-height: 15.5rem;
   overflow-x: hidden;
   overflow-y: auto;
-  border-radius: 16px;
+  /* 与播放器同圆角（全圆角胶囊） */
+  border-radius: var(--player-radius);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12);
-  /* 隐藏滚动条，仍允许程序化滚动 */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  /* 顶边在重叠区不描边，避免从播放器玻璃下透出一圈边框 */
+  border-top-color: transparent;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  /* 强制隐藏滚动条，仍允许 JS 程序化滚动 */
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 .md-lyrics::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
   display: none !important;
-  background: transparent;
+  background: transparent !important;
+}
+/* 盖住歌词顶半区自身的圆角边框，防止从播放器下透出 */
+.md-lyrics::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--player-half);
+  border-radius: var(--player-radius) var(--player-radius) 0 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.07);
 }
 .md-lyrics-line {
+  position: relative;
+  z-index: 0;
   padding: 0.28rem 0.15rem;
   font-size: 0.92rem;
   line-height: 1.55;

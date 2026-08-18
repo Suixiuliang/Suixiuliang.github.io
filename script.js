@@ -1187,12 +1187,23 @@
     if (!nodes.length) return;
     let active = -1;
 
+    /** 将当前行滚到「播放器遮住区以下」的可视中心（强制自动滚动） */
     const scrollLineIntoCenter = (node, smooth) => {
       if (!node || !lyricsEl) return;
       const box = lyricsEl.getBoundingClientRect();
       const line = node.getBoundingClientRect();
-      const delta = (line.top + line.height / 2) - (box.top + box.height / 2);
-      const top = lyricsEl.scrollTop + delta;
+      // 可视区从顶边下移半个播放器高度（与 CSS --player-half 一致）
+      let cover = 0;
+      try {
+        const song = lyricsEl.closest('.md-song-block');
+        const player = song && song.querySelector('.md-audio-player, .glass-audio-player');
+        if (player) cover = Math.max(0, player.getBoundingClientRect().height / 2);
+      } catch (_) {}
+      const visibleTop = box.top + cover;
+      const visibleCenter = (visibleTop + box.bottom) / 2;
+      const lineCenter = line.top + line.height / 2;
+      const delta = lineCenter - visibleCenter;
+      const top = Math.max(0, lyricsEl.scrollTop + delta);
       try {
         if (smooth && typeof lyricsEl.scrollTo === 'function') {
           lyricsEl.scrollTo({ top: top, behavior: 'smooth' });
@@ -1206,25 +1217,45 @@
 
     const tick = (opts) => {
       const smooth = !(opts && opts.instant);
+      const forceScroll = !!(opts && opts.forceScroll);
       const t = audio.currentTime || 0;
       let idx = 0;
       for (let i = 0; i < cues.length; i++) {
         if (cues[i].t <= t + 0.08) idx = i;
         else break;
       }
-      if (idx === active) return;
-      if (active >= 0 && nodes[active]) nodes[active].classList.remove('is-active');
-      active = idx;
-      if (nodes[active]) {
-        nodes[active].classList.add('is-active');
-        scrollLineIntoCenter(nodes[active], smooth);
+      const changed = idx !== active;
+      if (changed) {
+        if (active >= 0 && nodes[active]) nodes[active].classList.remove('is-active');
+        active = idx;
+        if (nodes[active]) nodes[active].classList.add('is-active');
+      }
+      // 换行或强制时滚动到当前行
+      if (nodes[active] && (changed || forceScroll)) {
+        scrollLineIntoCenter(nodes[active], smooth && !forceScroll);
       }
     };
 
     audio.addEventListener('timeupdate', function() { tick({ instant: false }); });
-    audio.addEventListener('seeked', function() { tick({ instant: true }); });
-    audio.addEventListener('play', function() { tick({ instant: true }); });
-    tick({ instant: true });
+    audio.addEventListener('seeked', function() { tick({ instant: true, forceScroll: true }); });
+    audio.addEventListener('play', function() { tick({ instant: true, forceScroll: true }); });
+    // 播放中定期纠偏，避免手动拖动后不同步
+    let keepAlive = null;
+    audio.addEventListener('play', function() {
+      if (keepAlive) clearInterval(keepAlive);
+      keepAlive = setInterval(function() {
+        if (audio.paused || audio.ended) {
+          clearInterval(keepAlive);
+          keepAlive = null;
+          return;
+        }
+        if (active >= 0 && nodes[active]) scrollLineIntoCenter(nodes[active], true);
+      }, 1200);
+    });
+    audio.addEventListener('pause', function() {
+      if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
+    });
+    tick({ instant: true, forceScroll: true });
   }
 
   async function hydrateMdLyrics(root) {
