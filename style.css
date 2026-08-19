@@ -2875,12 +2875,21 @@ body.is-reading-article .reading-dim-layer {
 
 /* 展开：完整宽度的胶囊条（两端仍是半圆） */
 .glass-audio-player.is-expanded,
-.glass-audio-player.is-expanding,
-.glass-audio-player.is-collapsing {
+.glass-audio-player.is-expanding {
   width: 100%;
   min-width: 100%;
   padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
   border-radius: var(--player-radius);
+}
+
+/* 收起动画：从满宽平滑收到圆形（与展开对称） */
+.glass-audio-player.is-collapsing {
+  width: var(--player-h);
+  min-width: var(--player-h);
+  max-width: var(--player-h);
+  padding: 0;
+  border-radius: var(--player-radius);
+  justify-content: center;
 }
 
 .glass-audio-player.h5-like .gap-main {
@@ -2966,27 +2975,36 @@ body.is-reading-article .reading-dim-layer {
 }
 
 .glass-audio-player.is-expanding .gap-play,
-.glass-audio-player.is-expanded .gap-play,
-.glass-audio-player.is-collapsing .gap-play {
+.glass-audio-player.is-expanded .gap-play {
   transform: scale(1);
   border: 1px solid rgba(255, 255, 255, 0.32);
   background: rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
 }
 
+/* 收起过程中按钮同步放大回圆，与展开时缩小对称 */
+.glass-audio-player.is-collapsing .gap-play {
+  transform: scale(calc(var(--player-h) / var(--gap-btn)));
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.glass-audio-player.is-collapsing .gap-time,
+.glass-audio-player.is-collapsing .gap-seek {
+  display: none;
+  opacity: 0;
+}
+
 /* 展开过程中逐步显示进度/时间 */
 .glass-audio-player.is-expanding .gap-time,
 .glass-audio-player.is-expanding .gap-seek,
 .glass-audio-player.is-expanded .gap-time,
-.glass-audio-player.is-expanded .gap-seek,
-.glass-audio-player.is-collapsing .gap-time,
-.glass-audio-player.is-collapsing .gap-seek {
+.glass-audio-player.is-expanded .gap-seek {
   display: flex;
   opacity: 1;
   transition: opacity 0.28s ease 0.12s;
 }
-.glass-audio-player.is-expanding .gap-time,
-.glass-audio-player.is-collapsing .gap-time {
+.glass-audio-player.is-expanding .gap-time {
   display: inline;
 }
 
@@ -3066,7 +3084,7 @@ body.is-reading-article .reading-dim-layer {
   --player-radius: calc(var(--player-h) / 2);
   --player-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --player-dur: 0.52s;
-  --lyrics-radius: var(--player-radius);
+  --lyrics-radius: var(--player-radius); /* 与播放条胶囊圆角一致 */
   position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
@@ -3128,11 +3146,16 @@ body.is-reading-article .reading-dim-layer {
 }
 
 .md-song-block > .glass-audio-player.is-expanded,
-.md-song-block > .glass-audio-player.is-expanding,
-.md-song-block > .glass-audio-player.is-collapsing {
+.md-song-block > .glass-audio-player.is-expanding {
   width: 100%;
   min-width: 100%;
   padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
+}
+.md-song-block > .glass-audio-player.is-collapsing {
+  width: var(--player-h);
+  min-width: var(--player-h);
+  max-width: var(--player-h);
+  padding: 0;
 }
 
 /* 歌词滚动区：透明、无玻璃；上界紧贴播放条下界 */
@@ -3219,6 +3242,78 @@ body.is-reading-article .reading-dim-layer {
 }
 
 .md-lyrics-error { color: rgba(255, 160, 160, 0.9); }
+
+/* —— Apple 风格加载圈（12 杠） —— */
+.apple-spinner {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.88);
+}
+.apple-spinner .bar {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 9%;
+  height: 26%;
+  margin-left: -4.5%;
+  border-radius: 50px;
+  background: currentColor;
+  opacity: 0.15;
+  transform-origin: center 190%;
+  animation: apple-fade 1.2s linear infinite;
+}
+.apple-spinner .bar:nth-child(1)  { transform: rotate(0deg);   animation-delay: -1.1s; }
+.apple-spinner .bar:nth-child(2)  { transform: rotate(30deg);  animation-delay: -1.0s; }
+.apple-spinner .bar:nth-child(3)  { transform: rotate(60deg);  animation-delay: -0.9s; }
+.apple-spinner .bar:nth-child(4)  { transform: rotate(90deg);  animation-delay: -0.8s; }
+.apple-spinner .bar:nth-child(5)  { transform: rotate(120deg); animation-delay: -0.7s; }
+.apple-spinner .bar:nth-child(6)  { transform: rotate(150deg); animation-delay: -0.6s; }
+.apple-spinner .bar:nth-child(7)  { transform: rotate(180deg); animation-delay: -0.5s; }
+.apple-spinner .bar:nth-child(8)  { transform: rotate(210deg); animation-delay: -0.4s; }
+.apple-spinner .bar:nth-child(9)  { transform: rotate(240deg); animation-delay: -0.3s; }
+.apple-spinner .bar:nth-child(10) { transform: rotate(270deg); animation-delay: -0.2s; }
+.apple-spinner .bar:nth-child(11) { transform: rotate(300deg); animation-delay: -0.1s; }
+.apple-spinner .bar:nth-child(12) { transform: rotate(330deg); animation-delay: 0s; }
+@keyframes apple-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0.15; }
+}
+.apple-spinner.is-sm { width: 18px; height: 18px; }
+.apple-spinner.is-sm .bar { transform-origin: center 190%; }
+.apple-spinner.is-md { width: 28px; height: 28px; }
+.apple-spinner.is-lg { width: 36px; height: 36px; }
+
+.loading-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.92rem;
+}
+.loading-placeholder .apple-spinner {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* 播放器加载中：按钮内显示 spinner */
+.glass-audio-player.is-loading .gap-play i {
+  display: none;
+}
+.glass-audio-player.is-loading .gap-play .apple-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.glass-audio-player .gap-play .apple-spinner {
+  display: none;
+}
+
+
 
 
 /* —— 嵌入 iframe：默认适中尺寸，避免把小部件撑满整宽 —— */

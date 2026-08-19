@@ -1484,6 +1484,16 @@
     try { audio.volume = 1; } catch (_) {}
   }
 
+
+  function appleSpinnerHtml(sizeClass) {
+    const cls = sizeClass ? ('apple-spinner ' + sizeClass) : 'apple-spinner';
+    const bars = Array.from({ length: 12 }, () => '<span class="bar"></span>').join('');
+    return '<span class="' + cls + '" aria-hidden="true">' + bars + '</span>';
+  }
+  function loadingPlaceholderHtml(text) {
+    return '<div class="loading-placeholder">' + appleSpinnerHtml('is-sm') + '<span>' + String(text || '加载中…') + '</span></div>';
+  }
+
   function buildGlassAudioPlayer(audio) {
     audio.removeAttribute('controls');
     audio.preload = audio.preload || 'metadata';
@@ -1494,7 +1504,9 @@
     player.setAttribute('data-player-state', 'collapsed');
     player.innerHTML =
       `<div class="gap-main">` +
-        `<button type="button" class="gap-play" aria-label="播放/暂停"><i class="fas fa-play"></i></button>` +
+        `<button type="button" class="gap-play" aria-label="播放/暂停"><i class="fas fa-play"></i>` +
+          appleSpinnerHtml('is-sm') +
+        `</button>` +
         `<span class="gap-time gap-cur">0:00</span>` +
         `<div class="gap-seek" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">` +
           `<div class="gap-seek-track"><div class="gap-seek-fill"></div></div>` +
@@ -1674,10 +1686,27 @@
       }, 3000);
     };
 
+    const syncLoadingUi = () => {
+      // 尚未具备可播放数据，或缓冲中
+      const needWait = audio.readyState < 2 || (audio.seeking === false && audio.networkState === 2 && audio.readyState < 3 && !audio.paused);
+      // networkState 2 = NETWORK_LOADING; readyState < HAVE_CURRENT_DATA
+      const loading = !audio.error && (
+        audio.readyState < 2 ||
+        (player._waiting === true)
+      );
+      player.classList.toggle('is-loading', loading);
+      if (loading) {
+        playBtn.setAttribute('aria-busy', 'true');
+      } else {
+        playBtn.removeAttribute('aria-busy');
+      }
+    };
+
     const syncPlayUi = () => {
       const playing = !audio.paused && !audio.ended;
       playIcon.className = playing ? 'fas fa-pause' : 'fas fa-play';
       player.classList.toggle('is-playing', playing);
+      syncLoadingUi();
     };
 
     const syncProgress = () => {
@@ -1738,18 +1767,54 @@
       syncPlayUi();
     });
     audio.addEventListener('pause', () => {
+      player._waiting = false;
       syncPlayUi();
       if (!audio.ended) scheduleCollapseAfterPause();
     });
     audio.addEventListener('ended', () => {
+      player._waiting = false;
       syncPlayUi();
       scheduleCollapseAfterEnded();
     });
+    audio.addEventListener('waiting', () => {
+      player._waiting = true;
+      syncLoadingUi();
+    });
+    audio.addEventListener('loadstart', () => {
+      player._waiting = true;
+      syncLoadingUi();
+    });
+    audio.addEventListener('stalled', () => {
+      player._waiting = true;
+      syncLoadingUi();
+    });
+    audio.addEventListener('canplay', () => {
+      player._waiting = false;
+      syncLoadingUi();
+      syncProgress();
+    });
+    audio.addEventListener('canplaythrough', () => {
+      player._waiting = false;
+      syncLoadingUi();
+    });
+    audio.addEventListener('playing', () => {
+      player._waiting = false;
+      syncPlayUi();
+    });
     audio.addEventListener('timeupdate', syncProgress);
-    audio.addEventListener('loadedmetadata', syncProgress);
+    audio.addEventListener('loadedmetadata', () => {
+      syncProgress();
+      syncLoadingUi();
+    });
     audio.addEventListener('durationchange', syncProgress);
+    audio.addEventListener('error', () => {
+      player._waiting = false;
+      player.classList.remove('is-loading');
+      syncPlayUi();
+    });
 
     syncPlayUi();
+    syncLoadingUi();
     syncProgress();
     return player;
   }
@@ -2679,7 +2744,7 @@
       : '';
     if (metaEl) metaEl.innerHTML = loadingMeta;
     setReadingToolbarMeta(loadingTitle, loadingMeta);
-    bodyEl.innerHTML = '<p class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载正文…</p>';
+    bodyEl.innerHTML = loadingPlaceholderHtml('加载正文…');
     // 先测纯列表高度，再露出正文（否则列表+正文叠高会让下边界起跑点偏高并瞬跳）
     const listHeightBeforeRead = blogWhiteBox
       ? Math.round(blogWhiteBox.getBoundingClientRect().height)
@@ -5079,7 +5144,7 @@
     if (routeLoadPromises.blog && !force) return routeLoadPromises.blog;
     const listEl = document.getElementById('blogList');
     if (listEl && !routeLoadState.blog) {
-      listEl.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载文章...</div>';
+      listEl.innerHTML = loadingPlaceholderHtml('加载文章...');
     }
     routeLoadPromises.blog = (async () => {
       try {
@@ -6322,7 +6387,7 @@
     const worksGrid = document.getElementById('worksGrid');
     if (worksGrid) worksGrid.innerHTML = '<div class="loading-placeholder">滑动进入后加载作品...</div>';
     const blogList = document.getElementById('blogList');
-    if (blogList) blogList.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 进入博客后加载...</div>';
+    if (blogList) blogList.innerHTML = loadingPlaceholderHtml('进入博客后加载...');
     setupBlogToolbarInteractions();
     setupBlogSortUI();
     setupArticleReaderUI();
