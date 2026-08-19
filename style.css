@@ -2854,6 +2854,16 @@ body.is-reading-article .reading-dim-layer {
   display: flex;
   align-items: center;
   overflow: hidden;
+  /* 收起态不参与 width 过渡，避免其它实例误触发时“跳动” */
+  transition:
+    background 0.28s ease,
+    box-shadow 0.28s ease;
+}
+
+/* 仅在展开/收起动画态才过渡宽度与内边距 */
+.glass-audio-player.is-expanding,
+.glass-audio-player.is-expanded,
+.glass-audio-player.is-collapsing {
   transition:
     width var(--player-dur) var(--player-ease),
     min-width var(--player-dur) var(--player-ease),
@@ -2915,10 +2925,25 @@ body.is-reading-article .reading-dim-layer {
     box-shadow 0.2s ease;
 }
 
-/* 收起：整圆容器；按钮用 scale 铺满，始终正圆 */
+/* 硬重置时关闭一切尺寸过渡 */
+.glass-audio-player.is-no-motion,
+.glass-audio-player.is-no-motion.is-collapsed,
+.glass-audio-player.is-no-motion.is-expanding,
+.glass-audio-player.is-no-motion.is-expanded,
+.glass-audio-player.is-no-motion.is-collapsing {
+  transition: none !important;
+}
+
+/* 收起：整圆容器锁死尺寸；不参与 width 动画，杜绝误触发展开过渡 */
 .glass-audio-player.is-collapsed {
-  padding: 0;
+  width: var(--player-h) !important;
+  min-width: var(--player-h) !important;
+  max-width: var(--player-h) !important;
+  padding: 0 !important;
   justify-content: center;
+  transition:
+    background 0.28s ease,
+    box-shadow 0.28s ease !important;
 }
 .glass-audio-player.is-collapsed .gap-main {
   width: 100%;
@@ -3049,6 +3074,7 @@ body.is-reading-article .reading-dim-layer {
   align-items: stretch;
   gap: 0;
   isolation: isolate;
+  contain: layout style;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -3095,9 +3121,10 @@ body.is-reading-article .reading-dim-layer {
 }
 
 .md-song-block > .glass-audio-player.is-collapsed {
-  width: var(--player-h);
-  min-width: var(--player-h);
-  padding: 0;
+  width: var(--player-h) !important;
+  min-width: var(--player-h) !important;
+  max-width: var(--player-h) !important;
+  padding: 0 !important;
 }
 
 .md-song-block > .glass-audio-player.is-expanded,

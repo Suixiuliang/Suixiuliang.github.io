@@ -1581,28 +1581,72 @@
       }
     };
 
+    const hardSnapCollapsed = (el) => {
+      if (!el) return;
+      if (el._collapseTimer) {
+        clearTimeout(el._collapseTimer);
+        el._collapseTimer = null;
+      }
+      delete el.dataset.collapseToken;
+      // 禁止过渡，避免 width 从错误值动画回圆形
+      el.classList.add('is-no-motion');
+      el.classList.remove('is-expanding', 'is-expanded', 'is-collapsing');
+      el.classList.add('is-collapsed');
+      el.setAttribute('data-player-state', 'collapsed');
+      el.style.width = '';
+      el.style.minWidth = '';
+      el.style.maxWidth = '';
+      el.style.padding = '';
+      const block = el.closest('.md-song-block');
+      if (block) {
+        block.classList.remove('is-player-open');
+        const ly = block.querySelector('.md-lyrics');
+        if (ly) ly.classList.remove('is-expanded');
+      }
+      // 下一帧再允许过渡（仅对真正展开的实例有意义）
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => el.classList.remove('is-no-motion'));
+      });
+    };
+
     const collapseOtherPlayers = () => {
-      // 只处理真正展开中的其它播放器，避免已收起的被加上 is-collapsing 造成跳动
+      const circleMax = 72; // 圆形播放器视觉上限（player-h≈50，留余量）
       document.querySelectorAll('.glass-audio-player').forEach((other) => {
         if (other === player) return;
-        const isOpen = other.classList.contains('is-expanded')
-          || other.classList.contains('is-expanding')
-          || other.classList.contains('is-collapsing');
+
         const otherAudio = other.querySelector('audio');
         if (otherAudio && !otherAudio.paused) {
           pauseWithFade(otherAudio);
         }
-        if (!isOpen) return;
-        other.classList.remove('is-expanding', 'is-expanded');
+
+        // 以「实际渲染宽度」为准，不信任可能不同步的 class
+        let visualW = 0;
+        try { visualW = other.getBoundingClientRect().width || 0; } catch (_) {}
+        const looksExpanded = visualW > circleMax;
+
+        if (!looksExpanded) {
+          // 看起来就是圆：硬重置为收起，绝不走 is-collapsing（否则会先变宽再缩回）
+          hardSnapCollapsed(other);
+          return;
+        }
+
+        // 确实是展开的宽条：做一次收起动画
+        if (other._collapseTimer) {
+          clearTimeout(other._collapseTimer);
+          other._collapseTimer = null;
+        }
+        other.classList.remove('is-no-motion', 'is-expanding', 'is-expanded', 'is-collapsed');
         other.classList.add('is-collapsing');
+        other.setAttribute('data-player-state', 'collapsing');
         const otherBlock = other.closest('.md-song-block');
         const otherLyrics = otherBlock ? otherBlock.querySelector('.md-lyrics') : null;
         if (otherLyrics) otherLyrics.classList.remove('is-expanded');
-        if (otherBlock) otherBlock.classList.remove('is-player-open');
-        setTimeout(() => {
-          other.classList.remove('is-collapsing');
-          other.classList.add('is-collapsed');
-          other.setAttribute('data-player-state', 'collapsed');
+        const collapseToken = String(Date.now()) + Math.random();
+        other.dataset.collapseToken = collapseToken;
+        other._collapseTimer = setTimeout(() => {
+          other._collapseTimer = null;
+          if (other.dataset.collapseToken !== collapseToken) return;
+          hardSnapCollapsed(other);
         }, 520);
       });
     };
@@ -1662,6 +1706,7 @@
       e.stopPropagation();
       // 收起态右键：展开但不播放；已展开则仅保持展开
       if (player.classList.contains('is-collapsed') || player.classList.contains('is-collapsing')) {
+        collapseOtherPlayers();
         setExpandedState(true);
       }
     });
