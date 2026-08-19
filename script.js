@@ -982,19 +982,43 @@
       btn.classList.remove('is-open');
       btn.setAttribute('aria-expanded', 'false');
     };
+
+    const positionMenu = () => {
+      if (menu.hidden) return;
+      const rect = btn.getBoundingClientRect();
+      const pad = 8;
+      const mw = menu.offsetWidth || 220;
+      const mh = menu.offsetHeight || 220;
+      let x = rect.right - mw;
+      let y = rect.bottom + 8;
+      if (x < pad) x = pad;
+      if (x + mw > window.innerWidth - pad) x = window.innerWidth - mw - pad;
+      if (y + mh > window.innerHeight - pad) y = rect.top - mh - 8;
+      if (y < pad) y = pad;
+      menu.style.left = `${Math.round(x)}px`;
+      menu.style.top = `${Math.round(y)}px`;
+    };
+
     const openMenu = () => {
+      document.querySelectorAll('.blog-sort-menu.is-open').forEach((el) => {
+        if (el !== menu) el.classList.remove('is-open');
+      });
       menu.hidden = false;
       menu.classList.add('is-open');
       btn.classList.add('is-open');
       btn.setAttribute('aria-expanded', 'true');
+      requestAnimationFrame(positionMenu);
     };
 
     btn.addEventListener('click', (e) => {
+      e.preventDefault();
       e.stopPropagation();
       if (menu.classList.contains('is-open')) closeMenu();
       else openMenu();
     });
+
     menu.addEventListener('click', (e) => e.stopPropagation());
+
     menu.querySelectorAll('.blog-sort-item').forEach((item) => {
       item.addEventListener('click', () => {
         const key = item.getAttribute('data-sort') || 'date';
@@ -1007,6 +1031,7 @@
         closeMenu();
       });
     });
+
     if (dirBtn) {
       dirBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1016,10 +1041,15 @@
         filterAndRenderBlogs(blogFilterKeyword, blogFilterDate, true);
       });
     }
+
     document.addEventListener('click', closeMenu);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeMenu();
     });
+    window.addEventListener('resize', positionMenu, { passive: true });
+    if (scrollContainer) scrollContainer.addEventListener('scroll', closeMenu, { passive: true });
+    if (blogPanel) blogPanel.addEventListener('scroll', closeMenu, { passive: true });
+
     updateBlogSortUI();
   }
 
@@ -1301,25 +1331,20 @@
     if (!nodes.length) return;
     let active = -1;
 
-    /** 歌词可视区上界 = 播放器下界；当前行滚到可视中心 */
+    // 歌词滚动区域本身就是“播放条下界 → 歌词面板下界”的独立可滚动区域。
+    // 不再给播放器区域预留覆盖层，因此歌词永远不会滚到播放条后面。
     const scrollLineIntoCenter = (node, smooth) => {
       if (!node || !lyricsEl) return;
       const box = lyricsEl.getBoundingClientRect();
       const line = node.getBoundingClientRect();
-      let cover = 0;
-      try {
-        const song = lyricsEl.closest('.md-song-block');
-        const player = song && song.querySelector('.md-audio-player, .glass-audio-player');
-        if (player) cover = Math.max(0, player.getBoundingClientRect().height);
-      } catch (_) {}
-      const visibleTop = box.top + cover;
-      const visibleCenter = (visibleTop + box.bottom) / 2;
+      const visibleCenter = box.top + box.height / 2;
       const lineCenter = line.top + line.height / 2;
       const delta = lineCenter - visibleCenter;
       const top = Math.max(0, lyricsEl.scrollTop + delta);
+
       try {
         if (smooth && typeof lyricsEl.scrollTo === 'function') {
-          lyricsEl.scrollTo({ top: top, behavior: 'smooth' });
+          lyricsEl.scrollTo({ top, behavior: 'smooth' });
         } else {
           lyricsEl.scrollTop = top;
         }
@@ -1351,6 +1376,7 @@
     audio.addEventListener('timeupdate', function() { tick({ instant: false }); });
     audio.addEventListener('seeked', function() { tick({ instant: true, forceScroll: true }); });
     audio.addEventListener('play', function() { tick({ instant: true, forceScroll: true }); });
+
     let keepAlive = null;
     audio.addEventListener('play', function() {
       if (keepAlive) clearInterval(keepAlive);
@@ -1363,9 +1389,11 @@
         if (active >= 0 && nodes[active]) scrollLineIntoCenter(nodes[active], true);
       }, 1200);
     });
+
     audio.addEventListener('pause', function() {
       if (keepAlive) { clearInterval(keepAlive); keepAlive = null; }
     });
+
     tick({ instant: true, forceScroll: true });
   }
 
@@ -1411,7 +1439,8 @@
     audio.style.display = 'none';
 
     const player = document.createElement('div');
-    player.className = 'md-audio-player glass-audio-player h5-like';
+    player.className = 'md-audio-player glass-audio-player h5-like is-collapsed';
+    player.setAttribute('data-player-state', 'collapsed');
     player.innerHTML =
       `<div class="gap-main">` +
         `<button type="button" class="gap-play" aria-label="播放/暂停"><i class="fas fa-play"></i></button>` +
@@ -1434,19 +1463,111 @@
       }
     }
 
+    const song = player.closest('.md-song-block');
+    const lyrics = song ? song.querySelector('.md-lyrics') : null;
     const playBtn = player.querySelector('.gap-play');
     const playIcon = playBtn.querySelector('i');
     const curEl = player.querySelector('.gap-cur');
     const durEl = player.querySelector('.gap-dur');
     const seek = player.querySelector('.gap-seek');
     const fill = player.querySelector('.gap-seek-fill');
+
     let seeking = false;
+    let collapseTimer = null;
+    let expandTimer = null;
+
+    const clearCollapseTimer = () => {
+      if (collapseTimer) {
+        clearTimeout(collapseTimer);
+        collapseTimer = null;
+      }
+    };
+
+    const clearExpandTimer = () => {
+      if (expandTimer) {
+        clearTimeout(expandTimer);
+        expandTimer = null;
+      }
+    };
+
+    const setExpandedState = (expanded) => {
+      clearExpandTimer();
+      if (expanded) {
+        player.classList.remove('is-collapsing');
+        player.classList.add('is-expanding');
+        player.classList.remove('is-collapsed');
+        player.setAttribute('data-player-state', 'expanding');
+
+        // 第一阶段：圆形播放按钮缩小；第二阶段：播放条向右展开；
+        // 第三阶段：歌词面板从播放条下方展开。
+        expandTimer = setTimeout(() => {
+          player.classList.add('is-expanded');
+          player.setAttribute('data-player-state', 'expanded');
+          if (lyrics) lyrics.classList.add('is-expanded');
+          expandTimer = null;
+        }, 95);
+      } else {
+        clearCollapseTimer();
+        player.classList.remove('is-expanding', 'is-expanded');
+        player.classList.add('is-collapsing');
+        player.setAttribute('data-player-state', 'collapsing');
+        if (lyrics) lyrics.classList.remove('is-expanded');
+
+        // 等歌词面板收起后，再把播放条缩回圆形。
+        expandTimer = setTimeout(() => {
+          player.classList.remove('is-collapsing');
+          player.classList.add('is-collapsed');
+          player.setAttribute('data-player-state', 'collapsed');
+          expandTimer = null;
+        }, 250);
+      }
+    };
+
+    const expandAndPlay = () => {
+      clearCollapseTimer();
+
+      // 点击其它播放器时，旧播放器沿原路径立即收回。
+      document.querySelectorAll('.glass-audio-player').forEach((other) => {
+        if (other === player) return;
+        const otherAudio = other.querySelector('audio');
+        if (otherAudio) otherAudio.pause();
+        other.classList.remove('is-expanding', 'is-expanded');
+        other.classList.add('is-collapsing');
+        const otherLyrics = other.closest('.md-song-block')?.querySelector('.md-lyrics');
+        if (otherLyrics) otherLyrics.classList.remove('is-expanded');
+        setTimeout(() => {
+          other.classList.remove('is-collapsing');
+          other.classList.add('is-collapsed');
+          other.setAttribute('data-player-state', 'collapsed');
+        }, 250);
+      });
+
+      setExpandedState(true);
+      audio.play().catch(() => {});
+    };
+
+    const scheduleCollapseAfterPause = () => {
+      clearCollapseTimer();
+      collapseTimer = setTimeout(() => {
+        if (audio.paused && !audio.ended) setExpandedState(false);
+        collapseTimer = null;
+      }, 10000);
+    };
+
+    const scheduleCollapseAfterEnded = () => {
+      clearCollapseTimer();
+      collapseTimer = setTimeout(() => {
+        if (audio.ended) setExpandedState(false);
+        collapseTimer = null;
+      }, 3000);
+    };
 
     const syncPlayUi = () => {
       const playing = !audio.paused && !audio.ended;
       playIcon.className = playing ? 'fas fa-pause' : 'fas fa-play';
       player.classList.toggle('is-playing', playing);
     };
+
     const syncProgress = () => {
       const d = audio.duration || 0;
       const t = audio.currentTime || 0;
@@ -1461,10 +1582,7 @@
 
     playBtn.addEventListener('click', () => {
       if (audio.paused) {
-        document.querySelectorAll('.glass-audio-player audio').forEach((a) => {
-          if (a !== audio) a.pause();
-        });
-        audio.play().catch(() => {});
+        expandAndPlay();
       } else {
         audio.pause();
       }
@@ -1476,6 +1594,7 @@
       if (audio.duration) audio.currentTime = ratio * audio.duration;
       fill.style.width = (ratio * 100) + '%';
     };
+
     seek.addEventListener('pointerdown', (e) => {
       seeking = true;
       seek.setPointerCapture(e.pointerId);
@@ -1491,9 +1610,18 @@
     });
     seek.addEventListener('pointercancel', () => { seeking = false; });
 
-    audio.addEventListener('play', syncPlayUi);
-    audio.addEventListener('pause', syncPlayUi);
-    audio.addEventListener('ended', syncPlayUi);
+    audio.addEventListener('play', () => {
+      clearCollapseTimer();
+      syncPlayUi();
+    });
+    audio.addEventListener('pause', () => {
+      syncPlayUi();
+      if (!audio.ended) scheduleCollapseAfterPause();
+    });
+    audio.addEventListener('ended', () => {
+      syncPlayUi();
+      scheduleCollapseAfterEnded();
+    });
     audio.addEventListener('timeupdate', syncProgress);
     audio.addEventListener('loadedmetadata', syncProgress);
     audio.addEventListener('durationchange', syncProgress);
