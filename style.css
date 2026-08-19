@@ -2821,9 +2821,10 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 液态玻璃音乐播放器：默认圆形，播放时展开为胶囊条；歌词为独立面板 ——
-   播放条始终胶囊形（两端全圆），与歌词分层，形成视差层次。
-   动画：平滑缓出，避免弹性过冲。 */
+/* —— 液态玻璃音乐播放器：默认圆形，播放时展开为胶囊条 ——
+   歌词背板（液态玻璃，四角圆）与歌词滚动区分离：
+   背板上界与播放条上界重合；滚动区透明，上界为播放条下界。
+   播放按钮始终保持正圆（用 scale 缩放，避免横向展开时被拉成椭圆）。 */
 .blog-article-body .md-audio-player,
 .blog-article-body .glass-audio-player,
 .article-reader-body .md-audio-player,
@@ -2881,11 +2882,19 @@ body.is-reading-article .reading-dim-layer {
   height: 100%;
 }
 
+/* 按钮固定为正方形；尺寸变化用 scale，避免父级拉宽时变成椭圆 */
 .glass-audio-player .gap-play {
   appearance: none;
+  flex: 0 0 auto;
   flex-shrink: 0;
-  width: var(--player-h);
-  height: var(--player-h);
+  box-sizing: border-box;
+  width: var(--gap-btn);
+  height: var(--gap-btn);
+  min-width: var(--gap-btn);
+  min-height: var(--gap-btn);
+  max-width: var(--gap-btn);
+  max-height: var(--gap-btn);
+  aspect-ratio: 1 / 1;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 50%;
@@ -2897,15 +2906,16 @@ body.is-reading-article .reading-dim-layer {
   justify-content: center;
   cursor: pointer;
   font-size: 0.82rem;
+  transform-origin: center center;
+  transform: scale(1);
   transition:
-    width 0.36s var(--player-ease, cubic-bezier(0.25, 0.1, 0.25, 1)),
-    height 0.36s var(--player-ease, cubic-bezier(0.25, 0.1, 0.25, 1)),
-    transform 0.18s ease,
+    transform 0.36s var(--player-ease, cubic-bezier(0.25, 0.1, 0.25, 1)),
     background 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-/* 收起：按钮铺满圆形容器，与玻璃圆严格同心 */
+/* 收起：整圆容器；按钮用 scale 铺满，始终正圆 */
 .glass-audio-player.is-collapsed {
   padding: 0;
   justify-content: center;
@@ -2914,11 +2924,12 @@ body.is-reading-article .reading-dim-layer {
   width: 100%;
   height: 100%;
   justify-content: center;
+  align-items: center;
   gap: 0;
 }
 .glass-audio-player.is-collapsed .gap-play {
-  width: 100%;
-  height: 100%;
+  /* player-h / gap-btn = (34+16)/34 ≈ 1.4706 */
+  transform: scale(calc(var(--player-h) / var(--gap-btn)));
   border: none;
   background: transparent;
   box-shadow: none;
@@ -2932,8 +2943,7 @@ body.is-reading-article .reading-dim-layer {
 .glass-audio-player.is-expanding .gap-play,
 .glass-audio-player.is-expanded .gap-play,
 .glass-audio-player.is-collapsing .gap-play {
-  width: var(--gap-btn);
-  height: var(--gap-btn);
+  transform: scale(1);
   border: 1px solid rgba(255, 255, 255, 0.32);
   background: rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
@@ -2962,7 +2972,7 @@ body.is-reading-article .reading-dim-layer {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* 仅按下瞬间用全局强调色；播放中不变色；展开动画期间也不变色 */
+/* 仅已展开时按下用强调色；展开动画期间不变色 */
 .glass-audio-player.is-expanded .gap-play:active {
   transform: scale(0.96);
   background: rgba(0, 113, 227, 0.82);
@@ -2972,16 +2982,15 @@ body.is-reading-article .reading-dim-layer {
     inset 0 1px 1.5px rgba(255, 255, 255, 0.4);
 }
 .glass-audio-player.is-collapsed .gap-play:active {
-  transform: scale(0.96);
+  transform: scale(calc(var(--player-h) / var(--gap-btn) * 0.96));
   background: rgba(0, 113, 227, 0.55);
 }
-/* 展开/收起过程中禁用按下高亮，避免动画中途变色 */
 .glass-audio-player.is-expanding .gap-play:active,
 .glass-audio-player.is-collapsing .gap-play:active {
+  transform: scale(1);
   background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.32);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
-  transform: none;
 }
 
 .glass-audio-player .gap-time {
@@ -3024,7 +3033,7 @@ body.is-reading-article .reading-dim-layer {
 
 .glass-audio-player audio { display: none !important; }
 
-/* @[音频][歌词]@：播放条胶囊 + 下方独立歌词面板（分层视差） */
+/* @[音频][歌词]@：播放条胶囊 + 歌词背板（玻璃）+ 透明滚动区 */
 .md-song-block {
   --gap-pad: 8px;
   --gap-btn: 34px;
@@ -3032,6 +3041,7 @@ body.is-reading-article .reading-dim-layer {
   --player-radius: calc(var(--player-h) / 2);
   --player-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --player-dur: 0.52s;
+  --lyrics-radius: 18px;
   position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
@@ -3042,11 +3052,37 @@ body.is-reading-article .reading-dim-layer {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  /* 外层不铺玻璃，由播放条与歌词各自承担 */
   background: transparent;
   border: none;
   box-shadow: none;
   overflow: visible;
+}
+
+/* 歌词背板：液态玻璃，四角全圆；上界与播放条上界重合，包住播放条+歌词 */
+.md-song-block.is-player-open::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--lyrics-radius);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.32s ease;
+}
+
+/* 无歌词时不需要背板占位（仅播放条自己的胶囊玻璃） */
+.md-song-block.is-player-open:not(:has(.md-lyrics))::before {
+  display: none;
 }
 
 .blog-article-body .md-song-block > .md-audio-player,
@@ -3056,7 +3092,6 @@ body.is-reading-article .reading-dim-layer {
   position: relative;
   z-index: 2;
   margin: 0 !important;
-  /* 保留自身胶囊玻璃 */
 }
 
 .md-song-block > .glass-audio-player.is-collapsed {
@@ -3073,7 +3108,7 @@ body.is-reading-article .reading-dim-layer {
   padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
 }
 
-/* 歌词：独立玻璃面板，贴在胶囊条下方 */
+/* 歌词滚动区：透明、无玻璃；上界紧贴播放条下界 */
 .md-lyrics {
   position: relative;
   z-index: 1;
@@ -3085,15 +3120,12 @@ body.is-reading-article .reading-dim-layer {
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
-  border-radius: 0 0 18px 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-top: none;
-  box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.16),
-    inset 0 1px 1px rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
   opacity: 0;
@@ -3111,7 +3143,7 @@ body.is-reading-article .reading-dim-layer {
 .md-lyrics.is-expanded {
   height: min(15rem, 34vh);
   max-height: min(15rem, 34vh);
-  padding-top: 0.65rem;
+  padding-top: 0.55rem;
   padding-bottom: 0.75rem;
   opacity: 1;
   transform: translateY(0);
