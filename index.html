@@ -25,7 +25,13 @@
 
 <!-- 资源加载门禁：图片未就绪 / API 不可达 不可进入主内容 -->
 <div class="boot-loader" id="bootLoader" aria-live="polite" aria-busy="true">
-  <canvas class="boot-loader-canvas" id="bootLoaderCanvas"></canvas>
+    <div class="boot-oobe-bg" id="bootOobeBg" aria-hidden="true">
+    <div class="circles">
+      <div class="circle1"></div>
+      <div class="circle2"></div>
+      <div class="circle3"></div>
+    </div>
+  </div>
   <!-- API 不可达时从顶部落下的液态玻璃灵动岛 -->
   <div class="boot-api-island" id="bootApiIsland" role="alert" aria-hidden="true">
     <div class="boot-api-island-pill">
@@ -33,13 +39,17 @@
       <span class="boot-api-island-text">您所在的国家/地区暂时不支持连接到后台接口</span>
     </div>
   </div>
-  <div class="boot-loader-card" id="bootLoaderCard">
-    <h2 id="bootLoaderTitle">正在准备桌面</h2>
-    <p id="bootLoaderDesc">加载图片与界面资源…</p>
-    <div class="boot-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bootProgressTrack">
-      <div class="boot-progress-bar" id="bootProgressBar"></div>
+    <div class="boot-loader-card" id="bootLoaderCard">
+    <div class="boot-loader-topline">
+      <h2 id="bootLoaderTitle">正在准备桌面</h2>
+      <span class="apple-spinner is-sm" id="bootLoaderSpinner" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
     </div>
-    <div class="boot-progress-label" id="bootProgressLabel">0%</div>
+    <div class="boot-progress-row">
+      <div class="boot-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bootProgressTrack">
+        <div class="boot-progress-bar" id="bootProgressBar"></div>
+      </div>
+      <div class="boot-progress-label" id="bootProgressLabel">0.00MB/0.00MB</div>
+    </div>
   </div>
 </div>
 

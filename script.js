@@ -5266,121 +5266,103 @@
     }
   }
 
+  function formatBytesMB(bytes) {
+    const n = Math.max(0, Number(bytes) || 0);
+    return (n / (1024 * 1024)).toFixed(2) + 'MB';
+  }
+
   function loadImageWithProgress(url) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+      let size = 0;
+      try {
+        const res = await fetch(url, { mode: 'cors', cache: 'force-cache', credentials: 'omit' });
+        if (res.ok) {
+          const cl = Number(res.headers.get('content-length') || 0);
+          const buf = await res.arrayBuffer();
+          size = buf.byteLength || cl || 0;
+          // 触发解码缓存
+          const blob = new Blob([buf]);
+          const obj = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => { try { URL.revokeObjectURL(obj); } catch (_) {} resolve({ ok: true, url, size }); };
+          img.onerror = () => { try { URL.revokeObjectURL(obj); } catch (_) {} resolve({ ok: true, url, size }); };
+          img.src = obj;
+          return;
+        }
+      } catch (_) {}
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.decoding = 'async';
-      img.onload = () => resolve({ ok: true, url });
-      img.onerror = () => resolve({ ok: false, url });
+      img.onload = () => resolve({ ok: true, url, size: size || 0 });
+      img.onerror = () => resolve({ ok: false, url, size: 0 });
       img.src = url;
     });
   }
 
-  function startBootCircleAnim(canvas) {
-    if (!canvas) return () => {};
-    const ctx = canvas.getContext('2d');
-    let raf = null;
-    let last = 0;
-    const num = 7;
-    const minHue = 195;
-    const maxHue = 230;
-    const circles = [];
-    for (let i = 0; i < num; i++) {
-      circles.push({
-        x: Math.random(),
-        y: Math.random(),
-        r: i / num,
-        colorRand: Math.random()
-      });
-    }
-    const draw = (ts) => {
-      const w = canvas.width = window.innerWidth * (window.devicePixelRatio || 1);
-      const h = canvas.height = window.innerHeight * (window.devicePixelRatio || 1);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, w, h);
-      const g = ctx.createRadialGradient(w * 0.5, h * 0.55, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
-      g.addColorStop(0, 'rgba(20, 48, 88, 0.55)');
-      g.addColorStop(0.55, 'rgba(8, 20, 40, 0.35)');
-      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, w, h);
-
-      let dt = ts - last;
-      last = ts;
-      if (dt > 500) dt = 16;
-      for (let i = 0; i < circles.length; i++) {
-        const c = circles[i];
-        c.r += 0.045 * (dt / 1000);
-        if (c.r >= 1) {
-          c.r = c.r % 1;
-          c.x = Math.random();
-          c.y = Math.random();
-          c.colorRand = Math.random();
-        }
-        const cx = c.x * w;
-        const cy = c.y * h;
-        const radius = (0.12 + Math.sin(c.r * Math.PI) * 0.28) * Math.min(w, h);
-        const hue = minHue + Math.round(c.colorRand * (maxHue - minHue));
-        const alpha = Math.min(1, (1 - Math.abs(1 - c.r * 2)) * 1.2) * 0.55;
-        const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        rg.addColorStop(0, `hsla(${hue}, 85%, 42%, ${alpha})`);
-        rg.addColorStop(0.45, `hsla(${hue}, 80%, 28%, ${alpha * 0.35})`);
-        rg.addColorStop(1, `hsla(${hue}, 70%, 18%, 0)`);
-        ctx.fillStyle = rg;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-    return () => { if (raf) cancelAnimationFrame(raf); };
-  }
-
-  function setBootProgress(pct) {
+  function setBootProgressBytes(loaded, total) {
     const bar = document.getElementById('bootProgressBar');
     const label = document.getElementById('bootProgressLabel');
     const track = document.getElementById('bootProgressTrack');
-    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    const t = Math.max(total, 1);
+    const l = Math.max(0, Math.min(loaded, t));
+    const p = Math.max(0, Math.min(100, (l / t) * 100));
     if (bar) bar.style.width = p + '%';
-    if (label) label.textContent = p + '%';
-    if (track) track.setAttribute('aria-valuenow', String(p));
+    if (label) label.textContent = formatBytesMB(l) + '/' + formatBytesMB(t);
+    if (track) track.setAttribute('aria-valuenow', String(Math.round(p)));
   }
 
   async function runBootLoader() {
     const loader = document.getElementById('bootLoader');
-    const canvas = document.getElementById('bootLoaderCanvas');
-    const stopAnim = startBootCircleAnim(canvas);
-    setBootProgress(0);
+    setBootProgressBytes(0, 1);
 
     if (scrollContainer) scrollContainer.style.overflow = 'hidden';
 
     const urls = CRITICAL_IMAGE_URLS.slice();
-    let done = 0;
-    const total = Math.max(1, urls.length);
     const healthPromise = resolveApiBase();
 
-    await Promise.all(urls.map(async (url) => {
-      await loadImageWithProgress(url);
-      done += 1;
-      setBootProgress((done / total) * 88);
+    // 先 HEAD/探测总大小（失败则加载后再汇总）
+    let totalBytes = 0;
+    let loadedBytes = 0;
+    const sizes = new Array(urls.length).fill(0);
+
+    // 并行加载；进度按已下载字节 / 已知总字节
+    let finishedCount = 0;
+    await Promise.all(urls.map(async (url, idx) => {
+      const result = await loadImageWithProgress(url);
+      sizes[idx] = Math.max(0, result.size || 0);
+      finishedCount += 1;
+      loadedBytes = sizes.reduce((a, b) => a + b, 0);
+      totalBytes = sizes.reduce((a, b) => a + b, 0);
+      if (totalBytes > 0) {
+        // 未知剩余项大小时，至少用已完成字节作为分子，分母取已加载合计（完成时等于 total）
+        const known = sizes.filter((s) => s > 0);
+        const avg = known.length ? (known.reduce((a, b) => a + b, 0) / known.length) : 0;
+        const pending = urls.length - known.length;
+        const estTotal = totalBytes + avg * pending;
+        setBootProgressBytes(loadedBytes, Math.max(estTotal, loadedBytes, 1));
+      } else {
+        // 无 Content-Length / CORS 时按条目估算（每项约 0.5MB 仅用于展示）
+        const unit = 512 * 1024;
+        setBootProgressBytes(finishedCount * unit, urls.length * unit);
+      }
     }));
 
+    loadedBytes = sizes.reduce((a, b) => a + b, 0);
+    if (loadedBytes > 0) setBootProgressBytes(loadedBytes, loadedBytes);
+    else {
+      const unit = 512 * 1024;
+      setBootProgressBytes(urls.length * unit, urls.length * unit);
+    }
+
     const apiOk = await healthPromise;
-    setBootProgress(100);
     await new Promise(r => setTimeout(r, 160));
 
     if (loader) {
       loader.classList.add('is-done');
       loader.setAttribute('aria-busy', 'false');
       setTimeout(() => {
-        stopAnim();
         if (loader.parentNode) loader.parentNode.removeChild(loader);
       }, 500);
-    } else {
-      stopAnim();
     }
     if (scrollContainer) scrollContainer.style.overflow = '';
     return { blocked: false, apiOk: !!apiOk };
@@ -6059,7 +6041,36 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function saveImageAs(img) {
+  
+  async function downloadUrlAs(url, filename) {
+    const name = String(filename || 'download').replace(/[^\w\u4e00-\u9fff.-]+/g, '_') || 'download';
+    try {
+      const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const obj = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = obj;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => { try { URL.revokeObjectURL(obj); } catch (_) {} }, 2000);
+        return;
+      }
+    } catch (_) {}
+    // 跨域无 CORS 时回退新标签打开
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+function saveImageAs(img) {
     if (!img || !img.src) return;
     const a = document.createElement('a');
     a.href = img.src;
@@ -6152,6 +6163,41 @@
           action: () => copyTextToClipboard(codeEl.textContent || '')
         });
       }
+    }
+
+    // 音频播放器 / 歌词面板：下载音乐、下载歌词
+    const playerEl = target && target.closest
+      ? target.closest('.glass-audio-player, .md-audio-player, .md-lyrics, .md-song-block')
+      : null;
+    if (playerEl) {
+      const block = playerEl.closest('.md-song-block') || playerEl;
+      const audio = block.querySelector ? block.querySelector('audio') : null;
+      const lyricsEl = block.querySelector ? block.querySelector('.md-lyrics') : null;
+      const audioSrc = audio && (audio.currentSrc || audio.src || audio.getAttribute('src') || '');
+      const lyricsSrc = lyricsEl && (lyricsEl.getAttribute('data-lyrics-src') || '');
+      items.push({ type: 'sep' });
+      items.push({
+        id: 'dl-music',
+        icon: 'fa-download',
+        label: '下载音乐',
+        disabled: !audioSrc,
+        action: () => {
+          if (!audioSrc) return;
+          const name = (audioSrc.split('?')[0].split('/').pop() || 'audio') + '';
+          downloadUrlAs(audioSrc, name);
+        }
+      });
+      items.push({
+        id: 'dl-lyrics',
+        icon: 'fa-file-alt',
+        label: '下载歌词',
+        disabled: !lyricsSrc,
+        action: () => {
+          if (!lyricsSrc) return;
+          const name = (lyricsSrc.split('?')[0].split('/').pop() || 'lyrics.lrc') + '';
+          downloadUrlAs(lyricsSrc, name);
+        }
+      });
     }
 
     items.push({ type: 'sep' });
