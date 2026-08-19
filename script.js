@@ -1511,7 +1511,7 @@
           player.setAttribute('data-player-state', 'expanded');
           if (lyrics) lyrics.classList.add('is-expanded');
           expandTimer = null;
-        }, 95);
+        }, 180);
       } else {
         clearCollapseTimer();
         player.classList.remove('is-expanding', 'is-expanded');
@@ -1519,14 +1519,14 @@
         player.setAttribute('data-player-state', 'collapsing');
         if (lyrics) lyrics.classList.remove('is-expanded');
 
-        // 等歌词面板收起后，再把播放条缩回圆形。
+        // 等歌词面板收起后，再把播放条缩回圆形（与 CSS 0.52s 对齐）。
         expandTimer = setTimeout(() => {
           player.classList.remove('is-collapsing');
           player.classList.add('is-collapsed');
           player.setAttribute('data-player-state', 'collapsed');
           setSongBlockOpen(false);
           expandTimer = null;
-        }, 250);
+        }, 520);
       }
     };
 
@@ -1548,7 +1548,7 @@
           other.classList.remove('is-collapsing');
           other.classList.add('is-collapsed');
           other.setAttribute('data-player-state', 'collapsed');
-        }, 250);
+        }, 520);
       });
 
       setExpandedState(true);
@@ -1589,11 +1589,21 @@
       durEl.textContent = formatPlayerTime(d);
     };
 
-    playBtn.addEventListener('click', () => {
+    // 左键：展开并播放 / 暂停；右键收起态：仅展开不播放
+    playBtn.addEventListener('click', (e) => {
+      if (e.button !== 0) return;
       if (audio.paused) {
         expandAndPlay();
       } else {
         audio.pause();
+      }
+    });
+    playBtn.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // 收起态右键：展开但不播放；已展开则仅保持展开
+      if (player.classList.contains('is-collapsed') || player.classList.contains('is-collapsing')) {
+        setExpandedState(true);
       }
     });
 
@@ -3724,8 +3734,15 @@
     }
 
     function needsExpandForDetail(detail) {
-      const maxInline = Math.min(12 * 16, Math.max(80, (row ? row.getBoundingClientRect().width : 320) * 0.42));
-      return measureTextWidth(detail) > maxInline || detail.length > 18 || /[\n\r]/.test(detail);
+      // 仅当文案含换行，或宽度明显超出姓名行可用空间时，才落到下一行
+      if (/[\n\r]/.test(detail)) return true;
+      const rowW = row ? row.getBoundingClientRect().width : 480;
+      const nameEl = row ? row.querySelector('.home-name') : null;
+      const nameW = nameEl ? nameEl.getBoundingClientRect().width : 120;
+      // 同行可用：整行宽 − 姓名 − gap − 安全边距
+      const available = Math.max(120, rowW - nameW - 24);
+      const detailW = measureTextWidth(detail) + 8 + 6 + 20; // dot + gap + padding
+      return detailW > available;
     }
 
     /** 内容驱动宽度，避免 max-width 把玻璃条撑出空白 */
@@ -3803,8 +3820,10 @@
         expanded = toExpanded;
         return;
       }
+      const useMultiline = toExpanded && needsExpandForDetail(summary);
       if (prefersReduced()) {
         row.classList.toggle('is-status-expanded', toExpanded);
+        row.classList.toggle('is-status-multiline', useMultiline);
         button.classList.toggle('is-detail', toExpanded);
         expanded = toExpanded;
         clearInlineSize();
@@ -3822,15 +3841,18 @@
       const first = button.getBoundingClientRect();
 
       row.classList.toggle('is-status-expanded', toExpanded);
+      row.classList.toggle('is-status-multiline', useMultiline);
       button.classList.toggle('is-detail', toExpanded);
-      // 目标态先用 max-content 量一次（可能只有圆点，宽度小；展开后目标用预计详情宽）
+      // 目标态先用 max-content 量一次
       button.style.width = 'max-content';
       void button.offsetWidth;
       let targetW = button.getBoundingClientRect().width;
       if (toExpanded) {
-        // 预留详情宽度，横向扩展有“伸展”感；打字时再 fit
-        const detailW = measureTextWidth(summary) + 8 + 6 + 16; // dot + gap + padding
-        targetW = Math.min(Math.max(targetW, detailW), Math.min(32 * 16, (row.getBoundingClientRect().width || 480)));
+        const detailW = measureTextWidth(summary) + 8 + 6 + 16;
+        const cap = useMultiline
+          ? Math.min(32 * 16, (row.getBoundingClientRect().width || 480))
+          : Math.min(28 * 16, (row.getBoundingClientRect().width || 480));
+        targetW = Math.min(Math.max(targetW, detailW), cap);
       }
       targetW = Math.max(targetW, 40);
 
@@ -3845,8 +3867,9 @@
       button.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
       await nextFrame();
 
+      // 平滑缓出，无弹性过冲
       button.style.transition =
-        'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), width 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
+        'transform 0.58s cubic-bezier(0.25, 0.1, 0.25, 1), width 0.58s cubic-bezier(0.25, 0.1, 0.25, 1)';
       button.style.width = Math.ceil(targetW) + 'px';
       button.style.transform = 'translate(0px, 0px)';
 
@@ -3864,15 +3887,17 @@
           finish();
         };
         button.addEventListener('transitionend', onEnd);
-        window.setTimeout(finish, 520);
+        window.setTimeout(finish, 680);
       });
 
       button.classList.remove('is-flipping');
       button.style.transition = '';
       button.style.transform = '';
-      // 保留像素宽到打字阶段，由 fitWidthToContent 继续收/放
       button.style.width = Math.ceil(targetW) + 'px';
       expanded = toExpanded;
+      if (!toExpanded) {
+        row.classList.remove('is-status-multiline');
+      }
     }
 
     async function playToDetail(token) {

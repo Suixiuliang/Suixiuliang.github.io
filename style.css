@@ -767,8 +767,32 @@ body {
   margin: 0;
   padding: 0;
 }
-/* 展开：换到 MaxSui 正下方；宽度跟内容，绝不拉满整行 */
+/* 展开：优先同行横向伸展；仅在极窄或文案过长时才落到姓名下方 */
 .home-name-row.is-status-expanded {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+}
+.home-name-row.is-status-expanded .home-status {
+  align-items: center;
+  width: max-content;
+  max-width: min(28rem, 100%);
+  padding: 0.32rem 0.55rem;
+  min-height: 1.9em;
+  transition:
+    width 0.55s cubic-bezier(0.25, 0.1, 0.25, 1),
+    max-width 0.55s cubic-bezier(0.25, 0.1, 0.25, 1),
+    transform 0.55s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.home-name-row.is-status-expanded .home-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.45;
+}
+/* 真正需要换行时（JS 加 is-status-multiline）再落到姓名下方并允许正文换行 */
+.home-name-row.is-status-expanded.is-status-multiline {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
@@ -776,25 +800,20 @@ body {
   column-gap: 0.85rem;
   row-gap: 0.35rem;
 }
-.home-name-row.is-status-expanded .home-name {
+.home-name-row.is-status-expanded.is-status-multiline .home-name {
   grid-column: 1;
   grid-row: 1;
 }
-.home-name-row.is-status-expanded .home-status {
+.home-name-row.is-status-expanded.is-status-multiline .home-status {
   grid-column: 1 / -1;
   grid-row: 2;
   justify-self: start;
-  align-items: center; /* 指示点在条左边竖直居中 */
-  width: max-content;
   max-width: min(32rem, 100%);
-  padding: 0.32rem 0.55rem;
-  min-height: 1.9em;
 }
-.home-name-row.is-status-expanded .home-status-text {
+.home-name-row.is-status-expanded.is-status-multiline .home-status-text {
   white-space: pre-wrap;
   overflow: visible;
   text-overflow: clip;
-  line-height: 1.45;
   word-break: break-word;
 }
 .home-status-dot {
@@ -2799,9 +2818,9 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 液态玻璃音乐播放器：默认圆形，播放时依次展开播放条与歌词 ——
-   统一玻璃在 .md-song-block 上；播放条与歌词同属一块面板，无上下两块玻璃。
-   收起时圆形与播放按钮严格同心对齐。 */
+/* —— 液态玻璃音乐播放器：默认圆形，播放时展开为胶囊条；歌词为独立面板 ——
+   播放条始终胶囊形（两端全圆），与歌词分层，形成视差层次。
+   动画：平滑缓出，避免弹性过冲。 */
 .blog-article-body .md-audio-player,
 .blog-article-body .glass-audio-player,
 .article-reader-body .md-audio-player,
@@ -2810,6 +2829,8 @@ body.is-reading-article .reading-dim-layer {
   --gap-btn: 34px;
   --player-h: calc(var(--gap-btn) + var(--gap-pad) * 2);
   --player-radius: calc(var(--player-h) / 2);
+  --player-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --player-dur: 0.52s;
   margin: 1em 0;
   padding: 0;
   height: var(--player-h);
@@ -2830,15 +2851,15 @@ body.is-reading-article .reading-dim-layer {
   align-items: center;
   overflow: hidden;
   transition:
-    width 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
-    min-width 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
-    padding 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
-    border-radius 0.34s ease,
-    background 0.24s ease,
-    box-shadow 0.24s ease;
+    width var(--player-dur) var(--player-ease),
+    min-width var(--player-dur) var(--player-ease),
+    padding var(--player-dur) var(--player-ease),
+    border-radius var(--player-dur) var(--player-ease),
+    background 0.28s ease,
+    box-shadow 0.28s ease;
 }
 
-/* 独立播放器（无歌词块）展开时恢复左右内边距 */
+/* 展开：完整宽度的胶囊条（两端仍是半圆） */
 .glass-audio-player.is-expanded,
 .glass-audio-player.is-expanding,
 .glass-audio-player.is-collapsing {
@@ -2874,11 +2895,11 @@ body.is-reading-article .reading-dim-layer {
   cursor: pointer;
   font-size: 0.82rem;
   transition:
-    width 0.22s cubic-bezier(0.34, 1.4, 0.64, 1),
-    height 0.22s cubic-bezier(0.34, 1.4, 0.64, 1),
-    transform 0.16s ease,
-    background 0.15s ease,
-    border-color 0.15s ease;
+    width 0.36s var(--player-ease, cubic-bezier(0.25, 0.1, 0.25, 1)),
+    height 0.36s var(--player-ease, cubic-bezier(0.25, 0.1, 0.25, 1)),
+    transform 0.18s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 /* 收起：按钮铺满圆形容器，与玻璃圆严格同心 */
@@ -2902,6 +2923,7 @@ body.is-reading-article .reading-dim-layer {
 .glass-audio-player.is-collapsed .gap-time,
 .glass-audio-player.is-collapsed .gap-seek {
   display: none;
+  opacity: 0;
 }
 
 .glass-audio-player.is-expanding .gap-play,
@@ -2912,6 +2934,22 @@ body.is-reading-article .reading-dim-layer {
   border: 1px solid rgba(255, 255, 255, 0.32);
   background: rgba(255, 255, 255, 0.14);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+/* 展开过程中逐步显示进度/时间 */
+.glass-audio-player.is-expanding .gap-time,
+.glass-audio-player.is-expanding .gap-seek,
+.glass-audio-player.is-expanded .gap-time,
+.glass-audio-player.is-expanded .gap-seek,
+.glass-audio-player.is-collapsing .gap-time,
+.glass-audio-player.is-collapsing .gap-seek {
+  display: flex;
+  opacity: 1;
+  transition: opacity 0.28s ease 0.12s;
+}
+.glass-audio-player.is-expanding .gap-time,
+.glass-audio-player.is-collapsing .gap-time {
+  display: inline;
 }
 
 .glass-audio-player .gap-play:hover {
@@ -2967,53 +3005,36 @@ body.is-reading-article .reading-dim-layer {
   min-width: 0;
   border-radius: 999px;
   background: #0071e3;
+  transition: width 0.08s linear;
 }
 
 .glass-audio-player audio { display: none !important; }
 
-/* @[音频][歌词]@：整块统一液态玻璃；播放条 + 歌词同属一块面板 */
+/* @[音频][歌词]@：播放条胶囊 + 下方独立歌词面板（分层视差） */
 .md-song-block {
   --gap-pad: 8px;
   --gap-btn: 34px;
   --player-h: calc(var(--gap-btn) + var(--gap-pad) * 2);
   --player-radius: calc(var(--player-h) / 2);
+  --player-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --player-dur: 0.52s;
   position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0;
   isolation: isolate;
-  width: var(--player-h);
+  width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  border-radius: var(--player-radius);
-  background: rgba(255, 255, 255, 0.13);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.22),
-    inset 0 1px 1px rgba(255, 255, 255, 0.38),
-    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  overflow: hidden;
-  transition:
-    width 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
-    border-radius 0.34s ease,
-    background 0.24s ease,
-    box-shadow 0.24s ease;
+  /* 外层不铺玻璃，由播放条与歌词各自承担 */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
 }
 
-/* 展开时整块铺满，圆角保持与播放器一致（JS 加 is-player-open；:has 作兜底） */
-.md-song-block.is-player-open,
-.md-song-block:has(.glass-audio-player.is-expanded),
-.md-song-block:has(.glass-audio-player.is-expanding),
-.md-song-block:has(.glass-audio-player.is-collapsing) {
-  width: 100%;
-  border-radius: var(--player-radius);
-}
-
-/* 块内播放器不再自带玻璃，只做布局条 */
 .blog-article-body .md-song-block > .md-audio-player,
 .blog-article-body .md-song-block > .glass-audio-player,
 .article-reader-body .md-song-block > .md-audio-player,
@@ -3021,25 +3042,15 @@ body.is-reading-article .reading-dim-layer {
   position: relative;
   z-index: 2;
   margin: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border-radius: 0;
-  width: 100%;
-  min-width: 0;
-  height: var(--player-h);
+  /* 保留自身胶囊玻璃 */
 }
 
-/* 块内收起：仍是圆形按钮区域，宽度由父级控制 */
 .md-song-block > .glass-audio-player.is-collapsed {
   width: var(--player-h);
   min-width: var(--player-h);
   padding: 0;
 }
 
-/* 块内展开：播放条占满宽，带内边距 */
 .md-song-block > .glass-audio-player.is-expanded,
 .md-song-block > .glass-audio-player.is-expanding,
 .md-song-block > .glass-audio-player.is-collapsing {
@@ -3048,6 +3059,7 @@ body.is-reading-article .reading-dim-layer {
   padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
 }
 
+/* 歌词：独立玻璃面板，贴在胶囊条下方 */
 .md-lyrics {
   position: relative;
   z-index: 1;
@@ -3059,35 +3071,37 @@ body.is-reading-article .reading-dim-layer {
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
-  /* 无独立玻璃：背景/边框由父级 .md-song-block 统一提供 */
-  border-radius: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  border-radius: 0 0 18px 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: none;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-4px);
   pointer-events: none;
   transition:
-    height 0.36s cubic-bezier(0.34, 1.15, 0.64, 1),
-    max-height 0.36s cubic-bezier(0.34, 1.15, 0.64, 1),
-    padding-top 0.36s ease,
-    padding-bottom 0.36s ease,
-    opacity 0.22s ease,
-    transform 0.36s cubic-bezier(0.34, 1.15, 0.64, 1);
+    height 0.5s cubic-bezier(0.25, 0.1, 0.25, 1),
+    max-height 0.5s cubic-bezier(0.25, 0.1, 0.25, 1),
+    padding-top 0.5s ease,
+    padding-bottom 0.5s ease,
+    opacity 0.32s ease,
+    transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 .md-lyrics.is-expanded {
   height: min(15rem, 34vh);
   max-height: min(15rem, 34vh);
-  padding-top: 0.55rem;
+  padding-top: 0.65rem;
   padding-bottom: 0.75rem;
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
-  /* 与播放条轻微分隔，仍属同一块玻璃内 */
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .md-lyrics::-webkit-scrollbar {
@@ -4220,6 +4234,11 @@ body.has-reveal-highlight .glass-card:hover {
 .home-status.has-summary { cursor:pointer; }
 .home-status.is-detail .home-status-text {
   max-width: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-name-row.is-status-multiline .home-status.is-detail .home-status-text {
   white-space: pre-wrap;
   overflow: visible;
   text-overflow: clip;
