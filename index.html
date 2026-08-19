@@ -220,7 +220,25 @@
           <div class="white-box-inner">
             <div class="white-box-header">
               <h2><i class="fas fa-feather-alt"></i> MaxSui 个人博客</h2>
-              <div class="sub-count" id="postCount">加载文章...</div>
+              <div class="blog-header-tools">
+                <div class="blog-sort-wrap" id="blogSortWrap">
+                  <button type="button" class="blog-sort-btn" id="blogSortBtn" aria-haspopup="menu" aria-expanded="false" title="排序方式">
+                    <i class="fas fa-sort-amount-down"></i>
+                    <span class="blog-sort-label-text" id="blogSortLabel">发布时间</span>
+                  </button>
+                  <button type="button" class="blog-sort-dir-btn" id="blogSortDirBtn" title="切换升序/降序" aria-label="切换升序/降序">
+                    <i class="fas fa-arrow-down" id="blogSortDirIcon"></i>
+                  </button>
+                  <div class="blog-sort-menu" id="blogSortMenu" role="menu" hidden>
+                    <div class="blog-sort-menu-label">排序字段</div>
+                    <button type="button" class="blog-sort-item is-active" data-sort="date" role="menuitem"><i class="far fa-calendar"></i> 发布时间</button>
+                    <button type="button" class="blog-sort-item" data-sort="title" role="menuitem"><i class="fas fa-font"></i> 名称</button>
+                    <button type="button" class="blog-sort-item" data-sort="category" role="menuitem"><i class="fas fa-tags"></i> 分类</button>
+                    <button type="button" class="blog-sort-item" data-sort="readTime" role="menuitem"><i class="far fa-clock"></i> 阅读时长</button>
+                  </div>
+                </div>
+                <div class="sub-count" id="postCount">加载文章...</div>
+              </div>
             </div>
             <div class="blog-list" id="blogList">
               <div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 加载中...</div>

@@ -1190,6 +1190,117 @@ body {
   padding: 0.22rem 0.65rem;
   border-radius: var(--radius-btn);
 }
+
+/* 博客列表排序控件 */
+.blog-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.blog-sort-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+}
+.blog-sort-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 0.75rem;
+  border-radius: var(--radius-btn);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.blog-sort-btn:hover,
+.blog-sort-btn.is-open {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.blog-sort-btn i { opacity: 0.85; font-size: 0.85em; }
+.blog-sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 168px;
+  padding: 0.35rem;
+  border-radius: 14px;
+  background: rgba(28, 28, 30, 0.92);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 40;
+  display: none;
+}
+.blog-sort-menu.is-open { display: block; }
+.blog-sort-menu-label {
+  padding: 0.35rem 0.55rem 0.2rem;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+}
+.blog-sort-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.blog-sort-item:hover { background: rgba(255, 255, 255, 0.1); }
+.blog-sort-item.is-active {
+  background: rgba(0, 113, 227, 0.35);
+  color: #fff;
+  font-weight: 600;
+}
+.blog-sort-item i { width: 1em; text-align: center; opacity: 0.85; font-size: 0.9em; }
+.blog-sort-dir-btn {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+.blog-sort-dir-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.blog-sort-dir-btn.is-asc i { transform: scaleY(-1); }
+.white-box-header {
+  gap: 0.55rem;
+}
+@media (max-width: 480px) {
+  .blog-header-tools { width: 100%; justify-content: flex-end; }
+  .blog-sort-btn span.blog-sort-label-text { max-width: 5.5rem; overflow: hidden; text-overflow: ellipsis; }
+}
+
 .blog-list { display: flex; flex-direction: column; gap: 0.65rem; }
 .blog-list .blog-card {
   background: rgba(255, 255, 255, 0.08);
@@ -2755,13 +2866,13 @@ body.is-reading-article .reading-dim-layer {
 }
 .glass-audio-player audio { display: none !important; }
 
-/* @[音频][歌词]@ 块：歌词面板顶边对齐播放器中线，像从下方拉出；圆角与播放器一致 */
+/* @[音频][歌词]@ 块：面板顶与播放器顶对齐；歌词区上界=播放器下界；圆角=播放器高度/2 */
 .md-song-block {
   --gap-pad: 8px;
   --gap-btn: 34px;
   --player-h: calc(var(--gap-btn) + var(--gap-pad) * 2);
-  --player-half: calc(var(--player-h) / 2);
-  --player-radius: 999px;
+  /* 与播放器两端胶囊圆角一致：半径 = 高度一半，而非粗暴 999px */
+  --player-radius: calc(var(--player-h) / 2);
   position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
@@ -2775,8 +2886,8 @@ body.is-reading-article .reading-dim-layer {
 .md-song-block > .glass-audio-player {
   position: relative;
   z-index: 2;
-  margin: 0 !important; /* 与歌词面板贴合，避免中间空隙 */
-  /* 略提高不透明度，盖住下方歌词顶边/圆角边框，避免边框从玻璃里透上来 */
+  margin: 0 !important;
+  /* 略提高不透明度，盖住下方歌词面板顶边，避免边框透出 */
   background: rgba(255, 255, 255, 0.18);
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.22),
@@ -2787,21 +2898,19 @@ body.is-reading-article .reading-dim-layer {
 .md-lyrics {
   position: relative;
   z-index: 1;
-  /* 顶边精确贴在播放器水平中线 */
-  margin-top: calc(-1 * var(--player-half));
-  /* 内容从中线以下开始，避免被播放器挡住 */
-  padding: calc(var(--player-half) + 0.55rem) 0.9rem 0.85rem;
-  max-height: 15.5rem;
+  /* 面板顶部与播放器顶部对齐 */
+  margin-top: calc(-1 * var(--player-h));
+  /* 歌词滚动区上界 = 播放器下界：内容从播放器高度之下开始 */
+  padding: calc(var(--player-h) + 0.45rem) 0.9rem 0.85rem;
+  max-height: calc(var(--player-h) + 14rem);
   overflow-x: hidden;
   overflow-y: auto;
-  /* 与播放器同圆角（全圆角胶囊） */
   border-radius: var(--player-radius);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  /* 顶边在重叠区不描边，避免从播放器玻璃下透出一圈边框 */
+  /* 顶边在播放器遮盖区内不描边 */
   border-top-color: transparent;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
-  /* 强制隐藏滚动条，仍允许 JS 程序化滚动 */
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
@@ -2811,17 +2920,17 @@ body.is-reading-article .reading-dim-layer {
   display: none !important;
   background: transparent !important;
 }
-/* 盖住歌词顶半区自身的圆角边框，防止从播放器下透出 */
+/* 播放器背后区域遮罩：该区域不显示歌词内容 */
 .md-lyrics::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  height: var(--player-half);
+  height: var(--player-h);
   border-radius: var(--player-radius) var(--player-radius) 0 0;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
   background: rgba(255, 255, 255, 0.07);
 }
 .md-lyrics-line {

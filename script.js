@@ -656,6 +656,8 @@
   let blogFilteredCache = [];
   let blogFilterKeyword = '';
   let blogFilterDate = null;
+  let blogSortKey = 'date';   // date | title | category | readTime
+  let blogSortDir = 'desc';   // asc | desc
 
   const blogSearchInput = document.getElementById('blogSearchInput');
   const calendarBtn = document.getElementById('calendarBtn');
@@ -911,11 +913,121 @@
     });
   }
 
+  function parseReadTimeMinutes(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const m = String(v || '').match(/(\d+(?:\.\d+)?)/);
+    return m ? parseFloat(m[1]) : 0;
+  }
+
+  function postSortValue(post, key) {
+    if (key === 'title') return String(post.title || '').toLowerCase();
+    if (key === 'category') return String(post.category || '').toLowerCase();
+    if (key === 'readTime') return parseReadTimeMinutes(post.readTime);
+    // date: prefer rawDate timestamp
+    const raw = post.rawDate || post.date || '';
+    const t = Date.parse(raw);
+    if (!Number.isNaN(t)) return t;
+    return String(raw);
+  }
+
+  function sortBlogCache(list) {
+    const key = blogSortKey || 'date';
+    const dir = blogSortDir === 'asc' ? 1 : -1;
+    return list.slice().sort((a, b) => {
+      const va = postSortValue(a, key);
+      const vb = postSortValue(b, key);
+      let cmp = 0;
+      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+      else cmp = String(va).localeCompare(String(vb), 'zh-CN', { sensitivity: 'base', numeric: true });
+      if (cmp === 0) {
+        // stable tie-break by date then title
+        const ta = postSortValue(a, 'date');
+        const tb = postSortValue(b, 'date');
+        if (typeof ta === 'number' && typeof tb === 'number') cmp = ta - tb;
+        else cmp = String(ta).localeCompare(String(tb));
+        if (cmp === 0) cmp = String(a.title || '').localeCompare(String(b.title || ''), 'zh-CN');
+      }
+      return cmp * dir;
+    });
+  }
+
+  function updateBlogSortUI() {
+    const labelMap = { date: '发布时间', title: '名称', category: '分类', readTime: '阅读时长' };
+    const labelEl = document.getElementById('blogSortLabel');
+    if (labelEl) labelEl.textContent = labelMap[blogSortKey] || '发布时间';
+    const dirBtn = document.getElementById('blogSortDirBtn');
+    const dirIcon = document.getElementById('blogSortDirIcon');
+    if (dirBtn) {
+      dirBtn.classList.toggle('is-asc', blogSortDir === 'asc');
+      dirBtn.title = blogSortDir === 'asc' ? '当前升序，点击切换为降序' : '当前降序，点击切换为升序';
+    }
+    if (dirIcon) {
+      dirIcon.className = blogSortDir === 'asc' ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+    }
+    document.querySelectorAll('#blogSortMenu .blog-sort-item').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-sort') === blogSortKey);
+    });
+  }
+
+  function setupBlogSortUI() {
+    const wrap = document.getElementById('blogSortWrap');
+    const btn = document.getElementById('blogSortBtn');
+    const menu = document.getElementById('blogSortMenu');
+    const dirBtn = document.getElementById('blogSortDirBtn');
+    if (!btn || !menu) return;
+
+    const closeMenu = () => {
+      menu.classList.remove('is-open');
+      menu.hidden = true;
+      btn.classList.remove('is-open');
+      btn.setAttribute('aria-expanded', 'false');
+    };
+    const openMenu = () => {
+      menu.hidden = false;
+      menu.classList.add('is-open');
+      btn.classList.add('is-open');
+      btn.setAttribute('aria-expanded', 'true');
+    };
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (menu.classList.contains('is-open')) closeMenu();
+      else openMenu();
+    });
+    menu.addEventListener('click', (e) => e.stopPropagation());
+    menu.querySelectorAll('.blog-sort-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        const key = item.getAttribute('data-sort') || 'date';
+        if (key !== blogSortKey) {
+          blogSortKey = key;
+          blogCurrentPage = 1;
+          updateBlogSortUI();
+          filterAndRenderBlogs(blogFilterKeyword, blogFilterDate, true);
+        }
+        closeMenu();
+      });
+    });
+    if (dirBtn) {
+      dirBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        blogSortDir = blogSortDir === 'asc' ? 'desc' : 'asc';
+        blogCurrentPage = 1;
+        updateBlogSortUI();
+        filterAndRenderBlogs(blogFilterKeyword, blogFilterDate, true);
+      });
+    }
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMenu();
+    });
+    updateBlogSortUI();
+  }
+
   function filterAndRenderBlogs(keyword = '', dateStr = null, resetPage = true) {
     blogFilterKeyword = keyword || '';
     blogFilterDate = dateStr || null;
 
-    blogFilteredCache = blogPosts.filter(post => {
+    const filtered = blogPosts.filter(post => {
       const titleMatch = (post.title || '').toLowerCase().includes(blogFilterKeyword);
       const summaryMatch = (post.summary || post.content || '').toLowerCase().includes(blogFilterKeyword);
       const matchesKeyword = !blogFilterKeyword || titleMatch || summaryMatch;
@@ -927,6 +1039,8 @@
       const matchesCat = !activeCategory || (post.category || '') === activeCategory;
       return matchesKeyword && matchesDate && matchesCat;
     });
+
+    blogFilteredCache = sortBlogCache(filtered);
 
     if (resetPage) blogCurrentPage = 1;
     renderBlogPage();
@@ -1187,17 +1301,16 @@
     if (!nodes.length) return;
     let active = -1;
 
-    /** 将当前行滚到「播放器遮住区以下」的可视中心（强制自动滚动） */
+    /** 歌词可视区上界 = 播放器下界；当前行滚到可视中心 */
     const scrollLineIntoCenter = (node, smooth) => {
       if (!node || !lyricsEl) return;
       const box = lyricsEl.getBoundingClientRect();
       const line = node.getBoundingClientRect();
-      // 可视区从顶边下移半个播放器高度（与 CSS --player-half 一致）
       let cover = 0;
       try {
         const song = lyricsEl.closest('.md-song-block');
         const player = song && song.querySelector('.md-audio-player, .glass-audio-player');
-        if (player) cover = Math.max(0, player.getBoundingClientRect().height / 2);
+        if (player) cover = Math.max(0, player.getBoundingClientRect().height);
       } catch (_) {}
       const visibleTop = box.top + cover;
       const visibleCenter = (visibleTop + box.bottom) / 2;
@@ -1230,7 +1343,6 @@
         active = idx;
         if (nodes[active]) nodes[active].classList.add('is-active');
       }
-      // 换行或强制时滚动到当前行
       if (nodes[active] && (changed || forceScroll)) {
         scrollLineIntoCenter(nodes[active], smooth && !forceScroll);
       }
@@ -1239,7 +1351,6 @@
     audio.addEventListener('timeupdate', function() { tick({ instant: false }); });
     audio.addEventListener('seeked', function() { tick({ instant: true, forceScroll: true }); });
     audio.addEventListener('play', function() { tick({ instant: true, forceScroll: true }); });
-    // 播放中定期纠偏，避免手动拖动后不同步
     let keepAlive = null;
     audio.addEventListener('play', function() {
       if (keepAlive) clearInterval(keepAlive);
@@ -5942,6 +6053,7 @@
     const blogList = document.getElementById('blogList');
     if (blogList) blogList.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-pulse"></i> 进入博客后加载...</div>';
     setupBlogToolbarInteractions();
+    setupBlogSortUI();
     setupArticleReaderUI();
     ensureNavCapsule();
     setupAdminLoginUI();
