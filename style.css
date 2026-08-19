@@ -3066,7 +3066,7 @@ body.is-reading-article .reading-dim-layer {
   --player-radius: calc(var(--player-h) / 2);
   --player-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --player-dur: 0.52s;
-  --lyrics-radius: 18px;
+  --lyrics-radius: var(--player-radius);
   position: relative;
   margin: 0.9rem 0 1.1rem;
   display: flex;
