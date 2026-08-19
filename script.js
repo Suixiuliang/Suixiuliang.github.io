@@ -983,31 +983,20 @@
       btn.setAttribute('aria-expanded', 'false');
     };
 
-    const positionMenu = () => {
-      if (menu.hidden) return;
-      const rect = btn.getBoundingClientRect();
-      const pad = 8;
-      const mw = menu.offsetWidth || 220;
-      const mh = menu.offsetHeight || 220;
-      let x = rect.right - mw;
-      let y = rect.bottom + 8;
-      if (x < pad) x = pad;
-      if (x + mw > window.innerWidth - pad) x = window.innerWidth - mw - pad;
-      if (y + mh > window.innerHeight - pad) y = rect.top - mh - 8;
-      if (y < pad) y = pad;
-      menu.style.left = `${Math.round(x)}px`;
-      menu.style.top = `${Math.round(y)}px`;
-    };
-
     const openMenu = () => {
       document.querySelectorAll('.blog-sort-menu.is-open').forEach((el) => {
-        if (el !== menu) el.classList.remove('is-open');
+        if (el !== menu) {
+          el.classList.remove('is-open');
+          el.hidden = true;
+        }
       });
+      // 清除可能残留的 fixed 坐标，交由 CSS absolute 锚定到 .blog-sort-wrap
+      menu.style.left = '';
+      menu.style.top = '';
       menu.hidden = false;
       menu.classList.add('is-open');
       btn.classList.add('is-open');
       btn.setAttribute('aria-expanded', 'true');
-      requestAnimationFrame(positionMenu);
     };
 
     btn.addEventListener('click', (e) => {
@@ -1046,7 +1035,6 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeMenu();
     });
-    window.addEventListener('resize', positionMenu, { passive: true });
     if (scrollContainer) scrollContainer.addEventListener('scroll', closeMenu, { passive: true });
     if (blogPanel) blogPanel.addEventListener('scroll', closeMenu, { passive: true });
 
@@ -1433,6 +1421,69 @@
     }
   }
 
+
+  const FADE_MS = 320;
+  const audioFadeMap = new WeakMap();
+
+  function cancelAudioFade(audio) {
+    const prev = audioFadeMap.get(audio);
+    if (prev && prev.id) cancelAnimationFrame(prev.id);
+    audioFadeMap.delete(audio);
+  }
+
+  function fadeAudioVolume(audio, to, ms) {
+    if (!audio) return Promise.resolve();
+    cancelAudioFade(audio);
+    const from = Math.max(0, Math.min(1, Number(audio.volume) || 0));
+    const target = Math.max(0, Math.min(1, to));
+    if (ms <= 0 || Math.abs(from - target) < 0.01) {
+      audio.volume = target;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const state = { id: 0 };
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / ms);
+        // smoothstep
+        const e = t * t * (3 - 2 * t);
+        audio.volume = from + (target - from) * e;
+        if (t < 1) {
+          state.id = requestAnimationFrame(step);
+        } else {
+          audio.volume = target;
+          audioFadeMap.delete(audio);
+          resolve();
+        }
+      };
+      audioFadeMap.set(audio, state);
+      state.id = requestAnimationFrame(step);
+    });
+  }
+
+  async function playWithFade(audio) {
+    if (!audio) return;
+    cancelAudioFade(audio);
+    try {
+      audio.volume = 0;
+      await audio.play();
+      await fadeAudioVolume(audio, 1, FADE_MS);
+    } catch (e) {
+      try { audio.volume = 1; } catch (_) {}
+    }
+  }
+
+  async function pauseWithFade(audio) {
+    if (!audio) return;
+    if (audio.paused) return;
+    try {
+      await fadeAudioVolume(audio, 0, FADE_MS);
+    } catch (_) {}
+    try { audio.pause(); } catch (_) {}
+    // 恢复音量以便下次播放从淡入开始
+    try { audio.volume = 1; } catch (_) {}
+  }
+
   function buildGlassAudioPlayer(audio) {
     audio.removeAttribute('controls');
     audio.preload = audio.preload || 'metadata';
@@ -1530,14 +1581,18 @@
       }
     };
 
-    const expandAndPlay = () => {
-      clearCollapseTimer();
-
-      // 点击其它播放器时，旧播放器沿原路径立即收回。
+    const collapseOtherPlayers = () => {
+      // 只处理真正展开中的其它播放器，避免已收起的被加上 is-collapsing 造成跳动
       document.querySelectorAll('.glass-audio-player').forEach((other) => {
         if (other === player) return;
+        const isOpen = other.classList.contains('is-expanded')
+          || other.classList.contains('is-expanding')
+          || other.classList.contains('is-collapsing');
         const otherAudio = other.querySelector('audio');
-        if (otherAudio) otherAudio.pause();
+        if (otherAudio && !otherAudio.paused) {
+          pauseWithFade(otherAudio);
+        }
+        if (!isOpen) return;
         other.classList.remove('is-expanding', 'is-expanded');
         other.classList.add('is-collapsing');
         const otherBlock = other.closest('.md-song-block');
@@ -1550,9 +1605,13 @@
           other.setAttribute('data-player-state', 'collapsed');
         }, 520);
       });
+    };
 
+    const expandAndPlay = () => {
+      clearCollapseTimer();
+      collapseOtherPlayers();
       setExpandedState(true);
-      audio.play().catch(() => {});
+      playWithFade(audio);
     };
 
     const scheduleCollapseAfterPause = () => {
@@ -1595,7 +1654,7 @@
       if (audio.paused) {
         expandAndPlay();
       } else {
-        audio.pause();
+        pauseWithFade(audio);
       }
     });
     playBtn.addEventListener('contextmenu', (e) => {
@@ -2631,6 +2690,11 @@
   }
 
   function closeArticleReader() {
+    // 离开文章时淡出并暂停所有音频
+    document.querySelectorAll('.glass-audio-player audio, audio').forEach((a) => {
+      if (a && !a.paused) pauseWithFade(a);
+    });
+
     const legacyModal = document.getElementById('articleReaderModal');
     if (legacyModal) legacyModal.classList.remove('active');
     if (!isArticleReading) return;
