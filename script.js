@@ -1490,6 +1490,11 @@
       }
     };
 
+    const setSongBlockOpen = (open) => {
+      if (!song) return;
+      song.classList.toggle('is-player-open', !!open);
+    };
+
     const setExpandedState = (expanded) => {
       clearExpandTimer();
       if (expanded) {
@@ -1497,6 +1502,7 @@
         player.classList.add('is-expanding');
         player.classList.remove('is-collapsed');
         player.setAttribute('data-player-state', 'expanding');
+        setSongBlockOpen(true);
 
         // 第一阶段：圆形播放按钮缩小；第二阶段：播放条向右展开；
         // 第三阶段：歌词面板从播放条下方展开。
@@ -1518,6 +1524,7 @@
           player.classList.remove('is-collapsing');
           player.classList.add('is-collapsed');
           player.setAttribute('data-player-state', 'collapsed');
+          setSongBlockOpen(false);
           expandTimer = null;
         }, 250);
       }
@@ -1533,8 +1540,10 @@
         if (otherAudio) otherAudio.pause();
         other.classList.remove('is-expanding', 'is-expanded');
         other.classList.add('is-collapsing');
-        const otherLyrics = other.closest('.md-song-block')?.querySelector('.md-lyrics');
+        const otherBlock = other.closest('.md-song-block');
+        const otherLyrics = otherBlock ? otherBlock.querySelector('.md-lyrics') : null;
         if (otherLyrics) otherLyrics.classList.remove('is-expanded');
+        if (otherBlock) otherBlock.classList.remove('is-player-open');
         setTimeout(() => {
           other.classList.remove('is-collapsing');
           other.classList.add('is-collapsed');

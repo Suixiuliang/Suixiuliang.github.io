@@ -2799,15 +2799,19 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 液态玻璃音乐播放器：默认圆形，播放时依次展开播放条与歌词 —— */
+/* —— 液态玻璃音乐播放器：默认圆形，播放时依次展开播放条与歌词 ——
+   统一玻璃在 .md-song-block 上；播放条与歌词同属一块面板，无上下两块玻璃。
+   收起时圆形与播放按钮严格同心对齐。 */
 .blog-article-body .md-audio-player,
-.blog-article-body .glass-audio-player {
+.blog-article-body .glass-audio-player,
+.article-reader-body .md-audio-player,
+.article-reader-body .glass-audio-player {
   --gap-pad: 8px;
   --gap-btn: 34px;
   --player-h: calc(var(--gap-btn) + var(--gap-pad) * 2);
   --player-radius: calc(var(--player-h) / 2);
   margin: 1em 0;
-  padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
+  padding: 0;
   height: var(--player-h);
   width: var(--player-h);
   min-width: var(--player-h);
@@ -2828,17 +2832,28 @@ body.is-reading-article .reading-dim-layer {
   transition:
     width 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
     min-width 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
+    padding 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
     border-radius 0.34s ease,
     background 0.24s ease,
     box-shadow 0.24s ease;
+}
+
+/* 独立播放器（无歌词块）展开时恢复左右内边距 */
+.glass-audio-player.is-expanded,
+.glass-audio-player.is-expanding,
+.glass-audio-player.is-collapsing {
+  width: 100%;
+  min-width: 100%;
+  padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
+  border-radius: var(--player-radius);
 }
 
 .glass-audio-player.h5-like .gap-main {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   height: 100%;
 }
 
@@ -2866,9 +2881,27 @@ body.is-reading-article .reading-dim-layer {
     border-color 0.15s ease;
 }
 
+/* 收起：按钮铺满圆形容器，与玻璃圆严格同心 */
+.glass-audio-player.is-collapsed {
+  padding: 0;
+  justify-content: center;
+}
+.glass-audio-player.is-collapsed .gap-main {
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+  gap: 0;
+}
 .glass-audio-player.is-collapsed .gap-play {
-  width: var(--player-h);
-  height: var(--player-h);
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.glass-audio-player.is-collapsed .gap-time,
+.glass-audio-player.is-collapsed .gap-seek {
+  display: none;
 }
 
 .glass-audio-player.is-expanding .gap-play,
@@ -2876,22 +2909,16 @@ body.is-reading-article .reading-dim-layer {
 .glass-audio-player.is-collapsing .gap-play {
   width: var(--gap-btn);
   height: var(--gap-btn);
-}
-
-.glass-audio-player.is-expanded,
-.glass-audio-player.is-expanding {
-  width: 100%;
-  min-width: 100%;
-  border-radius: var(--player-radius);
-}
-
-.glass-audio-player.is-collapsing {
-  width: 100%;
-  min-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4);
 }
 
 .glass-audio-player .gap-play:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+.glass-audio-player.is-collapsed .gap-play:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .glass-audio-player .gap-play:active { transform: scale(0.96); }
@@ -2899,6 +2926,10 @@ body.is-reading-article .reading-dim-layer {
 .glass-audio-player.is-playing .gap-play {
   background: rgba(0, 113, 227, 0.45);
   border-color: rgba(120, 180, 255, 0.5);
+}
+.glass-audio-player.is-collapsed.is-playing .gap-play {
+  background: rgba(0, 113, 227, 0.35);
+  border: none;
 }
 
 .glass-audio-player .gap-time {
@@ -2940,7 +2971,7 @@ body.is-reading-article .reading-dim-layer {
 
 .glass-audio-player audio { display: none !important; }
 
-/* @[音频][歌词]@：歌词面板严格位于播放条下方，不再与播放器重叠 */
+/* @[音频][歌词]@：整块统一液态玻璃；播放条 + 歌词同属一块面板 */
 .md-song-block {
   --gap-pad: 8px;
   --gap-btn: 34px;
@@ -2950,15 +2981,71 @@ body.is-reading-article .reading-dim-layer {
   margin: 0.9rem 0 1.1rem;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0;
   isolation: isolate;
+  width: var(--player-h);
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: var(--player-radius);
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.38),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  overflow: hidden;
+  transition:
+    width 0.34s cubic-bezier(0.34, 1.25, 0.64, 1),
+    border-radius 0.34s ease,
+    background 0.24s ease,
+    box-shadow 0.24s ease;
 }
 
+/* 展开时整块铺满，圆角保持与播放器一致（JS 加 is-player-open；:has 作兜底） */
+.md-song-block.is-player-open,
+.md-song-block:has(.glass-audio-player.is-expanded),
+.md-song-block:has(.glass-audio-player.is-expanding),
+.md-song-block:has(.glass-audio-player.is-collapsing) {
+  width: 100%;
+  border-radius: var(--player-radius);
+}
+
+/* 块内播放器不再自带玻璃，只做布局条 */
 .blog-article-body .md-song-block > .md-audio-player,
-.blog-article-body .md-song-block > .glass-audio-player {
+.blog-article-body .md-song-block > .glass-audio-player,
+.article-reader-body .md-song-block > .md-audio-player,
+.article-reader-body .md-song-block > .glass-audio-player {
   position: relative;
   z-index: 2;
   margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 0;
+  width: 100%;
+  min-width: 0;
+  height: var(--player-h);
+}
+
+/* 块内收起：仍是圆形按钮区域，宽度由父级控制 */
+.md-song-block > .glass-audio-player.is-collapsed {
+  width: var(--player-h);
+  min-width: var(--player-h);
+  padding: 0;
+}
+
+/* 块内展开：播放条占满宽，带内边距 */
+.md-song-block > .glass-audio-player.is-expanded,
+.md-song-block > .glass-audio-player.is-expanding,
+.md-song-block > .glass-audio-player.is-collapsing {
+  width: 100%;
+  min-width: 100%;
+  padding: var(--gap-pad) 14px var(--gap-pad) var(--gap-pad);
 }
 
 .md-lyrics {
@@ -2972,15 +3059,15 @@ body.is-reading-article .reading-dim-layer {
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
-  border-radius: 0 0 var(--player-radius) var(--player-radius);
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-top: 0;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  /* 无独立玻璃：背景/边框由父级 .md-song-block 统一提供 */
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-6px);
   pointer-events: none;
   transition:
     height 0.36s cubic-bezier(0.34, 1.15, 0.64, 1),
@@ -2994,11 +3081,13 @@ body.is-reading-article .reading-dim-layer {
 .md-lyrics.is-expanded {
   height: min(15rem, 34vh);
   max-height: min(15rem, 34vh);
-  padding-top: 0.7rem;
-  padding-bottom: 0.7rem;
+  padding-top: 0.55rem;
+  padding-bottom: 0.75rem;
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+  /* 与播放条轻微分隔，仍属同一块玻璃内 */
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .md-lyrics::-webkit-scrollbar {
