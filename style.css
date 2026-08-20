@@ -4734,14 +4734,14 @@ body.has-reveal-highlight .glass-card:hover {
   pointer-events: none;
 }
 
-/* 播放器全屏（120% 居中 + 背景模糊） */
+/* 播放卡片全屏：整块 song-block 居中 120% + 背景模糊 */
 .audio-player-fs-backdrop {
   position: fixed;
   inset: 0;
   z-index: 2500;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.35s ease;
@@ -4750,34 +4750,60 @@ body.has-reveal-highlight .glass-card:hover {
   opacity: 1;
   pointer-events: auto;
 }
-.glass-audio-player.is-fs-zoom {
+.md-song-block.is-fs-zoom,
+.md-song-block.is-fs-host.is-fs-zoom {
   position: fixed !important;
   left: 50% !important;
   top: 50% !important;
-  bottom: auto !important;
   z-index: 2510 !important;
-  width: min(720px, 92vw) !important;
-  min-width: min(720px, 92vw) !important;
-  max-width: min(720px, 92vw) !important;
+  width: min(720px, 88vw) !important;
+  max-width: min(720px, 88vw) !important;
+  margin: 0 !important;
   transform: translate(-50%, -50%) scale(1.2);
   transform-origin: center center;
-  margin: 0 !important;
   transition:
     transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
     width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
-    min-width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 0.35s ease !important;
+    box-shadow 0.35s ease;
   box-shadow:
-    0 28px 64px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.22),
-    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    0 28px 64px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
+  /* 全屏时保证歌词区域可见 */
 }
-.md-song-block.is-fs-host {
-  z-index: 2510;
+.md-song-block.is-fs-zoom .glass-audio-player,
+.md-song-block.is-fs-zoom .glass-audio-player.is-expanded,
+.md-song-block.is-fs-zoom .glass-audio-player.is-expanding {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
 }
-.md-song-block.is-fs-host .md-lyrics.is-expanded {
-  max-height: min(42vh, 22rem);
-  height: min(42vh, 22rem);
+.md-song-block.is-fs-zoom .md-lyrics.is-expanded {
+  max-height: min(48vh, 26rem);
+  height: min(48vh, 26rem);
+}
+.md-song-block.is-fs-zoom > .md-lyrics-tools {
+  display: inline-flex !important;
+}
+/* 占位：避免文内塌陷跳动（可选） */
+body.audio-fs-open {
+  overflow: hidden;
+}
+/* 旧：仅播放器缩放 —— 禁用冲突 */
+.glass-audio-player.is-fs-zoom {
+  /* 由父级 .md-song-block.is-fs-zoom 统一布局 */
+}
+
+/* 磁吸中：隐藏系统光标，只显示自定义小白球 */
+body.is-seek-magnet,
+body.is-seek-magnet * {
+  cursor: none !important;
+}
+.md-song-block.is-magnet-active .gap-seek-fill.is-magnet-glow {
+  box-shadow: 0 0 12px rgba(0, 113, 227, 0.75);
 }
 
 /* 进度条磁吸提示 */

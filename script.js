@@ -1535,31 +1535,43 @@
   }
 
   function exitAudioFullscreen() {
-    const fs = document.querySelector('.glass-audio-player.is-fs-zoom');
-    if (fs) {
-      fs.classList.remove('is-fs-zoom');
-      const block = fs.closest('.md-song-block');
-      if (block) block.classList.remove('is-fs-host');
+    const host = document.querySelector('.md-song-block.is-fs-host');
+    if (host) {
+      host.classList.remove('is-fs-host', 'is-fs-zoom');
+      host.style.removeProperty('--fs-w');
+      const player = host.querySelector('.glass-audio-player');
+      if (player) player.classList.remove('is-fs-zoom');
     }
+    document.querySelectorAll('.glass-audio-player.is-fs-zoom').forEach((p) => {
+      p.classList.remove('is-fs-zoom');
+    });
     if (audioFsBackdrop) audioFsBackdrop.classList.remove('is-open');
+    document.body.classList.remove('audio-fs-open');
   }
 
   function enterAudioFullscreen(player) {
     if (!player) return;
     ensureAudioFsBackdrop();
-    if (!player.classList.contains('is-fs-zoom')) {
-      const block = player.closest('.md-song-block');
-      if (block) block.classList.add('is-fs-host');
-      player.classList.add('is-fs-zoom');
-      if (!player.classList.contains('is-expanded') && !player.classList.contains('is-expanding')) {
-        player.classList.remove('is-collapsed', 'is-collapsing');
-        player.classList.add('is-expanding', 'is-expanded');
-        player.setAttribute('data-player-state', 'expanded');
-        const lyrics = block && block.querySelector('.md-lyrics');
-        if (lyrics) lyrics.classList.add('is-expanded');
-        if (block) block.classList.add('is-player-open');
-      }
+    const block = player.closest('.md-song-block');
+    if (!block) return;
+
+    // 确保展开
+    if (!player.classList.contains('is-expanded') && !player.classList.contains('is-expanding')) {
+      player.classList.remove('is-collapsed', 'is-collapsing');
+      player.classList.add('is-expanding', 'is-expanded');
+      player.setAttribute('data-player-state', 'expanded');
+      const lyrics = block.querySelector('.md-lyrics');
+      if (lyrics) lyrics.classList.add('is-expanded');
+      block.classList.add('is-player-open');
     }
+
+    // 整块卡片全屏居中 120%
+    const w = Math.min(block.getBoundingClientRect().width || 560, window.innerWidth * 0.86);
+    block.style.setProperty('--fs-w', w + 'px');
+    block.classList.add('is-fs-host', 'is-fs-zoom');
+    player.classList.add('is-fs-zoom');
+    document.body.classList.add('audio-fs-open');
+
     requestAnimationFrame(() => {
       if (audioFsBackdrop) audioFsBackdrop.classList.add('is-open');
     });
@@ -1863,7 +1875,8 @@
     tools.querySelector('[data-tool="fs"]').addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (player.classList.contains('is-fs-zoom')) exitAudioFullscreen();
+      const block = player.closest('.md-song-block');
+      if ((block && block.classList.contains('is-fs-zoom')) || player.classList.contains('is-fs-zoom')) exitAudioFullscreen();
       else enterAudioFullscreen(player);
     });
 
@@ -2270,8 +2283,7 @@
     player._hardSnapCollapsed = hardSnapCollapsed;
     player._expandAndPlay = expandAndPlay;
 
-    // ---------- 进度条磁吸：3px 内停留 ≥2s 吸附到当前进度；剧烈晃动挣脱并冷却 10s ----------
-    const MAGNET_DIST = 3;
+    // ---------- 磁吸：整块播放+歌词卡片内停留 ≥2s → 吸到进度点并跟随；剧烈晃动挣脱冷却 10s ----------
     const MAGNET_HOLD_MS = 2000;
     const MAGNET_COOLDOWN_MS = 10000;
     const MAGNET_SHAKE_PX = 14;
@@ -2280,11 +2292,13 @@
     let magnetCursorX = 0;
     let magnetCursorY = 0;
     let magnetAnimRaf = 0;
+    const songBlock = player.closest('.md-song-block');
 
     function getProgressPoint() {
       if (!audio.duration || !seek) return null;
       const track = seek.querySelector('.gap-seek-track') || seek;
       const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return null;
       const ratio = Math.min(1, Math.max(0, (audio.currentTime || 0) / audio.duration));
       return {
         x: rect.left + ratio * rect.width,
@@ -2292,12 +2306,28 @@
       };
     }
 
+    function setMagnetCursorVisual(on) {
+      if (songBlock) songBlock.classList.toggle('is-magnet-active', !!on);
+      document.body.classList.toggle('is-seek-magnet', !!on);
+      // 隐藏系统光标，只留自定义小白球（浏览器无法移动真实系统鼠标指针）
+      try {
+        if (on) {
+          document.documentElement.style.cursor = 'none';
+          document.body.style.cursor = 'none';
+          if (typeof setCursorVisible === 'function') setCursorVisible(true);
+        } else {
+          document.documentElement.style.cursor = '';
+          document.body.style.cursor = '';
+        }
+      } catch (_) {}
+    }
+
     function moveCursorSmooth(toX, toY, durationMs) {
       return new Promise((resolve) => {
         const fromX = magnetCursorX || toX;
         const fromY = magnetCursorY || toY;
         const start = performance.now();
-        const dur = Math.max(120, durationMs || 320);
+        const dur = Math.max(160, durationMs || 360);
         if (magnetAnimRaf) cancelAnimationFrame(magnetAnimRaf);
         const step = (now) => {
           const t = Math.min(1, (now - start) / dur);
@@ -2342,8 +2372,8 @@
       seek.classList.add('is-magnet');
       fill.classList.add('is-magnet-glow');
       magnetActive = true;
-      // 平缓吸到当前进度点，然后持续跟随进度条前进
-      moveCursorSmooth(pt.x, pt.y, 360).then(() => {
+      setMagnetCursorVisual(true);
+      moveCursorSmooth(pt.x, pt.y, 380).then(() => {
         if (!magnetActive) return;
         if (magnetFollowRaf) cancelAnimationFrame(magnetFollowRaf);
         magnetFollowLoop();
@@ -2366,66 +2396,73 @@
       }
       if (seek) seek.classList.remove('is-magnet');
       if (fill) fill.classList.remove('is-magnet-glow');
+      setMagnetCursorVisual(false);
       if (cooldown) magnetCooldownUntil = performance.now() + MAGNET_COOLDOWN_MS;
     }
 
-    seek.addEventListener('pointermove', (e) => {
+    // 范围：整块播放条 + 歌词卡片；停留 ≥2s 触发
+    const magnetHost = songBlock || player;
+    let magnetHoldOrigin = null;
+
+    magnetHost.addEventListener('pointermove', (e) => {
       if (player.classList.contains('is-collapsed')) return;
       if (performance.now() < magnetCooldownUntil) return;
-      const rect = seek.getBoundingClientRect();
-      const track = seek.querySelector('.gap-seek-track') || seek;
-      const tr = track.getBoundingClientRect();
-      const cy = tr.top + tr.height / 2;
-      const distY = Math.abs(e.clientY - cy);
-      const insideX = e.clientX >= tr.left - MAGNET_DIST && e.clientX <= tr.right + MAGNET_DIST;
-      const near = insideX && distY <= MAGNET_DIST + tr.height / 2;
 
-      if (magnetLastPos) {
-        const dx = e.clientX - magnetLastPos.x;
-        const dy = e.clientY - magnetLastPos.y;
-        const speed = Math.hypot(dx, dy);
-        // 剧烈晃动：挣脱
-        if (magnetActive && speed > MAGNET_SHAKE_PX) {
+      const cur = { x: e.clientX, y: e.clientY };
+
+      // 剧烈晃动 → 挣脱
+      if (magnetLastPos && magnetActive) {
+        const speed = Math.hypot(cur.x - magnetLastPos.x, cur.y - magnetLastPos.y);
+        if (speed > MAGNET_SHAKE_PX) {
           releaseMagnet(true);
-          magnetLastPos = { x: e.clientX, y: e.clientY };
+          magnetLastPos = cur;
+          magnetHoldOrigin = cur;
           return;
         }
       }
-      magnetLastPos = { x: e.clientX, y: e.clientY };
+      magnetLastPos = cur;
       magnetLastMoveAt = performance.now();
-      if (!magnetActive) {
-        magnetCursorX = e.clientX;
-        magnetCursorY = e.clientY;
-      }
 
-      if (!near) {
+      if (magnetActive) return; // 跟随循环接管光标
+
+      magnetCursorX = cur.x;
+      magnetCursorY = cur.y;
+
+      if (!magnetHoldOrigin) {
+        magnetHoldOrigin = cur;
+      } else if (Math.hypot(cur.x - magnetHoldOrigin.x, cur.y - magnetHoldOrigin.y) > 8) {
+        // 挪动了 → 重置停留计时
+        magnetHoldOrigin = cur;
         if (magnetHoldTimer) {
           clearTimeout(magnetHoldTimer);
           magnetHoldTimer = null;
         }
-        if (magnetActive) releaseMagnet(false);
-        return;
       }
 
-      if (!magnetActive && !magnetHoldTimer) {
-        const holdX = e.clientX;
-        const holdY = e.clientY;
+      if (!magnetHoldTimer) {
+        const ox = magnetHoldOrigin.x;
+        const oy = magnetHoldOrigin.y;
         magnetHoldTimer = setTimeout(() => {
           magnetHoldTimer = null;
-          // 仍在附近才吸附
           if (performance.now() < magnetCooldownUntil) return;
-          const stillNear = Math.hypot((magnetLastPos?.x || 0) - holdX, (magnetLastPos?.y || 0) - holdY) < 8;
-          if (stillNear) magnetSeekToProgress();
+          if (player.classList.contains('is-collapsed')) return;
+          if (!magnetLastPos) return;
+          if (Math.hypot(magnetLastPos.x - ox, magnetLastPos.y - oy) > 10) return;
+          magnetSeekToProgress();
         }, MAGNET_HOLD_MS);
       }
     }, { passive: true });
 
-    seek.addEventListener('pointerleave', () => {
+    magnetHost.addEventListener('pointerleave', () => {
+      magnetHoldOrigin = null;
       if (magnetHoldTimer) {
         clearTimeout(magnetHoldTimer);
         magnetHoldTimer = null;
       }
-      if (magnetActive) releaseMagnet(false);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && magnetActive) releaseMagnet(true);
     });
 
     // 歌词工具栏改在 hydrateMdLyrics 成功后挂载（ensureLyricsTools）
@@ -6406,7 +6443,10 @@
   document.addEventListener('mousemove', function(e) {
     lastPointerX = e.clientX;
     lastPointerY = e.clientY;
-    moveCustomCursor(e.clientX, e.clientY);
+    // 磁吸跟随时，自定义光标由进度点驱动，不被真实鼠标位置覆盖
+    if (!document.body.classList.contains('is-seek-magnet')) {
+      moveCustomCursor(e.clientX, e.clientY);
+    }
     setCursorVisible(true);
     setCursorTextMode(isTextEditingTarget(e.target));
     pushTrailPoint(e.clientX, e.clientY);
