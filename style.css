@@ -4750,38 +4750,68 @@ body.has-reveal-highlight .glass-card:hover {
   opacity: 1;
   pointer-events: auto;
 }
-/* 挂到 body 后与蒙版同层，z-index 更高，不会被盖住 */
+/* 挂到 body：水平居中、靠上；播放条在顶部；不要外框阴影 */
 body > .md-song-block.is-fs-zoom,
 body > .md-song-block.is-fs-host.is-fs-zoom {
   position: fixed !important;
   left: 50% !important;
-  top: 50% !important;
+  top: max(12px, env(safe-area-inset-top, 0px) + 16px) !important;
   right: auto !important;
   bottom: auto !important;
   z-index: 2510 !important;
   width: min(var(--fs-w, 560px), 88vw) !important;
   max-width: min(720px, 88vw) !important;
   margin: 0 !important;
-  transform: translate(-50%, -50%) scale(1.2);
-  transform-origin: center center;
-  transition:
-    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.3s ease;
-  box-shadow:
-    0 28px 64px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.2);
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  /* 水平居中 + 放大；原点在顶部，播放条贴在视口上方 */
+  transform: translateX(-50%) scale(1.2);
+  transform-origin: top center;
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1), top 0.35s ease;
   pointer-events: auto;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
 }
-/* 内部：播放条 / 歌词面板 / 滚动区 保持原有 flex 结构，不改组织 */
-body > .md-song-block.is-fs-zoom .glass-audio-player {
+/* 全屏仍用原来的歌词背板（圆角玻璃），不要额外方框 */
+body > .md-song-block.is-fs-zoom.is-player-open::before {
+  border-radius: var(--lyrics-radius, 25px);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 0.14);
+}
+/* 播放条：置顶 + 两端半圆胶囊 */
+body > .md-song-block.is-fs-zoom .glass-audio-player,
+body > .md-song-block.is-fs-zoom .glass-audio-player.is-expanded,
+body > .md-song-block.is-fs-zoom .glass-audio-player.is-expanding {
   position: relative !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
-  z-index: auto !important;
+  order: 0 !important;
+  z-index: 3 !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  height: var(--player-h, 50px) !important;
+  flex: 0 0 auto !important;
+  border-radius: var(--player-radius, 25px) !important;
+  padding: var(--gap-pad, 8px) 14px var(--gap-pad, 8px) var(--gap-pad, 8px) !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.38),
+    inset 0 -0.5px 1px rgba(0, 0, 0, 0.1) !important;
+}
+body > .md-song-block.is-fs-zoom .md-lyrics {
+  order: 1 !important;
+}
+body > .md-song-block.is-fs-zoom > .md-lyrics-tools {
+  order: 2 !important;
 }
 body > .md-song-block.is-fs-zoom .md-lyrics.is-expanded {
-  /* 沿用原展开高度逻辑，略放大可读性 */
   max-height: min(15rem, 34vh);
   height: min(15rem, 34vh);
 }

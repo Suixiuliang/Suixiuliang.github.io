@@ -2275,7 +2275,31 @@
     audio.addEventListener('ended', () => {
       player._waiting = false;
       syncPlayUi();
-      // 同文内播放列表：自动下一首
+      // 全屏中播完：退出全屏，回到展开态页面（不立刻收起）
+      const block = player.closest('.md-song-block');
+      const inFs = !!(document.body.classList.contains('audio-fs-open') || (block && block.classList.contains('is-fs-zoom')));
+      if (inFs) {
+        try { exitAudioFullscreen(); } catch (_) {}
+        // 保持展开
+        try {
+          if (typeof setExpandedState === 'function') setExpandedState(true);
+          else {
+            player.classList.remove('is-collapsed', 'is-collapsing');
+            player.classList.add('is-expanded');
+            player.setAttribute('data-player-state', 'expanded');
+            if (block) {
+              block.classList.add('is-player-open');
+              const ly = block.querySelector('.md-lyrics');
+              if (ly) ly.classList.add('is-expanded');
+            }
+          }
+        } catch (_) {}
+        // 同文下一首（若有）在退出全屏后继续
+        try { playNextInPlaylist(audio); } catch (_) {}
+        // 稍后再走收起计时，给用户看到展开页
+        scheduleCollapseAfterEnded();
+        return;
+      }
       try { playNextInPlaylist(audio); } catch (_) {}
       scheduleCollapseAfterEnded();
     });
@@ -2348,12 +2372,12 @@
     function setMagnetCursorVisual(on) {
       if (songBlock) songBlock.classList.toggle('is-magnet-active', !!on);
       document.body.classList.toggle('is-seek-magnet', !!on);
-      // 隐藏系统光标，只留自定义小白球（浏览器无法移动真实系统鼠标指针）
       try {
         if (on) {
           document.documentElement.style.cursor = 'none';
           document.body.style.cursor = 'none';
           if (typeof setCursorVisible === 'function') setCursorVisible(true);
+          if (typeof clearAllTrailDots === 'function') clearAllTrailDots();
         } else {
           document.documentElement.style.cursor = '';
           document.body.style.cursor = '';
@@ -2412,6 +2436,7 @@
       fill.classList.add('is-magnet-glow');
       magnetActive = true;
       setMagnetCursorVisual(true);
+      try { if (typeof clearAllTrailDots === 'function') clearAllTrailDots(); } catch (_) {}
       moveCursorSmooth(pt.x, pt.y, 380).then(() => {
         if (!magnetActive) return;
         if (magnetFollowRaf) cancelAnimationFrame(magnetFollowRaf);
@@ -2503,6 +2528,67 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && magnetActive) releaseMagnet(true);
     });
+
+    // 磁吸后：按下拖动 = 调进度；单击 = 播放/暂停
+    let magnetDrag = false;
+    let magnetDownX = 0;
+    let magnetDownY = 0;
+    let magnetMoved = false;
+    const MAGNET_CLICK_PX = 6;
+
+    document.addEventListener('pointerdown', (e) => {
+      if (!magnetActive || e.button !== 0) return;
+      // 工具栏按钮等放行
+      if (e.target && e.target.closest && e.target.closest('.md-lyrics-tools, .md-lyrics-tool-btn, .gap-play')) return;
+      magnetDrag = true;
+      magnetMoved = false;
+      magnetDownX = e.clientX;
+      magnetDownY = e.clientY;
+      seeking = true;
+      try { document.body.setPointerCapture && e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch (_) {}
+      // 按下即按当前位置 seek 一次
+      seekFromEvent(e.clientX);
+      e.preventDefault();
+    }, true);
+
+    document.addEventListener('pointermove', (e) => {
+      if (!magnetActive || !magnetDrag) return;
+      if (Math.hypot(e.clientX - magnetDownX, e.clientY - magnetDownY) > MAGNET_CLICK_PX) {
+        magnetMoved = true;
+      }
+      if (magnetMoved) {
+        seekFromEvent(e.clientX);
+        // 拖动时小白球跟手指/拖拽点（进度点会在松手后由 follow 接回）
+        magnetCursorX = e.clientX;
+        const pt = getProgressPoint();
+        if (pt) magnetCursorY = pt.y;
+        if (typeof window.__maxsuiMoveCustomCursor === 'function') {
+          window.__maxsuiMoveCustomCursor(magnetCursorX, magnetCursorY);
+        }
+      }
+    }, true);
+
+    document.addEventListener('pointerup', (e) => {
+      if (!magnetDrag) return;
+      magnetDrag = false;
+      seeking = false;
+      if (!magnetMoved && magnetActive) {
+        // 单击：播放/暂停
+        if (audio.paused) {
+          playWithFade(audio).catch(() => { try { audio.play(); } catch (_) {} });
+        } else {
+          pauseWithFade(audio).catch(() => { try { audio.pause(); } catch (_) {} });
+        }
+        syncPlayUi();
+      }
+      // 松手后继续跟进度
+      if (magnetActive && !magnetFollowRaf) magnetFollowLoop();
+    }, true);
+
+    document.addEventListener('pointercancel', () => {
+      magnetDrag = false;
+      seeking = false;
+    }, true);
 
     // 歌词工具栏改在 hydrateMdLyrics 成功后挂载（ensureLyricsTools）
 
@@ -6324,6 +6410,8 @@
   }
 
   function pushTrailPoint(x, y) {
+    // 只有「小白点跟真实鼠标走」时才画尾巴；磁吸吸附时禁止
+    if (document.body.classList.contains('is-seek-magnet')) return;
     if (!trailEffectEnabled || reduceMotion || coarsePointer) return;
     const now = performance.now();
 
@@ -6572,13 +6660,17 @@
   document.addEventListener('mousemove', function(e) {
     lastPointerX = e.clientX;
     lastPointerY = e.clientY;
-    // 磁吸跟随时，自定义光标由进度点驱动，不被真实鼠标位置覆盖
-    if (!document.body.classList.contains('is-seek-magnet')) {
+    const magnetOn = document.body.classList.contains('is-seek-magnet');
+    // 磁吸时：小白球跟进度；不跟真实鼠标，也不画拖尾
+    if (!magnetOn) {
       moveCustomCursor(e.clientX, e.clientY);
+      setCursorVisible(true);
+      setCursorTextMode(isTextEditingTarget(e.target));
+      pushTrailPoint(e.clientX, e.clientY);
+    } else {
+      // 磁吸中仍显示小白球（由 follow 循环定位），但不渲染尾巴
+      setCursorVisible(true);
     }
-    setCursorVisible(true);
-    setCursorTextMode(isTextEditingTarget(e.target));
-    pushTrailPoint(e.clientX, e.clientY);
   }, { passive: true });
 
   document.addEventListener('mouseenter', function(e) {
