@@ -1525,6 +1525,10 @@
     }
   }
 
+  let fsRestoreParent = null;
+  let fsRestoreNext = null;
+  let fsPlaceholder = null;
+
   function ensureAudioFsBackdrop() {
     if (audioFsBackdrop && audioFsBackdrop.isConnected) return audioFsBackdrop;
     audioFsBackdrop = document.createElement('div');
@@ -1539,9 +1543,21 @@
     if (host) {
       host.classList.remove('is-fs-host', 'is-fs-zoom');
       host.style.removeProperty('--fs-w');
-      const player = host.querySelector('.glass-audio-player');
-      if (player) player.classList.remove('is-fs-zoom');
+      // 结构不变：只移回原位
+      if (fsPlaceholder && fsPlaceholder.parentNode) {
+        fsPlaceholder.parentNode.insertBefore(host, fsPlaceholder);
+        fsPlaceholder.remove();
+      } else if (fsRestoreParent) {
+        if (fsRestoreNext && fsRestoreNext.parentNode === fsRestoreParent) {
+          fsRestoreParent.insertBefore(host, fsRestoreNext);
+        } else {
+          fsRestoreParent.appendChild(host);
+        }
+      }
     }
+    fsPlaceholder = null;
+    fsRestoreParent = null;
+    fsRestoreNext = null;
     document.querySelectorAll('.glass-audio-player.is-fs-zoom').forEach((p) => {
       p.classList.remove('is-fs-zoom');
     });
@@ -1551,11 +1567,14 @@
 
   function enterAudioFullscreen(player) {
     if (!player) return;
-    ensureAudioFsBackdrop();
     const block = player.closest('.md-song-block');
     if (!block) return;
+    // 已在全屏则忽略
+    if (block.classList.contains('is-fs-zoom')) return;
 
-    // 确保展开
+    ensureAudioFsBackdrop();
+
+    // 确保展开（内部：播放条 + 歌词面板 + 滚动区 结构不变）
     if (!player.classList.contains('is-expanded') && !player.classList.contains('is-expanding')) {
       player.classList.remove('is-collapsed', 'is-collapsing');
       player.classList.add('is-expanding', 'is-expanded');
@@ -1565,11 +1584,25 @@
       block.classList.add('is-player-open');
     }
 
-    // 整块卡片全屏居中 120%
-    const w = Math.min(block.getBoundingClientRect().width || 560, window.innerWidth * 0.86);
+    // 记下原位置，把整块挂到 body，避免祖先 stacking context 让蒙版盖住播放器
+    fsRestoreParent = block.parentNode;
+    fsRestoreNext = block.nextSibling;
+    fsPlaceholder = document.createElement('div');
+    fsPlaceholder.className = 'md-song-fs-placeholder';
+    fsPlaceholder.style.cssText = 'height:' + Math.round(block.getBoundingClientRect().height) + 'px;margin:0.9rem 0 1.1rem;';
+    if (fsRestoreParent) {
+      fsRestoreParent.insertBefore(fsPlaceholder, block);
+    }
+
+    const w = Math.min(Math.max(block.getBoundingClientRect().width, 280), window.innerWidth * 0.86);
     block.style.setProperty('--fs-w', w + 'px');
     block.classList.add('is-fs-host', 'is-fs-zoom');
-    player.classList.add('is-fs-zoom');
+    // 不改内部 DOM，不给 player 单独加破坏布局的 fixed
+    player.classList.remove('is-fs-zoom');
+
+    // 顺序：先 backdrop，再 block，保证 z-index 同层时 block 在上
+    document.body.appendChild(audioFsBackdrop);
+    document.body.appendChild(block);
     document.body.classList.add('audio-fs-open');
 
     requestAnimationFrame(() => {

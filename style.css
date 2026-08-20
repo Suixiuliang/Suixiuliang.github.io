@@ -4734,7 +4734,7 @@ body.has-reveal-highlight .glass-card:hover {
   pointer-events: none;
 }
 
-/* 播放卡片全屏：整块 song-block 居中 120% + 背景模糊 */
+/* 播放卡片全屏：蒙版在下，整块卡片在上居中；内部结构不变 */
 .audio-player-fs-backdrop {
   position: fixed;
   inset: 0;
@@ -4750,51 +4750,51 @@ body.has-reveal-highlight .glass-card:hover {
   opacity: 1;
   pointer-events: auto;
 }
-.md-song-block.is-fs-zoom,
-.md-song-block.is-fs-host.is-fs-zoom {
+/* 挂到 body 后与蒙版同层，z-index 更高，不会被盖住 */
+body > .md-song-block.is-fs-zoom,
+body > .md-song-block.is-fs-host.is-fs-zoom {
   position: fixed !important;
   left: 50% !important;
   top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
   z-index: 2510 !important;
-  width: min(720px, 88vw) !important;
+  width: min(var(--fs-w, 560px), 88vw) !important;
   max-width: min(720px, 88vw) !important;
   margin: 0 !important;
   transform: translate(-50%, -50%) scale(1.2);
   transform-origin: center center;
   transition:
     transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
-    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 0.35s ease;
+    opacity 0.3s ease;
   box-shadow:
     0 28px 64px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(255, 255, 255, 0.2);
-  /* 全屏时保证歌词区域可见 */
+  pointer-events: auto;
 }
-.md-song-block.is-fs-zoom .glass-audio-player,
-.md-song-block.is-fs-zoom .glass-audio-player.is-expanded,
-.md-song-block.is-fs-zoom .glass-audio-player.is-expanding {
-  width: 100% !important;
-  min-width: 100% !important;
-  max-width: 100% !important;
+/* 内部：播放条 / 歌词面板 / 滚动区 保持原有 flex 结构，不改组织 */
+body > .md-song-block.is-fs-zoom .glass-audio-player {
   position: relative !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
+  z-index: auto !important;
 }
-.md-song-block.is-fs-zoom .md-lyrics.is-expanded {
-  max-height: min(48vh, 26rem);
-  height: min(48vh, 26rem);
+body > .md-song-block.is-fs-zoom .md-lyrics.is-expanded {
+  /* 沿用原展开高度逻辑，略放大可读性 */
+  max-height: min(15rem, 34vh);
+  height: min(15rem, 34vh);
 }
-.md-song-block.is-fs-zoom > .md-lyrics-tools {
+body > .md-song-block.is-fs-zoom > .md-lyrics-tools {
   display: inline-flex !important;
+  z-index: 6;
 }
-/* 占位：避免文内塌陷跳动（可选） */
 body.audio-fs-open {
   overflow: hidden;
 }
-/* 旧：仅播放器缩放 —— 禁用冲突 */
-.glass-audio-player.is-fs-zoom {
-  /* 由父级 .md-song-block.is-fs-zoom 统一布局 */
+.md-song-fs-placeholder {
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* 磁吸中：隐藏系统光标，只显示自定义小白球 */
