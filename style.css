@@ -4907,3 +4907,56 @@ body.is-seek-magnet * {
   height: 0 !important;
   overflow: hidden !important;
 }
+
+
+/* 管理员：状态历史列表 */
+.admin-status-history-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.admin-status-history-row {
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.admin-shh-main {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.admin-shh-type {
+  font-size: 0.72rem;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-shh-meta {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+.admin-shh-summary {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  opacity: 0.82;
+  line-height: 1.45;
+}
+.admin-shh-actions {
+  margin-top: 0.55rem;
+}
+.admin-shh-actions .nav-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+.is-current-hist {
+  color: #64d2ff;
+  font-style: normal;
+  font-weight: 600;
+}

@@ -1808,60 +1808,66 @@
     dockAnimPromise = null;
   }
 
-  /** 回到「同一篇文章」时：把 audio 交回文内播放器并展开；其它文章：坞保持 */
+  /** 回到同一篇文章：把「正在播」的同一个 audio 节点移回播放器，不 pause/不新建，避免卡顿 */
   function restoreDockedPlayerOnEnter(slug) {
     if (!dockedAudioEl || !miniDockEl || !miniDockEl.classList.contains('is-visible')) return;
-    // 仅同一篇才收回坞
     if (!(slug && dockedArticleSlug && String(slug) === String(dockedArticleSlug))) {
-      return; // 其它博客文章：坞继续播
+      return; // 其它文章：坞继续播
     }
 
     const body = document.getElementById('blogArticleBody');
     if (!body) return;
     const src = dockedAudioEl.src || dockedAudioEl.getAttribute('src') || '';
     let targetPlayer = null;
-    let targetAudio = null;
-    body.querySelectorAll('.glass-audio-player audio, audio').forEach((a) => {
-      if (targetAudio) return;
+    let staleAudio = null;
+    body.querySelectorAll('.glass-audio-player').forEach((pl) => {
+      if (targetPlayer) return;
+      const a = pl.querySelector('audio');
+      if (!a) return;
       const s = a.src || a.getAttribute('src') || '';
-      if (src && (s === src || s.indexOf(src) !== -1 || src.indexOf(s) !== -1)) {
-        targetAudio = a;
-        targetPlayer = a.closest('.glass-audio-player');
+      if (src && (s === src || (s && src.indexOf(s.split('?')[0]) !== -1) || (src && s.indexOf(src.split('?')[0]) !== -1))) {
+        targetPlayer = pl;
+        staleAudio = a;
       }
     });
-    if (!targetPlayer) {
-      // 找不到对应块：坞继续
-      return;
-    }
+    if (!targetPlayer) return;
 
-    // 同步播放进度与状态到新 audio
+    // 关键：不新建、不 pause —— 把坞里那个还在播的 audio 直接塞回目标播放器
     try {
-      const t = dockedAudioEl.currentTime || 0;
-      const wasPlaying = !dockedAudioEl.paused && !dockedAudioEl.ended;
-      const vol = dockedAudioEl.volume;
-      targetAudio.currentTime = t;
-      targetAudio.volume = vol;
-      if (wasPlaying) {
-        targetAudio.play().catch(() => {});
+      if (staleAudio && staleAudio !== dockedAudioEl) {
+        // 文内新渲染的空壳 audio 删掉
+        staleAudio.remove();
+      }
+      if (dockedAudioEl.parentNode !== targetPlayer) {
+        targetPlayer.appendChild(dockedAudioEl);
+      }
+      dockedAudioEl.dataset.glassPlayer = '1';
+      // 若被浏览器挂起，尝试 resume（多数情况仍在播）
+      if (dockedAudioEl.paused && !dockedAudioEl.ended) {
+        dockedAudioEl.play().catch(() => {});
       }
     } catch (_) {}
 
-    // 关掉迷你坞
     if (miniDockEl._cleanupAudioListeners) {
       try { miniDockEl._cleanupAudioListeners(); } catch (_) {}
     }
-    if (miniDockEl._audioHolder) {
-      try { miniDockEl._audioHolder.remove(); } catch (_) {}
-    }
+    const holder = miniDockEl._audioHolder;
     miniDockEl.classList.remove('is-visible', 'is-settled', 'is-flying');
     try { miniDockEl.remove(); } catch (_) {}
     miniDockEl = null;
+    if (holder) {
+      try { holder.remove(); } catch (_) {}
+    }
 
-    // 停掉坞里的旧 audio（已把进度交给新节点）
-    try { dockedAudioEl.pause(); } catch (_) {}
+    const liveAudio = dockedAudioEl;
     dockedAudioEl = null;
     dockedPlayerEl = null;
     dockedArticleSlug = null;
+
+    // 重新绑定该播放器的 UI 到这个仍在播的 audio
+    if (typeof targetPlayer._rebindAudio === 'function') {
+      try { targetPlayer._rebindAudio(liveAudio); } catch (_) {}
+    }
 
     if (targetPlayer._setExpandedState) targetPlayer._setExpandedState(true);
     else {
@@ -3499,10 +3505,25 @@
     }
 
     document.addEventListener('keydown', (e) => {
+      const inFs = !!(document.body.classList.contains('audio-fs-open') || document.querySelector('.md-song-block.is-fs-zoom'));
+      // 全屏播放时：方向键 / Esc 不离开文章、不切标签
+      if (inFs) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          exitAudioFullscreen();
+          return;
+        }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Backspace') {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
       if (e.key === 'Escape' && isArticleReading) {
         closeArticleReader();
       }
-    });
+    }, true);
   }
 
   function openAdminLoginModal() {
@@ -3671,6 +3692,17 @@
                 </div>
                 <p class="admin-msg" id="adminStatusRetentionMsg"></p>
               </div>
+            </div>
+            <div class="glass-card admin-card" style="margin-top:1rem">
+              <div class="admin-toolbar">
+                <h3 style="margin:0"><i class="fas fa-stream"></i> 全部状态历史</h3>
+                <div class="admin-articles-toolbar">
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshStatusHistoryBtn"><i class="fas fa-sync"></i> 刷新</button>
+                </div>
+              </div>
+              <p class="admin-field-hint" style="margin:0.5rem 0 0.75rem">可删除任意历史条目。当前进行中的状态（无结束时间）删除后不会改 site_profile，请用「状态」页修改当前状态。</p>
+              <div id="adminStatusHistoryList"><p class="admin-msg">加载中…</p></div>
+              <p class="admin-msg" id="adminStatusHistoryMsg"></p>
             </div>
           </div>
           <div class="admin-tab-panel" data-panel="articles">
@@ -4506,6 +4538,70 @@
         if (btn) { btn.disabled = false; btn.textContent = '保存保存周期'; }
       }
     });
+
+    document.getElementById('adminRefreshStatusHistoryBtn')?.addEventListener('click', () => loadAdminStatusHistory());
+    loadAdminStatusHistory();
+  }
+
+  async function loadAdminStatusHistory() {
+    const list = document.getElementById('adminStatusHistoryList');
+    const msg = document.getElementById('adminStatusHistoryMsg');
+    if (!list) return;
+    list.innerHTML = '<p class="admin-msg">加载中…</p>';
+    if (msg) { msg.textContent = ''; msg.className = 'admin-msg'; }
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/profile/status-history?limit=500`, { credentials: 'include', cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || ('HTTP ' + res.status));
+      const rows = Array.isArray(data.history) ? data.history : [];
+      if (!rows.length) {
+        list.innerHTML = '<p class="admin-msg">暂无状态历史</p>';
+        return;
+      }
+      // 新→旧
+      const sorted = rows.slice().sort((a, b) => String(b.started_at || '').localeCompare(String(a.started_at || '')));
+      list.innerHTML = '<div class="admin-status-history-table">' + sorted.map((h) => {
+        const id = h.id;
+        const type = escapeHtml(h.status_type || '');
+        const text = escapeHtml(h.status_text || '');
+        const summary = escapeHtml(h.status_summary || '');
+        const start = escapeHtml(formatDateUTC8(h.started_at) || h.started_at || '');
+        const end = h.ended_at ? escapeHtml(formatDateUTC8(h.ended_at) || h.ended_at) : '<em class="is-current-hist">进行中</em>';
+        return `<div class="admin-status-history-row" data-id="${id}">
+          <div class="admin-shh-main">
+            <span class="home-status-dot ${type}"></span>
+            <strong>${text}</strong>
+            <span class="admin-shh-type">${type}</span>
+          </div>
+          <div class="admin-shh-meta">${start} → ${end}</div>
+          ${summary ? `<div class="admin-shh-summary">${summary}</div>` : ''}
+          <div class="admin-shh-actions">
+            <button type="button" class="nav-btn apple-secondary-btn admin-shh-del" data-id="${id}" title="删除此条"><i class="fas fa-trash"></i> 删除</button>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+      list.querySelectorAll('.admin-shh-del').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          if (!id || !confirm('确定删除这条状态历史？')) return;
+          btn.disabled = true;
+          try {
+            const r = await fetch(`${API_BASE_URL}/admin/profile/status-history/${id}`, { method: 'DELETE', credentials: 'include' });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.success) throw new Error(d.error || ('HTTP ' + r.status));
+            if (msg) { msg.textContent = '已删除 #' + id; msg.className = 'admin-msg ok'; }
+            loadAdminStatusHistory();
+            // 刷新主页时间线
+            try { if (typeof loadStatusTimeline === 'function') loadStatusTimeline(); } catch (_) {}
+          } catch (e) {
+            if (msg) { msg.textContent = String(e.message || e); msg.className = 'admin-msg err'; }
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (e) {
+      list.innerHTML = '<p class="admin-msg err">' + escapeHtml(String(e.message || e)) + '</p>';
+    }
   }
 
   function estimateStatusReadMs(text) {
