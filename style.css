@@ -157,15 +157,80 @@ body {
 }
 .blog-toolbar-reading {
   display: none;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
+  justify-content: flex-start;
+  gap: 0;
   width: 100%;
   min-width: 0;
   height: 100%;
   text-align: center;
-  margin: 0 auto;
+  margin: 0;
+  position: relative;
+  /* 与标题胶囊左右/上下留 5px，形成同心圆感 */
+  padding: 5px 5px 5px 5px;
+  box-sizing: border-box;
+}
+.blog-nav-back-btn {
+  appearance: none;
+  flex: 0 0 auto;
+  width: calc(100% - 10px);
+  max-width: 2.55rem;
+  height: calc(100% - 0px);
+  aspect-ratio: 1;
+  width: auto;
+  height: calc(100%);
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  /* 用正方形，边长 = 导航胶囊内高 - 10px（上下各 5px） */
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(0, 113, 227, 0.92);
+  box-shadow:
+    0 4px 14px rgba(0, 113, 227, 0.38),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.45),
+    inset 0 -0.5px 1px rgba(0, 60, 140, 0.18);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, opacity 0.22s ease;
+  z-index: 3;
+}
+.blog-nav-back-btn i {
+  font-size: 0.95rem;
+  line-height: 1;
+  margin-left: -1px; /* 视觉居中微调 */
+}
+.blog-nav-back-btn:hover {
+  background: rgba(0, 113, 227, 1);
+  box-shadow:
+    0 6px 18px rgba(0, 113, 227, 0.45),
+    inset 0 1.2px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -0.5px 1px rgba(0, 60, 140, 0.16);
+  transform: scale(1.04);
+}
+.blog-nav-back-btn:active {
+  transform: scale(0.96);
+}
+.blog-nav-back-btn.is-faded {
+  pointer-events: none;
+}
+.blog-reading-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  text-align: center;
+  margin-left: 5px; /* 与左侧返回圆水平间距 5px */
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-list {
   display: none !important;
@@ -360,8 +425,27 @@ body {
   width: 100%;
   padding: 0;
   transform: translate(-50%, 0) scale(1);
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.glass-nav.blog-mode.is-reading-toolbar .blog-toolbar-reading {
+  display: flex !important;
+  width: 100%;
+  height: 100%;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+}
+/* 返回圆：边长 = 胶囊内高 - 10px（上下各 5px），左缘距胶囊 5px */
+.glass-nav.blog-mode.is-reading-toolbar .blog-nav-back-btn {
+  height: calc(100% - 10px);
+  width: calc(100% - 10px);
+  max-width: none;
+  aspect-ratio: 1 / 1;
+  width: auto;
+  height: calc(100% - 10px);
+  min-width: 0;
+  align-self: center;
+  margin-left: 0;
 }
 .glass-nav.blog-mode .logo,
 .glass-nav.blog-mode .nav-links {
@@ -2900,6 +2984,7 @@ body.is-reading-article .reading-dim-layer {
   --player-radius: calc(var(--player-h) / 2);
   --player-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --player-dur: 0.52s;
+  position: relative;
   margin: 1em 0;
   padding: 0;
   height: var(--player-h);
@@ -4350,12 +4435,18 @@ body.has-reveal-highlight .glass-card:hover {
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,.2) transparent;
+  scrollbar-width: none; /* 隐藏横向滚动条，仍可滑动 */
+  -ms-overflow-style: none;
   cursor: grab;
   overscroll-behavior-x: contain;
   scroll-behavior: smooth;
   padding: 0.45rem .25rem 0.35rem;
+}
+.status-timeline::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 .status-timeline:active { cursor: grabbing; }
 .status-timeline-track {
@@ -4493,3 +4584,233 @@ body.has-reveal-highlight .glass-card:hover {
   transform-origin: center center;
 }
 
+
+
+/* ============================================================
+   博客阅读：导航栏返回圆（已在上方定义，移动端微调）
+   ============================================================ */
+@media (max-width: 480px) {
+  .glass-nav.blog-mode.is-reading-toolbar {
+    min-height: 3rem;
+  }
+  .blog-nav-back-btn i { font-size: 0.88rem; }
+  .blog-reading-main { margin-left: 5px; }
+}
+
+/* ============================================================
+   音频：迷你坞 / 加载扇形 / 歌词工具栏 / 全屏放大
+   ============================================================ */
+.glass-audio-player.is-docked {
+  position: fixed !important;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  z-index: 1800;
+  margin: 0 !important;
+  width: var(--player-h) !important;
+  min-width: var(--player-h) !important;
+  max-width: var(--player-h) !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  transition:
+    left 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    top 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    bottom 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.35s ease !important;
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+.glass-audio-player.is-dock-flying {
+  z-index: 1900;
+  pointer-events: none;
+}
+
+/* 收起态加载进度：半透明白色扇形 0～360° */
+.glass-audio-player .gap-load-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  background: conic-gradient(
+    rgba(255, 255, 255, 0.55) calc(var(--load-progress, 0) * 1deg),
+    transparent 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
+}
+.glass-audio-player.is-collapsed.is-loading .gap-load-ring,
+.glass-audio-player.is-docked.is-loading .gap-load-ring {
+  opacity: 1;
+}
+.glass-audio-player.is-collapsed.is-loading .gap-play,
+.glass-audio-player.is-docked.is-loading .gap-play {
+  cursor: not-allowed;
+}
+
+/* 歌词面板右下角工具栏（仅图标） */
+.md-lyrics-tools {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 4;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+.md-lyrics.is-expanded .md-lyrics-tools {
+  display: inline-flex;
+}
+.md-lyrics-tool-btn {
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
+  overflow: visible;
+}
+.md-lyrics-tool-btn .md-volume-popover[hidden] {
+  display: none !important;
+}
+.md-lyrics-tool-btn .md-volume-popover:not([hidden]) {
+  display: flex;
+}
+.md-lyrics-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.md-lyrics-tool-btn:active { transform: scale(0.94); }
+.md-lyrics-tool-btn.is-on {
+  color: #fff;
+  background: rgba(0, 113, 227, 0.72);
+}
+.md-lyrics-tool-btn.is-on:hover {
+  background: rgba(0, 113, 227, 0.88);
+}
+
+/* 竖直音量条弹出 */
+.md-volume-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.92);
+  transform-origin: bottom center;
+  width: 36px;
+  height: 120px;
+  padding: 10px 0;
+  border-radius: 18px;
+  background: rgba(28, 28, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 6;
+}
+.md-volume-popover.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) scale(1);
+}
+.md-volume-track {
+  position: relative;
+  width: 6px;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  touch-action: none;
+}
+.md-volume-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: #0071e3;
+  box-shadow: 0 0 8px rgba(0, 113, 227, 0.45);
+  pointer-events: none;
+}
+
+/* 播放器全屏（120% 居中 + 背景模糊） */
+.audio-player-fs-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.audio-player-fs-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.glass-audio-player.is-fs-zoom {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  bottom: auto !important;
+  z-index: 2510 !important;
+  width: min(720px, 92vw) !important;
+  min-width: min(720px, 92vw) !important;
+  max-width: min(720px, 92vw) !important;
+  transform: translate(-50%, -50%) scale(1.2);
+  transform-origin: center center;
+  margin: 0 !important;
+  transition:
+    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    min-width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.35s ease !important;
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+.md-song-block.is-fs-host {
+  z-index: 2510;
+}
+.md-song-block.is-fs-host .md-lyrics.is-expanded {
+  max-height: min(42vh, 22rem);
+  height: min(42vh, 22rem);
+}
+
+/* 进度条磁吸提示 */
+.glass-audio-player .gap-seek.is-magnet {
+  cursor: none;
+}
+.glass-audio-player .gap-seek-fill.is-magnet-glow {
+  box-shadow: 0 0 10px rgba(0, 113, 227, 0.65);
+}
+
+/* 迷你坞时隐藏原位占位塌陷 */
+.md-song-block.is-dock-source .glass-audio-player:not(.is-docked) {
+  visibility: hidden;
+}

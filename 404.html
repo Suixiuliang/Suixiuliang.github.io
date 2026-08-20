@@ -75,12 +75,17 @@
       <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
     </div>
     <div class="blog-toolbar-reading" id="blogToolbarReading" hidden>
-      <div class="blog-reading-title-wrap" id="blogReadingTitleWrap">
-        <div class="blog-reading-title-track" id="blogReadingTitleTrack">
-          <span class="blog-reading-title" id="blogReadingTitle">文章标题</span>
+      <button type="button" class="blog-nav-back-btn" id="blogArticleBack" title="返回列表" aria-label="返回列表">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+      <div class="blog-reading-main">
+        <div class="blog-reading-title-wrap" id="blogReadingTitleWrap">
+          <div class="blog-reading-title-track" id="blogReadingTitleTrack">
+            <span class="blog-reading-title" id="blogReadingTitle">文章标题</span>
+          </div>
         </div>
+        <div class="blog-reading-meta" id="blogReadingMeta"></div>
       </div>
-      <div class="blog-reading-meta" id="blogReadingMeta"></div>
     </div>
   </div>
 </nav>
@@ -256,11 +261,6 @@
             <div class="blog-pagination" id="blogPagination" aria-label="文章分页"></div>
             <!-- 框内阅读：向左扩展后在此展示正文 -->
             <div class="blog-article-view" id="blogArticleView" hidden>
-              <div class="blog-article-toolbar">
-                <button type="button" class="blog-back-btn" id="blogArticleBack" title="返回文章列表">
-                  <i class="fas fa-arrow-left"></i><span>返回列表</span>
-                </button>
-              </div>
               <h2 class="blog-article-title" id="blogArticleTitle" hidden>文章标题</h2>
               <div class="blog-article-meta" id="blogArticleMeta" hidden></div>
               <div class="blog-article-body" id="blogArticleBody"></div>
