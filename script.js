@@ -6181,6 +6181,49 @@
     if (track) track.setAttribute('aria-valuenow', String(Math.round(p)));
   }
 
+  /** 等待 Font Awesome 字体就绪（门禁必过项） */
+  async function waitForFontAwesome(timeoutMs) {
+    const ms = timeoutMs || 15000;
+    const deadline = Date.now() + ms;
+    const families = [
+      '900 16px "Font Awesome 6 Free"',
+      '400 16px "Font Awesome 6 Free"',
+      '400 16px "Font Awesome 6 Brands"',
+      // 兼容部分 CDN / 旧命名
+      '900 16px FontAwesome',
+      '400 16px FontAwesome'
+    ];
+    try {
+      if (document.fonts && document.fonts.load) {
+        await Promise.race([
+          Promise.all(families.map((spec) => document.fonts.load(spec).catch(() => null))),
+          new Promise((r) => setTimeout(r, ms))
+        ]);
+        if (document.fonts.ready) {
+          const remain = Math.max(0, deadline - Date.now());
+          await Promise.race([
+            document.fonts.ready,
+            new Promise((r) => setTimeout(r, remain || 1))
+          ]);
+        }
+      } else {
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    } catch (_) {}
+    // 再确认至少有一枚 FA 字形可用（抽检 solid 常见图标）
+    try {
+      if (document.fonts && document.fonts.check) {
+        const ok =
+          document.fonts.check('900 16px "Font Awesome 6 Free"') ||
+          document.fonts.check('900 16px FontAwesome');
+        if (!ok) {
+          // 再给一次短等待
+          await new Promise((r) => setTimeout(r, 600));
+        }
+      }
+    } catch (_) {}
+  }
+
   async function runBootLoader() {
     const loader = document.getElementById('bootLoader');
     setBootProgressBytes(0, 1);
@@ -6189,13 +6232,13 @@
 
     const urls = CRITICAL_IMAGE_URLS.slice();
     const healthPromise = resolveApiBase();
+    // 字体与图片并行启动；进入站点前两者都要完成
+    const fontPromise = waitForFontAwesome(15000);
 
-    // 先 HEAD/探测总大小（失败则加载后再汇总）
     let totalBytes = 0;
     let loadedBytes = 0;
     const sizes = new Array(urls.length).fill(0);
 
-    // 并行加载；进度按已下载字节 / 已知总字节
     let finishedCount = 0;
     await Promise.all(urls.map(async (url, idx) => {
       const result = await loadImageWithProgress(url);
@@ -6204,19 +6247,20 @@
       loadedBytes = sizes.reduce((a, b) => a + b, 0);
       totalBytes = sizes.reduce((a, b) => a + b, 0);
       if (totalBytes > 0) {
-        // 未知剩余项大小时，至少用已完成字节作为分子，分母取已加载合计（完成时等于 total）
         const known = sizes.filter((s) => s > 0);
         const avg = known.length ? (known.reduce((a, b) => a + b, 0) / known.length) : 0;
         const pending = urls.length - known.length;
         const estTotal = totalBytes + avg * pending;
-        setBootProgressBytes(loadedBytes, Math.max(estTotal, loadedBytes, 1));
+        // 预留约 8% 给字体加载展示
+        setBootProgressBytes(loadedBytes, Math.max(estTotal / 0.92, loadedBytes, 1));
       } else {
-        // 无 Content-Length / CORS 时按条目估算（每项约 0.5MB 仅用于展示）
         const unit = 512 * 1024;
-        setBootProgressBytes(finishedCount * unit, urls.length * unit);
+        setBootProgressBytes(finishedCount * unit, urls.length * unit / 0.92);
       }
     }));
 
+    // 图片完成后再等到 Font Awesome
+    await fontPromise;
     loadedBytes = sizes.reduce((a, b) => a + b, 0);
     if (loadedBytes > 0) setBootProgressBytes(loadedBytes, loadedBytes);
     else {

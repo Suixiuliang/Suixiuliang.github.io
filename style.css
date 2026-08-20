@@ -172,7 +172,7 @@ body {
 }
 .blog-nav-back-btn {
   /* ===== 水平位置微调：正值向右，负值向左 ===== */
-  --blog-back-nudge-x: 2px;
+  --blog-back-nudge-x: 1px;
   appearance: none;
   /* 绝对定位：不挤占标题居中空间 */
   position: absolute;
@@ -205,9 +205,9 @@ body {
   z-index: 3;
 }
 .blog-nav-back-btn i {
-  font-size: 0.95rem;
+  /* 箭头至少 1.5 倍（原约 0.95rem） */
+  font-size: 1.5rem;
   line-height: 1;
-  /* 有尾巴的 fa-arrow-left 光学居中微调 */
   transform: translateX(-0.5px);
 }
 .blog-nav-back-btn:hover {
@@ -216,7 +216,8 @@ body {
     0 6px 18px rgba(0, 113, 227, 0.45),
     inset 0 1.2px 2px rgba(255, 255, 255, 0.55),
     inset 0 -0.5px 1px rgba(0, 60, 140, 0.16);
-  transform: translateY(-50%) scale(1.04);
+  /* 悬停不放大 */
+  transform: translateY(-50%);
 }
 .blog-nav-back-btn:active {
   transform: translateY(-50%) scale(0.96);
@@ -4605,7 +4606,7 @@ body.has-reveal-highlight .glass-card:hover {
   .glass-nav.blog-mode.is-reading-toolbar {
     min-height: 3rem;
   }
-  .blog-nav-back-btn i { font-size: 0.88rem; }
+  .blog-nav-back-btn i { font-size: 1.35rem; }
   .blog-reading-main { margin-left: 5px; }
 }
 
