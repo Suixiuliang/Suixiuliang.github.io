@@ -1505,14 +1505,17 @@
 
 
 
+
   // ============================================================
   //  音频迷你坞 / 播放列表 / 全屏 / 磁吸
   // ============================================================
-  let dockedPlayerEl = null;
+  let dockedPlayerEl = null;       // 文内原始 glass-audio-player（可能已从 DOM 摘掉）
+  let dockedAudioEl = null;        // 正在坞里控制的 audio
   let dockedArticleSlug = null;
-  let dockedPlaceholder = null;
+  let miniDockEl = null;           // 独立正圆形迷你坞按钮
   let audioFsBackdrop = null;
   let lyricsSyncEnabled = true;
+  let dockAnimPromise = null;
 
   function getCurrentArticleSlug() {
     try {
@@ -1544,7 +1547,6 @@
   function enterAudioFullscreen(player) {
     if (!player) return;
     ensureAudioFsBackdrop();
-    // 不重复套两层
     if (!player.classList.contains('is-fs-zoom')) {
       const block = player.closest('.md-song-block');
       if (block) block.classList.add('is-fs-host');
@@ -1584,10 +1586,54 @@
     }
   }
 
-  /** 把正在播放的播放器从文章 DOM 挪到 body，避免关文时 innerHTML 清空把它毁掉 */
+  function syncMiniDockIcon() {
+    if (!miniDockEl || !dockedAudioEl) return;
+    const icon = miniDockEl.querySelector('i');
+    if (!icon) return;
+    const playing = !dockedAudioEl.paused && !dockedAudioEl.ended;
+    icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
+    miniDockEl.classList.toggle('is-playing', playing);
+    miniDockEl.classList.toggle('is-loading', !!(dockedAudioEl && dockedAudioEl.readyState < 2 && !dockedAudioEl.error));
+  }
+
+  function ensureMiniDock() {
+    if (miniDockEl && miniDockEl.isConnected) return miniDockEl;
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'audio-mini-dock';
+    el.setAttribute('aria-label', '播放/暂停');
+    el.innerHTML = '<i class="fas fa-pause"></i><span class="audio-mini-dock-ring" aria-hidden="true"></span>';
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dockedAudioEl) return;
+      if (dockedAudioEl.paused) {
+        playWithFade(dockedAudioEl).then(syncMiniDockIcon).catch(() => {
+          try { dockedAudioEl.play(); } catch (_) {}
+          syncMiniDockIcon();
+        });
+      } else {
+        pauseWithFade(dockedAudioEl).then(syncMiniDockIcon).catch(() => {
+          try { dockedAudioEl.pause(); } catch (_) {}
+          syncMiniDockIcon();
+        });
+      }
+    });
+    document.body.appendChild(el);
+    miniDockEl = el;
+    return el;
+  }
+
+  /**
+   * 先把播放中的音频收成正圆迷你坞，平滑飞到左下角，完成后再 resolve。
+   * 不暂停；坞仅播放按钮。
+   */
   function dockPlayingAudioOnExit() {
     exitAudioFullscreen();
-    if (dockedPlayerEl && dockedPlayerEl.isConnected) return;
+    // 已有迷你坞在飞或已落位：直接完成
+    if (miniDockEl && miniDockEl.classList.contains('is-visible') && dockedAudioEl && !dockedAudioEl.paused) {
+      return Promise.resolve();
+    }
 
     const players = Array.from(document.querySelectorAll('#blogArticleBody .glass-audio-player'));
     let playing = null;
@@ -1599,159 +1645,200 @@
       players.forEach((pl) => {
         if (typeof pl._hardSnapCollapsed === 'function') pl._hardSnapCollapsed(pl);
       });
-      return;
+      return Promise.resolve();
     }
+
+    const audio = playing.querySelector('audio');
+    if (!audio) return Promise.resolve();
 
     dockedArticleSlug = getCurrentArticleSlug();
-    const block = playing.closest('.md-song-block');
-    const moveTarget = block || playing;
-    const rect = playing.getBoundingClientRect();
+    dockedPlayerEl = playing;
+    dockedAudioEl = audio;
 
-    // 立刻固定位置并从文章树摘出（防止 body.innerHTML 清空）
-    if (block) {
-      block.classList.remove('is-player-open');
-      const ly = block.querySelector('.md-lyrics');
-      if (ly) ly.classList.remove('is-expanded');
-      block.style.position = 'fixed';
-      block.style.left = rect.left + 'px';
-      block.style.top = rect.top + 'px';
-      block.style.bottom = 'auto';
-      block.style.right = 'auto';
-      block.style.width = Math.max(rect.width, 50) + 'px';
-      block.style.zIndex = '1900';
-      block.style.margin = '0';
-      block.style.pointerEvents = 'none';
-      block.classList.add('is-dock-flying');
-    }
-    playing.style.pointerEvents = 'auto';
-    playing.classList.add('is-dock-flying');
-
-    // 收起为圆（不暂停）
+    // 文内播放器硬收起（视觉），音频继续播
     if (typeof playing._setExpandedState === 'function') {
       playing._setExpandedState(false);
     } else {
       playing.classList.remove('is-expanding', 'is-expanded');
-      playing.classList.add('is-collapsing');
+      playing.classList.add('is-collapsed');
+      playing.setAttribute('data-player-state', 'collapsed');
+      const block = playing.closest('.md-song-block');
+      if (block) {
+        block.classList.remove('is-player-open');
+        const ly = block.querySelector('.md-lyrics');
+        if (ly) ly.classList.remove('is-expanded');
+      }
     }
 
-    document.body.appendChild(moveTarget);
-    dockedPlayerEl = playing;
+    const rect = playing.getBoundingClientRect();
+    // 圆形尺寸与收起态播放器一致
+    const size = Math.round(rect.height || 50) || 50;
+    const dock = ensureMiniDock();
+    dock.classList.remove('is-visible', 'is-settled');
+    dock.style.width = size + 'px';
+    dock.style.height = size + 'px';
+    dock.style.left = rect.left + 'px';
+    dock.style.top = rect.top + 'px';
+    dock.style.bottom = 'auto';
+    dock.style.right = 'auto';
+    dock.style.transform = 'none';
+    dock.style.transition = 'none';
+    dock.classList.add('is-visible', 'is-flying');
+    syncMiniDockIcon();
 
-    // 收起后飞向左下角
-    setTimeout(() => {
-      playing.classList.remove('is-collapsing');
-      playing.classList.add('is-collapsed', 'is-docked');
-      playing.setAttribute('data-player-state', 'collapsed');
-      const destLeft = 16;
-      const destBottom = 18;
-      if (block) {
-        block.style.transition = 'left 0.55s cubic-bezier(0.32, 0.72, 0, 1), top 0.55s cubic-bezier(0.32, 0.72, 0, 1), bottom 0.55s cubic-bezier(0.32, 0.72, 0, 1)';
-        block.style.left = destLeft + 'px';
-        block.style.top = 'auto';
-        block.style.bottom = destBottom + 'px';
-        block.style.width = 'auto';
-      }
-      setTimeout(() => {
-        if (block) {
-          block.classList.remove('is-dock-flying');
-          block.style.transition = '';
-          // 交给 CSS body > .md-song-block 定位
-          block.style.left = '';
-          block.style.top = '';
-          block.style.bottom = '';
-          block.style.right = '';
-          block.style.width = '';
-          block.style.position = '';
-          block.style.zIndex = '';
-          block.style.pointerEvents = '';
-        }
-        playing.classList.remove('is-dock-flying');
-      }, 560);
-    }, 400);
+    // 绑定 audio 事件刷新图标
+    const onPlay = () => syncMiniDockIcon();
+    const onPause = () => syncMiniDockIcon();
+    const onEnded = () => {
+      syncMiniDockIcon();
+      // 结束后可保留坞（暂停态），不强拆
+    };
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('waiting', onPlay);
+    audio.addEventListener('playing', onPlay);
+    dock._cleanupAudioListeners = () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('waiting', onPlay);
+      audio.removeEventListener('playing', onPlay);
+    };
+
+    // 把 audio 节点挪到 body，避免文章 body 被清空时中断播放
+    // （仍挂在 dock 旁隐藏）
+    if (audio.parentNode !== document.body) {
+      // 保留在原 player 内也可以，只要 player 所在 song-block 不被 destroy
+      // 关文会清空 blogArticleBody —— 必须移出
+      const holder = document.createElement('div');
+      holder.className = 'audio-dock-audio-holder';
+      holder.style.cssText = 'position:fixed;left:-9999px;width:0;height:0;overflow:hidden;';
+      holder.appendChild(audio);
+      document.body.appendChild(holder);
+      dock._audioHolder = holder;
+    }
+
+    dockAnimPromise = new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const destLeft = 16;
+          const destBottom = 18;
+          dock.style.transition =
+            'left 0.58s cubic-bezier(0.32, 0.72, 0, 1), top 0.58s cubic-bezier(0.32, 0.72, 0, 1), bottom 0.58s cubic-bezier(0.32, 0.72, 0, 1), width 0.4s ease, height 0.4s ease';
+          dock.style.left = destLeft + 'px';
+          dock.style.top = 'auto';
+          dock.style.bottom = destBottom + 'px';
+          dock.style.width = '50px';
+          dock.style.height = '50px';
+          const done = () => {
+            dock.classList.remove('is-flying');
+            dock.classList.add('is-settled');
+            dock.style.transition = '';
+            resolve();
+          };
+          dock.addEventListener('transitionend', done, { once: true });
+          setTimeout(done, 700);
+        });
+      });
+    });
+    return dockAnimPromise;
   }
 
-  function undockPlayerIfNeeded() {
-    if (!dockedPlayerEl || !dockedPlayerEl.isConnected) {
-      dockedPlayerEl = null;
-      dockedPlaceholder = null;
-      return;
+  function destroyMiniDock() {
+    if (miniDockEl && miniDockEl._cleanupAudioListeners) {
+      try { miniDockEl._cleanupAudioListeners(); } catch (_) {}
     }
-    const el = dockedPlayerEl;
-    const block = el.closest('.md-song-block') || el;
-    el.classList.remove('is-docked', 'is-dock-flying');
-    el.style.cssText = '';
-    if (block && block !== el) {
-      block.classList.remove('is-dock-flying');
-      block.style.cssText = '';
+    if (miniDockEl && miniDockEl._audioHolder) {
+      try { miniDockEl._audioHolder.remove(); } catch (_) {}
+    }
+    if (miniDockEl) {
+      miniDockEl.classList.remove('is-visible', 'is-settled', 'is-flying');
+      try { miniDockEl.remove(); } catch (_) {}
+    }
+    miniDockEl = null;
+    dockedAudioEl = null;
+    dockedPlayerEl = null;
+    dockedArticleSlug = null;
+    dockAnimPromise = null;
+  }
+
+  /** 回到「同一篇文章」时：把 audio 交回文内播放器并展开；其它文章：坞保持 */
+  function restoreDockedPlayerOnEnter(slug) {
+    if (!dockedAudioEl || !miniDockEl || !miniDockEl.classList.contains('is-visible')) return;
+    // 仅同一篇才收回坞
+    if (!(slug && dockedArticleSlug && String(slug) === String(dockedArticleSlug))) {
+      return; // 其它博客文章：坞继续播
     }
 
     const body = document.getElementById('blogArticleBody');
-    if (body && block.parentNode !== body) {
-      body.insertBefore(block, body.firstChild);
-    }
-    dockedPlaceholder = null;
-    dockedPlayerEl = null;
-
-    requestAnimationFrame(() => {
-      if (typeof el._setExpandedState === 'function') el._setExpandedState(true);
-      else {
-        el.classList.remove('is-collapsed', 'is-collapsing');
-        el.classList.add('is-expanded');
-        el.setAttribute('data-player-state', 'expanded');
-        const lyrics = block.querySelector && block.querySelector('.md-lyrics');
-        if (lyrics) lyrics.classList.add('is-expanded');
-        if (block.classList) block.classList.add('is-player-open');
+    if (!body) return;
+    const src = dockedAudioEl.src || dockedAudioEl.getAttribute('src') || '';
+    let targetPlayer = null;
+    let targetAudio = null;
+    body.querySelectorAll('.glass-audio-player audio, audio').forEach((a) => {
+      if (targetAudio) return;
+      const s = a.src || a.getAttribute('src') || '';
+      if (src && (s === src || s.indexOf(src) !== -1 || src.indexOf(s) !== -1)) {
+        targetAudio = a;
+        targetPlayer = a.closest('.glass-audio-player');
       }
     });
-  }
+    if (!targetPlayer) {
+      // 找不到对应块：坞继续
+      return;
+    }
 
-  function restoreDockedPlayerOnEnter(slug) {
-    if (!dockedPlayerEl) return;
-    if (slug && dockedArticleSlug && String(slug) === String(dockedArticleSlug)) {
-      // 同一篇：占位已被新渲染冲掉，把 song-block 插回文内对应音频处或文首
-      const body = document.getElementById('blogArticleBody');
-      const block = dockedPlayerEl.closest('.md-song-block') || dockedPlayerEl;
-      // 尝试按 src 对齐新渲染的占位音频
-      const src = (dockedPlayerEl.querySelector('audio') || {}).src || '';
-      let inserted = false;
-      if (body && src) {
-        const candidates = body.querySelectorAll('.md-song-block audio, audio');
-        for (const a of candidates) {
-          if (a.src === src || (a.getAttribute('src') && src.indexOf(a.getAttribute('src')) !== -1)) {
-            const host = a.closest('.md-song-block') || a.parentNode;
-            // 新渲染的壳丢掉，换成坞里的整块
-            if (host && host !== block) {
-              host.parentNode.insertBefore(block, host);
-              host.remove();
-              inserted = true;
-            }
-            break;
-          }
-        }
+    // 同步播放进度与状态到新 audio
+    try {
+      const t = dockedAudioEl.currentTime || 0;
+      const wasPlaying = !dockedAudioEl.paused && !dockedAudioEl.ended;
+      const vol = dockedAudioEl.volume;
+      targetAudio.currentTime = t;
+      targetAudio.volume = vol;
+      if (wasPlaying) {
+        targetAudio.play().catch(() => {});
       }
-      if (!inserted && body) {
-        body.insertBefore(block, body.firstChild);
+    } catch (_) {}
+
+    // 关掉迷你坞
+    if (miniDockEl._cleanupAudioListeners) {
+      try { miniDockEl._cleanupAudioListeners(); } catch (_) {}
+    }
+    if (miniDockEl._audioHolder) {
+      try { miniDockEl._audioHolder.remove(); } catch (_) {}
+    }
+    miniDockEl.classList.remove('is-visible', 'is-settled', 'is-flying');
+    try { miniDockEl.remove(); } catch (_) {}
+    miniDockEl = null;
+
+    // 停掉坞里的旧 audio（已把进度交给新节点）
+    try { dockedAudioEl.pause(); } catch (_) {}
+    dockedAudioEl = null;
+    dockedPlayerEl = null;
+    dockedArticleSlug = null;
+
+    if (targetPlayer._setExpandedState) targetPlayer._setExpandedState(true);
+    else {
+      targetPlayer.classList.remove('is-collapsed', 'is-collapsing');
+      targetPlayer.classList.add('is-expanded');
+      targetPlayer.setAttribute('data-player-state', 'expanded');
+      const block = targetPlayer.closest('.md-song-block');
+      if (block) {
+        block.classList.add('is-player-open');
+        const ly = block.querySelector('.md-lyrics');
+        if (ly) ly.classList.add('is-expanded');
       }
-      undockPlayerIfNeeded();
-      dockedArticleSlug = null;
-    } else {
-      // 别的文章：停掉并销毁坞
-      const a = dockedPlayerEl.querySelector('audio');
-      if (a && !a.paused) {
-        try { pauseWithFade(a); } catch (_) {}
-      }
-      const block = dockedPlayerEl.closest('.md-song-block') || dockedPlayerEl;
-      try { block.remove(); } catch (_) {}
-      dockedPlayerEl = null;
-      dockedPlaceholder = null;
-      dockedArticleSlug = null;
     }
   }
 
-  /** 歌词工具栏（全屏 / 音量 / 同步），在歌词 hydrate 成功后挂载 */
+  /** 歌词工具栏挂在 song-block 上（不在可滚动歌词区内），右下角常驻 */
   function ensureLyricsTools(lyricsEl, player, audio) {
     if (!lyricsEl || !player || !audio) return;
-    if (lyricsEl.querySelector('.md-lyrics-tools')) return;
+    const song = lyricsEl.closest('.md-song-block') || player.closest('.md-song-block');
+    if (!song) return;
+    if (song.querySelector(':scope > .md-lyrics-tools')) return;
+
     const tools = document.createElement('div');
     tools.className = 'md-lyrics-tools';
     tools.innerHTML =
@@ -1760,7 +1847,7 @@
         `<div class="md-volume-popover" hidden><div class="md-volume-track"><div class="md-volume-fill"></div></div></div>` +
       `</button>` +
       `<button type="button" class="md-lyrics-tool-btn is-on" data-tool="sync" title="歌词同步滚动" aria-label="同步滚动"><i class="fas fa-arrows-alt-v"></i></button>`;
-    lyricsEl.appendChild(tools);
+    song.appendChild(tools);
 
     const volBtn = tools.querySelector('[data-tool="vol"]');
     const pop = tools.querySelector('.md-volume-popover');
@@ -2189,20 +2276,78 @@
     const MAGNET_COOLDOWN_MS = 10000;
     const MAGNET_SHAKE_PX = 14;
 
+    let magnetFollowRaf = 0;
+    let magnetCursorX = 0;
+    let magnetCursorY = 0;
+    let magnetAnimRaf = 0;
+
+    function getProgressPoint() {
+      if (!audio.duration || !seek) return null;
+      const track = seek.querySelector('.gap-seek-track') || seek;
+      const rect = track.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (audio.currentTime || 0) / audio.duration));
+      return {
+        x: rect.left + ratio * rect.width,
+        y: rect.top + rect.height / 2
+      };
+    }
+
+    function moveCursorSmooth(toX, toY, durationMs) {
+      return new Promise((resolve) => {
+        const fromX = magnetCursorX || toX;
+        const fromY = magnetCursorY || toY;
+        const start = performance.now();
+        const dur = Math.max(120, durationMs || 320);
+        if (magnetAnimRaf) cancelAnimationFrame(magnetAnimRaf);
+        const step = (now) => {
+          const t = Math.min(1, (now - start) / dur);
+          const e = t * t * (3 - 2 * t);
+          const x = fromX + (toX - fromX) * e;
+          const y = fromY + (toY - fromY) * e;
+          magnetCursorX = x;
+          magnetCursorY = y;
+          if (typeof window.__maxsuiMoveCustomCursor === 'function') {
+            window.__maxsuiMoveCustomCursor(x, y);
+          }
+          if (t < 1) magnetAnimRaf = requestAnimationFrame(step);
+          else {
+            magnetAnimRaf = 0;
+            resolve();
+          }
+        };
+        magnetAnimRaf = requestAnimationFrame(step);
+      });
+    }
+
+    function magnetFollowLoop() {
+      if (!magnetActive) {
+        magnetFollowRaf = 0;
+        return;
+      }
+      const pt = getProgressPoint();
+      if (pt) {
+        magnetCursorX = pt.x;
+        magnetCursorY = pt.y;
+        if (typeof window.__maxsuiMoveCustomCursor === 'function') {
+          window.__maxsuiMoveCustomCursor(pt.x, pt.y);
+        }
+      }
+      magnetFollowRaf = requestAnimationFrame(magnetFollowLoop);
+    }
+
     function magnetSeekToProgress() {
       if (!audio.duration || !seek) return;
-      const rect = seek.getBoundingClientRect();
-      const ratio = Math.min(1, Math.max(0, (audio.currentTime || 0) / audio.duration));
-      const targetX = rect.left + ratio * rect.width;
-      const targetY = rect.top + rect.height / 2;
-      // 无法强制移动系统光标；通过自定义光标与 seek 高亮模拟磁吸反馈
+      const pt = getProgressPoint();
+      if (!pt) return;
       seek.classList.add('is-magnet');
       fill.classList.add('is-magnet-glow');
-      if (typeof window.__maxsuiMoveCustomCursor === 'function') {
-        window.__maxsuiMoveCustomCursor(targetX, targetY);
-      }
-      // 轻吸附：若用户在拖动则跳进度到当前（仅视觉锁定）
       magnetActive = true;
+      // 平缓吸到当前进度点，然后持续跟随进度条前进
+      moveCursorSmooth(pt.x, pt.y, 360).then(() => {
+        if (!magnetActive) return;
+        if (magnetFollowRaf) cancelAnimationFrame(magnetFollowRaf);
+        magnetFollowLoop();
+      });
     }
 
     function releaseMagnet(cooldown) {
@@ -2210,6 +2355,14 @@
       if (magnetHoldTimer) {
         clearTimeout(magnetHoldTimer);
         magnetHoldTimer = null;
+      }
+      if (magnetFollowRaf) {
+        cancelAnimationFrame(magnetFollowRaf);
+        magnetFollowRaf = 0;
+      }
+      if (magnetAnimRaf) {
+        cancelAnimationFrame(magnetAnimRaf);
+        magnetAnimRaf = 0;
       }
       if (seek) seek.classList.remove('is-magnet');
       if (fill) fill.classList.remove('is-magnet-glow');
@@ -2240,6 +2393,10 @@
       }
       magnetLastPos = { x: e.clientX, y: e.clientY };
       magnetLastMoveAt = performance.now();
+      if (!magnetActive) {
+        magnetCursorX = e.clientX;
+        magnetCursorY = e.clientY;
+      }
 
       if (!near) {
         if (magnetHoldTimer) {
@@ -3239,9 +3396,11 @@
     try { restoreDockedPlayerOnEnter(idOrSlug); } catch (_) {}
   }
 
-  function closeArticleReader() {
-    // 离开文章：若有正在播放的音频，先收起再飞到左下角迷你坞（不暂停）
-    try { dockPlayingAudioOnExit(); } catch (_) {}
+  async function closeArticleReader() {
+    // 先让迷你坞滑到左下角，再执行退出博客动画
+    try {
+      await dockPlayingAudioOnExit();
+    } catch (_) {}
 
     const legacyModal = document.getElementById('articleReaderModal');
     if (legacyModal) legacyModal.classList.remove('active');

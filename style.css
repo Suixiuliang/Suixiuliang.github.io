@@ -4600,32 +4600,8 @@ body.has-reveal-highlight .glass-card:hover {
 /* ============================================================
    音频：迷你坞 / 加载扇形 / 歌词工具栏 / 全屏放大
    ============================================================ */
-.glass-audio-player.is-docked {
-  position: fixed !important;
-  left: max(16px, env(safe-area-inset-left, 0px));
-  bottom: max(18px, env(safe-area-inset-bottom, 0px));
-  z-index: 1800;
-  margin: 0 !important;
-  width: var(--player-h) !important;
-  min-width: var(--player-h) !important;
-  max-width: var(--player-h) !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  transition:
-    left 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    top 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    bottom 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    transform 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.35s ease !important;
-  box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.32),
-    0 0 0 1px rgba(255, 255, 255, 0.22),
-    inset 0 1px 1px rgba(255, 255, 255, 0.4);
-}
-.glass-audio-player.is-dock-flying {
-  z-index: 1900;
-  pointer-events: none;
-}
+/* 旧 is-docked 方案已弃用，改用 .audio-mini-dock 正圆按钮 */
+
 
 /* 收起态加载进度：半透明白色扇形 0～360° */
 .glass-audio-player .gap-load-ring {
@@ -4652,11 +4628,12 @@ body.has-reveal-highlight .glass-card:hover {
 }
 
 /* 歌词面板右下角工具栏（仅图标） */
-.md-lyrics-tools {
+/* 挂在 .md-song-block 上，相对整块播放区右下角常驻，不随歌词滚动 */
+.md-song-block > .md-lyrics-tools {
   position: absolute;
   right: 8px;
   bottom: 8px;
-  z-index: 4;
+  z-index: 5;
   display: none;
   align-items: center;
   gap: 4px;
@@ -4667,8 +4644,9 @@ body.has-reveal-highlight .glass-card:hover {
   backdrop-filter: blur(12px) saturate(160%);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
 }
-.md-lyrics.is-expanded .md-lyrics-tools {
+.md-song-block.is-player-open > .md-lyrics-tools {
   display: inline-flex;
 }
 .md-lyrics-tool-btn {
@@ -4816,39 +4794,90 @@ body.has-reveal-highlight .glass-card:hover {
 }
 
 
-/* 迷你坞：挂在 body 上的 song-block 只显示圆形播放器 */
-body > .md-song-block {
+
+/* ============================================================
+   正圆形迷你坞（仅播放/暂停按钮）
+   ============================================================ */
+.audio-mini-dock {
+  --dock-size: 50px;
   position: fixed;
+  z-index: 1800;
+  width: var(--dock-size);
+  height: var(--dock-size);
+  min-width: var(--dock-size);
+  min-height: var(--dock-size);
+  max-width: var(--dock-size);
+  max-height: var(--dock-size);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 1px 1px rgba(255, 255, 255, 0.42);
+  overflow: hidden;
+  flex-shrink: 0;
+  line-height: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.audio-mini-dock.is-visible {
+  display: inline-flex;
+}
+.audio-mini-dock.is-settled {
   left: max(16px, env(safe-area-inset-left, 0px));
   bottom: max(18px, env(safe-area-inset-bottom, 0px));
-  z-index: 1800;
-  width: auto;
-  max-width: none;
-  margin: 0;
+  top: auto;
+  right: auto;
+}
+.audio-mini-dock i {
+  font-size: 1rem;
+  line-height: 1;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+.audio-mini-dock .audio-mini-dock-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    rgba(255, 255, 255, 0.5) calc(var(--load-progress, 0) * 1deg),
+    transparent 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+}
+.audio-mini-dock.is-loading .audio-mini-dock-ring {
+  opacity: 1;
+}
+.audio-mini-dock:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.audio-mini-dock:active {
+  transform: scale(0.94);
+  background: rgba(0, 113, 227, 0.72);
+}
+.audio-mini-dock.is-flying {
   pointer-events: none;
 }
-body > .md-song-block .md-lyrics {
-  display: none !important;
-}
-body > .md-song-block .glass-audio-player {
-  pointer-events: auto;
-  margin: 0 !important;
-}
-body > .md-song-block .glass-audio-player.is-docked,
-.glass-audio-player.is-docked {
-  position: relative !important;
-  left: auto !important;
-  bottom: auto !important;
-  width: var(--player-h) !important;
-  min-width: var(--player-h) !important;
-  max-width: var(--player-h) !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-}
-body > .md-song-block.is-dock-flying,
-.glass-audio-player.is-dock-flying {
-  transition:
-    left 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    top 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    width 0.42s cubic-bezier(0.32, 0.72, 0, 1) !important;
+.audio-dock-audio-holder {
+  position: fixed !important;
+  left: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }
