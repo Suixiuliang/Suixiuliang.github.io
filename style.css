@@ -172,22 +172,20 @@ body {
   box-sizing: border-box;
 }
 .blog-nav-back-btn {
+  /* ===== 水平位置微调：改这里即可（正值向右，负值向左），单位 px ===== */
+  --blog-back-nudge-x: 0px;
   appearance: none;
   flex: 0 0 auto;
-  width: calc(100% - 10px);
-  max-width: 2.55rem;
-  height: calc(100% - 0px);
-  aspect-ratio: 1;
   width: auto;
-  height: calc(100%);
+  height: calc(100% - 10px);
+  aspect-ratio: 1;
   min-width: 2.2rem;
   min-height: 2.2rem;
-  /* 用正方形，边长 = 导航胶囊内高 - 10px（上下各 5px） */
   box-sizing: border-box;
   border-radius: 50%;
   border: none;
   padding: 0;
-  margin: 0;
+  margin: 0 0 0 var(--blog-back-nudge-x);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -200,11 +198,13 @@ body {
     inset 0 -0.5px 1px rgba(0, 60, 140, 0.18);
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, opacity 0.22s ease;
   z-index: 3;
+  align-self: center;
 }
 .blog-nav-back-btn i {
   font-size: 0.95rem;
   line-height: 1;
-  margin-left: -1px; /* 视觉居中微调 */
+  /* 有尾巴的 fa-arrow-left 光学居中微调 */
+  transform: translateX(-0.5px);
 }
 .blog-nav-back-btn:hover {
   background: rgba(0, 113, 227, 1);
@@ -4813,4 +4813,42 @@ body.has-reveal-highlight .glass-card:hover {
 /* 迷你坞时隐藏原位占位塌陷 */
 .md-song-block.is-dock-source .glass-audio-player:not(.is-docked) {
   visibility: hidden;
+}
+
+
+/* 迷你坞：挂在 body 上的 song-block 只显示圆形播放器 */
+body > .md-song-block {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  z-index: 1800;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  pointer-events: none;
+}
+body > .md-song-block .md-lyrics {
+  display: none !important;
+}
+body > .md-song-block .glass-audio-player {
+  pointer-events: auto;
+  margin: 0 !important;
+}
+body > .md-song-block .glass-audio-player.is-docked,
+.glass-audio-player.is-docked {
+  position: relative !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: var(--player-h) !important;
+  min-width: var(--player-h) !important;
+  max-width: var(--player-h) !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+}
+body > .md-song-block.is-dock-flying,
+.glass-audio-player.is-dock-flying {
+  transition:
+    left 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    top 0.55s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.42s cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
