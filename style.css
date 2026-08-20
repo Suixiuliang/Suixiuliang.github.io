@@ -159,7 +159,7 @@ body {
   display: none;
   flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center; /* 标题相对整栏居中 */
   gap: 0;
   width: 100%;
   min-width: 0;
@@ -167,25 +167,30 @@ body {
   text-align: center;
   margin: 0;
   position: relative;
-  /* 与标题胶囊左右/上下留 5px，形成同心圆感 */
-  padding: 5px 5px 5px 5px;
+  padding: 5px;
   box-sizing: border-box;
 }
 .blog-nav-back-btn {
-  /* ===== 水平位置微调：改这里即可（正值向右，负值向左），单位 px ===== */
-  --blog-back-nudge-x: 0px;
+  /* ===== 水平位置微调：正值向右，负值向左 ===== */
+  --blog-back-nudge-x: 2px;
   appearance: none;
+  /* 绝对定位：不挤占标题居中空间 */
+  position: absolute;
+  left: calc(5px + var(--blog-back-nudge-x));
+  top: 50%;
+  transform: translateY(-50%);
   flex: 0 0 auto;
+  /* 半径 +2px → 直径 +4px；相对胶囊内边距由 10px 改为 6px */
+  height: calc(100% - 6px);
   width: auto;
-  height: calc(100% - 10px);
   aspect-ratio: 1;
-  min-width: 2.2rem;
-  min-height: 2.2rem;
+  min-width: 2.45rem;
+  min-height: 2.45rem;
   box-sizing: border-box;
   border-radius: 50%;
   border: none;
   padding: 0;
-  margin: 0 0 0 var(--blog-back-nudge-x);
+  margin: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -198,7 +203,6 @@ body {
     inset 0 -0.5px 1px rgba(0, 60, 140, 0.18);
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, opacity 0.22s ease;
   z-index: 3;
-  align-self: center;
 }
 .blog-nav-back-btn i {
   font-size: 0.95rem;
@@ -212,10 +216,10 @@ body {
     0 6px 18px rgba(0, 113, 227, 0.45),
     inset 0 1.2px 2px rgba(255, 255, 255, 0.55),
     inset 0 -0.5px 1px rgba(0, 60, 140, 0.16);
-  transform: scale(1.04);
+  transform: translateY(-50%) scale(1.04);
 }
 .blog-nav-back-btn:active {
-  transform: scale(0.96);
+  transform: translateY(-50%) scale(0.96);
 }
 .blog-nav-back-btn.is-faded {
   pointer-events: none;
@@ -223,6 +227,7 @@ body {
 .blog-reading-main {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -230,7 +235,14 @@ body {
   gap: 2px;
   height: 100%;
   text-align: center;
-  margin-left: 5px; /* 与左侧返回圆水平间距 5px */
+  margin: 0;
+  /* 左右对称内边距，避免被左侧圆挡住可读区，但不影响几何居中 */
+  padding: 0 3.2rem;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.blog-reading-main * {
+  pointer-events: auto;
 }
 .glass-nav.is-reading-toolbar .blog-toolbar-list {
   display: none !important;
@@ -442,7 +454,7 @@ body {
   max-width: none;
   aspect-ratio: 1 / 1;
   width: auto;
-  height: calc(100% - 10px);
+  height: calc(100% - 6px);
   min-width: 0;
   align-self: center;
   margin-left: 0;
@@ -4750,12 +4762,12 @@ body.has-reveal-highlight .glass-card:hover {
   opacity: 1;
   pointer-events: auto;
 }
-/* 挂到 body：水平居中、靠上；播放条在顶部；不要外框阴影 */
+/* 挂到 body：屏幕正中居中放大；不要外框阴影 */
 body > .md-song-block.is-fs-zoom,
 body > .md-song-block.is-fs-host.is-fs-zoom {
   position: fixed !important;
   left: 50% !important;
-  top: max(12px, env(safe-area-inset-top, 0px) + 16px) !important;
+  top: 50% !important;
   right: auto !important;
   bottom: auto !important;
   z-index: 2510 !important;
@@ -4766,10 +4778,9 @@ body > .md-song-block.is-fs-host.is-fs-zoom {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  /* 水平居中 + 放大；原点在顶部，播放条贴在视口上方 */
-  transform: translateX(-50%) scale(1.2);
-  transform-origin: top center;
-  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1), top 0.35s ease;
+  transform: translate(-50%, -50%) scale(1.2);
+  transform-origin: center center;
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
   pointer-events: auto;
   display: flex !important;
   flex-direction: column !important;

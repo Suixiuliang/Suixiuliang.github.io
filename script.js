@@ -1538,12 +1538,28 @@
     return audioFsBackdrop;
   }
 
+  function syncFsToolButtons(active) {
+    document.querySelectorAll('.md-lyrics-tool-btn[data-tool="fs"]').forEach((btn) => {
+      const icon = btn.querySelector('i');
+      if (active) {
+        btn.title = '退出全屏';
+        btn.setAttribute('aria-label', '缩小');
+        btn.classList.add('is-fs-active');
+        if (icon) icon.className = 'fas fa-compress';
+      } else {
+        btn.title = '全屏放大';
+        btn.setAttribute('aria-label', '全屏');
+        btn.classList.remove('is-fs-active');
+        if (icon) icon.className = 'fas fa-expand';
+      }
+    });
+  }
+
   function exitAudioFullscreen() {
     const host = document.querySelector('.md-song-block.is-fs-host');
     if (host) {
       host.classList.remove('is-fs-host', 'is-fs-zoom');
       host.style.removeProperty('--fs-w');
-      // 结构不变：只移回原位
       if (fsPlaceholder && fsPlaceholder.parentNode) {
         fsPlaceholder.parentNode.insertBefore(host, fsPlaceholder);
         fsPlaceholder.remove();
@@ -1563,6 +1579,7 @@
     });
     if (audioFsBackdrop) audioFsBackdrop.classList.remove('is-open');
     document.body.classList.remove('audio-fs-open');
+    syncFsToolButtons(false);
   }
 
   function enterAudioFullscreen(player) {
@@ -1604,6 +1621,7 @@
     document.body.appendChild(audioFsBackdrop);
     document.body.appendChild(block);
     document.body.classList.add('audio-fs-open');
+    syncFsToolButtons(true);
 
     requestAnimationFrame(() => {
       if (audioFsBackdrop) audioFsBackdrop.classList.add('is-open');
@@ -2529,43 +2547,47 @@
       if (e.key === 'Escape' && magnetActive) releaseMagnet(true);
     });
 
-    // 磁吸后：按下拖动 = 调进度；单击 = 播放/暂停
+    // 磁吸后：拖动 = 从「当前进度」起按位移相对调节；单击 = 播放/暂停（不 seek，避免倒退）
     let magnetDrag = false;
     let magnetDownX = 0;
     let magnetDownY = 0;
     let magnetMoved = false;
+    let magnetStartTime = 0;
     const MAGNET_CLICK_PX = 6;
 
     document.addEventListener('pointerdown', (e) => {
       if (!magnetActive || e.button !== 0) return;
-      // 工具栏按钮等放行
       if (e.target && e.target.closest && e.target.closest('.md-lyrics-tools, .md-lyrics-tool-btn, .gap-play')) return;
       magnetDrag = true;
       magnetMoved = false;
       magnetDownX = e.clientX;
       magnetDownY = e.clientY;
-      seeking = true;
-      try { document.body.setPointerCapture && e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch (_) {}
-      // 按下即按当前位置 seek 一次
-      seekFromEvent(e.clientX);
+      magnetStartTime = Number(audio.currentTime) || 0;
+      // 按下不 seek，避免一点击就跳进度（看起来像倒退）
       e.preventDefault();
+      e.stopPropagation();
     }, true);
 
     document.addEventListener('pointermove', (e) => {
       if (!magnetActive || !magnetDrag) return;
-      if (Math.hypot(e.clientX - magnetDownX, e.clientY - magnetDownY) > MAGNET_CLICK_PX) {
-        magnetMoved = true;
-      }
-      if (magnetMoved) {
-        seekFromEvent(e.clientX);
-        // 拖动时小白球跟手指/拖拽点（进度点会在松手后由 follow 接回）
-        magnetCursorX = e.clientX;
-        const pt = getProgressPoint();
-        if (pt) magnetCursorY = pt.y;
-        if (typeof window.__maxsuiMoveCustomCursor === 'function') {
-          window.__maxsuiMoveCustomCursor(magnetCursorX, magnetCursorY);
-        }
-      }
+      const dist = Math.hypot(e.clientX - magnetDownX, e.clientY - magnetDownY);
+      if (dist > MAGNET_CLICK_PX) magnetMoved = true;
+      if (!magnetMoved) return;
+      seeking = true;
+      const d = Number(audio.duration) || 0;
+      const rect = seek.getBoundingClientRect();
+      const w = Math.max(1, rect.width);
+      // 相对拖动：从按下时的进度 + 水平位移比例
+      const deltaRatio = (e.clientX - magnetDownX) / w;
+      let t = magnetStartTime + deltaRatio * d;
+      if (d > 0) t = Math.min(d, Math.max(0, t));
+      try { audio.currentTime = t; } catch (_) {}
+      const p = d > 0 ? (t / d) * 100 : 0;
+      fill.style.width = p + '%';
+      magnetCursorX = e.clientX;
+      const pt = getProgressPoint();
+      if (pt) magnetCursorY = pt.y;
+      try { if (typeof moveCustomCursor === 'function') moveCustomCursor(magnetCursorX, magnetCursorY); } catch (_) {}
     }, true);
 
     document.addEventListener('pointerup', (e) => {
@@ -2573,7 +2595,7 @@
       magnetDrag = false;
       seeking = false;
       if (!magnetMoved && magnetActive) {
-        // 单击：播放/暂停
+        // 纯单击：只切换播放，绝不改 currentTime
         if (audio.paused) {
           playWithFade(audio).catch(() => { try { audio.play(); } catch (_) {} });
         } else {
@@ -2581,7 +2603,6 @@
         }
         syncPlayUi();
       }
-      // 松手后继续跟进度
       if (magnetActive && !magnetFollowRaf) magnetFollowLoop();
     }, true);
 
