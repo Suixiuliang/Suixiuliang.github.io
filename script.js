@@ -1634,19 +1634,8 @@
   }
 
   function playNextInPlaylist(currentAudio) {
-    const body = document.getElementById('blogArticleBody');
-    const list = getArticlePlaylist(body);
-    if (!list.length) return;
-    const idx = list.indexOf(currentAudio);
-    if (idx < 0) return;
-    const next = list[(idx + 1) % list.length];
-    if (!next || next === currentAudio) return;
-    const player = next.closest('.glass-audio-player');
-    if (player && typeof player._expandAndPlay === 'function') {
-      player._expandAndPlay();
-    } else {
-      try { next.play(); } catch (_) {}
-    }
+    // 已取消自动连播：播完即停
+    return;
   }
 
   function syncMiniDockIcon() {
@@ -1915,7 +1904,7 @@
       `<button type="button" class="md-lyrics-tool-btn" data-tool="vol" title="音量" aria-label="音量"><i class="fas fa-volume-up"></i>` +
         `<div class="md-volume-popover" hidden><div class="md-volume-track"><div class="md-volume-fill"></div></div></div>` +
       `</button>` +
-      `<button type="button" class="md-lyrics-tool-btn is-on" data-tool="sync" title="歌词同步滚动" aria-label="同步滚动"><i class="fas fa-arrows-alt-v"></i></button>`;
+      `<button type="button" class="md-lyrics-tool-btn is-on" data-tool="sync" title="歌词同步滚动" aria-label="同步滚动"><i class="fas fa-align-left"></i></button>`;
     song.appendChild(tools);
 
     const volBtn = tools.querySelector('[data-tool="vol"]');
@@ -2293,12 +2282,19 @@
     audio.addEventListener('ended', () => {
       player._waiting = false;
       syncPlayUi();
-      // 全屏中播完：退出全屏，回到展开态页面（不立刻收起）
+      // 播完立即挣脱磁吸，小白点回到真实鼠标位置
+      try {
+        if (magnetActive) releaseMagnet(true);
+        const mx = (typeof lastPointerX === 'number' && lastPointerX) ? lastPointerX : (window.innerWidth / 2);
+        const my = (typeof lastPointerY === 'number' && lastPointerY) ? lastPointerY : (window.innerHeight / 2);
+        if (typeof moveCustomCursor === 'function') moveCustomCursor(mx, my);
+        else if (typeof window.__maxsuiMoveCustomCursor === 'function') window.__maxsuiMoveCustomCursor(mx, my);
+      } catch (_) {}
+      // 全屏中播完：退出全屏，回到展开态（无自动连播）
       const block = player.closest('.md-song-block');
       const inFs = !!(document.body.classList.contains('audio-fs-open') || (block && block.classList.contains('is-fs-zoom')));
       if (inFs) {
         try { exitAudioFullscreen(); } catch (_) {}
-        // 保持展开
         try {
           if (typeof setExpandedState === 'function') setExpandedState(true);
           else {
@@ -2312,13 +2308,9 @@
             }
           }
         } catch (_) {}
-        // 同文下一首（若有）在退出全屏后继续
-        try { playNextInPlaylist(audio); } catch (_) {}
-        // 稍后再走收起计时，给用户看到展开页
         scheduleCollapseAfterEnded();
         return;
       }
-      try { playNextInPlaylist(audio); } catch (_) {}
       scheduleCollapseAfterEnded();
     });
     audio.addEventListener('waiting', () => {
@@ -2479,6 +2471,14 @@
       if (seek) seek.classList.remove('is-magnet');
       if (fill) fill.classList.remove('is-magnet-glow');
       setMagnetCursorVisual(false);
+      // 小白点立即回到真实鼠标
+      try {
+        const mx = (typeof lastPointerX === 'number') ? lastPointerX : 0;
+        const my = (typeof lastPointerY === 'number') ? lastPointerY : 0;
+        if (typeof moveCustomCursor === 'function') moveCustomCursor(mx, my);
+        else if (typeof window.__maxsuiMoveCustomCursor === 'function') window.__maxsuiMoveCustomCursor(mx, my);
+        if (typeof setCursorVisible === 'function') setCursorVisible(true);
+      } catch (_) {}
       if (cooldown) magnetCooldownUntil = performance.now() + MAGNET_COOLDOWN_MS;
     }
 
