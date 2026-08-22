@@ -637,8 +637,8 @@
   const STAGE1_RATIO = 0.72;
   const STAGE2_RATIO = 0.45;
   /* 移动端：很短滚动距离即可跑完三阶段视差 */
-  const STAGE1_RATIO_MOBILE = 0.18;
-  const STAGE2_RATIO_MOBILE = 0.12;
+  const STAGE1_RATIO_MOBILE = 0.26;
+  const STAGE2_RATIO_MOBILE = 0.16;
   let stage1Height = 0;
   let stage2Height = 0;
   let stage3Extra = 0;
@@ -5574,8 +5574,13 @@
     const pinnedMax = Math.max(mobile ? 200 : 240, Math.round(vh - topMargin - bottomPad));
     blogWhiteBox.style.maxHeight = pinnedMax + 'px';
     blogWhiteBox.style.overflowY = 'auto';
-    stage3Extra = Math.round(vh * (mobile ? 0.10 : 0.35));
+    /* 移动端留足列表内滚区域：白盒可滚，外层在阶段结束后不再抢滚动 */
+    stage3Extra = Math.round(vh * (mobile ? 0.06 : 0.35));
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
+    if (mobile) {
+      blogWhiteBox.style.webkitOverflowScrolling = 'touch';
+      blogWhiteBox.style.overscrollBehavior = 'contain';
+    }
   }
 
   function getBlogGapPx() {
@@ -5750,21 +5755,47 @@
 
   let blogScrollHideTimer = null;
   let blogStageSnapTimer = null;
+  let blogLastScrollTop = 0;
+  let blogStageSnapLock = false;
   function snapBlogStagesIfMobile() {
     if (!blogPanel || isArticleReading || !isMobileBlogLayout()) return;
+    if (blogStageSnapLock) return;
     const s1 = stage1Height || 0;
     const s2 = stage2Height || 0;
     const s3 = stage3Extra || 0;
-    const end = s1 + s2 + s3;
-    if (end <= 8) return;
+    const stagesEnd = s1 + s2;          // 视差阶段结束
+    const pinTop = s1 + s2 + s3;        // 列表钉住位置
+    if (pinTop <= 8) return;
     const top = blogPanel.scrollTop;
-    // 稍微下滑就自动滚完三阶段
-    if (top > 6 && top < end - 4) {
+    const dy = top - blogLastScrollTop;
+    const goingDown = dy > 1.5;
+    const goingUp = dy < -1.5;
+    blogLastScrollTop = top;
+
+    // 已过视差区：交给白盒列表内滚，外层不再吸附
+    if (top >= stagesEnd - 1) return;
+
+    // 下滑经过阶段中：自动滚到钉住位置（列表可继续在白盒内滑）
+    if (goingDown && top > 8 && top < stagesEnd) {
+      blogStageSnapLock = true;
       try {
-        blogPanel.scrollTo({ top: end, behavior: 'smooth' });
+        blogPanel.scrollTo({ top: pinTop, behavior: 'smooth' });
       } catch (_) {
-        blogPanel.scrollTop = end;
+        blogPanel.scrollTop = pinTop;
       }
+      setTimeout(() => { blogStageSnapLock = false; blogLastScrollTop = blogPanel.scrollTop; }, 420);
+      return;
+    }
+
+    // 上滑回封面：平滑回顶
+    if (goingUp && top > 0 && top < stagesEnd) {
+      blogStageSnapLock = true;
+      try {
+        blogPanel.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (_) {
+        blogPanel.scrollTop = 0;
+      }
+      setTimeout(() => { blogStageSnapLock = false; blogLastScrollTop = blogPanel.scrollTop; }, 420);
     }
   }
   if (blogPanel) {
