@@ -5326,6 +5326,7 @@
     if (p < 0) {
       globalAvatar.style.opacity = Math.max(0, 1 + p);
       const r = homePlaceholder.getBoundingClientRect();
+      globalAvatar.style.transition = 'none';
       globalAvatar.style.width = r.width + 'px';
       globalAvatar.style.height = r.height + 'px';
       globalAvatar.style.transform =
@@ -5358,9 +5359,10 @@
     const cy = startCY * (1 - localP) + targetCY * localP;
     const size = startRect.width * (1 - localP) + targetRect.width * localP;
 
+    globalAvatar.style.transition = 'none';
     globalAvatar.style.width = size + 'px';
     globalAvatar.style.height = size + 'px';
-    // translate3d 走合成层，移动端更顺
+    // translate3d 走合成层；作品/名片纵滑时直接跟占位，无动画
     globalAvatar.style.transform = `translate3d(${cx - size / 2}px, ${cy - size / 2}px, 0)`;
 
     if (blogPanel && isBlogActive) {
@@ -5372,6 +5374,19 @@
       globalAvatar.style.opacity = '1';
     }
   }
+
+  // 作品 / 名片：纵向滚动时头像直接跟占位框走（无额外动画）
+  (function bindPanelAvatarFollow() {
+    const ids = ['works', 'contact'];
+    ids.forEach((id) => {
+      const panel = document.getElementById(id);
+      if (!panel || panel.dataset.avatarFollowBound === '1') return;
+      panel.dataset.avatarFollowBound = '1';
+      panel.addEventListener('scroll', () => {
+        scheduleGlobalAvatarPosition();
+      }, { passive: true });
+    });
+  })();
 
   let rafId = null;
 
@@ -6401,7 +6416,60 @@
       }, 500);
     }
     if (scrollContainer) scrollContainer.style.overflow = '';
+    try { requestAnimationFrame(() => tryHideMobileBrowserChrome()); } catch (_) {}
     return { blocked: false, apiOk: !!apiOk };
+  }
+
+  /** 移动端尽量收起浏览器顶/底地址栏，避免挡内容 */
+  function tryHideMobileBrowserChrome() {
+    try {
+      if (!(document.documentElement.classList.contains('is-phone')
+          || (window.matchMedia && window.matchMedia('(max-width: 480px)').matches))) {
+        return;
+      }
+    } catch (_) { return; }
+
+    const applyVh = () => {
+      try {
+        const vv = window.visualViewport;
+        const h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
+        document.documentElement.style.setProperty('--app-vh', h + 'px');
+        if (scrollContainer) {
+          scrollContainer.style.height = h + 'px';
+        }
+        const hsc = document.querySelector('.horizontal-scroll-container');
+        if (hsc) hsc.style.height = h + 'px';
+      } catch (_) {}
+    };
+    applyVh();
+
+    // 轻推页面滚动：多数移动浏览器会因此收起地址栏
+    try {
+      const se = document.scrollingElement || document.documentElement;
+      const y = se.scrollTop || 0;
+      se.scrollTop = y + 1;
+      requestAnimationFrame(() => {
+        se.scrollTop = 0;
+        applyVh();
+        // 再试一次（部分 WebView 需延迟）
+        setTimeout(() => {
+          try {
+            se.scrollTop = 1;
+            requestAnimationFrame(() => { se.scrollTop = 0; applyVh(); });
+          } catch (_) {}
+        }, 120);
+      });
+    } catch (_) {}
+
+    if (window.visualViewport && !window.__maxsuiVvBound) {
+      window.__maxsuiVvBound = true;
+      window.visualViewport.addEventListener('resize', applyVh);
+      window.visualViewport.addEventListener('scroll', applyVh);
+    }
+    window.addEventListener('orientationchange', () => {
+      setTimeout(applyVh, 200);
+      setTimeout(tryHideMobileBrowserChrome, 280);
+    }, { passive: true });
   }
 
   // ============================================================
