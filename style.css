@@ -5019,10 +5019,10 @@ body.is-seek-magnet * {
 }
 
 
-/* ========== 移动端：时间线 / 名片75% / 头像性能 ========== */
+
+/* ========== 移动端：时间线 / 社交圆75% / 头像性能 / 全屏90% ========== */
 @media (max-width: 480px), (pointer: coarse) {
   .global-avatar {
-    /* 去掉移动端 blur，减轻浮动头像卡顿 */
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     will-change: transform, width, height;
@@ -5033,27 +5033,58 @@ body.is-seek-magnet * {
 }
 
 @media (max-width: 480px) {
-  /* 主页：时间线合理落位，不与中部挤成一团 */
+  /* 顶部不被导航栏挡住：给面板留出导航+安全区 */
+  .horizontal-scroll-container {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .panel {
+    padding-top: max(4.5rem, calc(env(safe-area-inset-top, 0px) + 3.75rem));
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+    padding-bottom: max(1.2rem, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
+  /* 博客封面全屏顶满，自己处理头图，不额外大 padding */
+  .panel-blog {
+    padding-top: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .panel-blog .panel-blog-content {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .cover-inner {
+    /* 原 -12vh 会顶到刘海/导航下被挡；改为在导航下方起排 */
+    transform: translateY(0);
+    padding-top: max(4.6rem, calc(env(safe-area-inset-top, 0px) + 3.9rem));
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
+    box-sizing: border-box;
+  }
+
+  /* 主页：时间线落位 */
   .home-stack {
-    grid-template-rows: 0.2rem minmax(0, auto) minmax(132px, 1fr);
-    row-gap: 0.7rem;
+    grid-template-rows: 0.15rem minmax(0, auto) minmax(120px, 1fr);
+    row-gap: 0.65rem;
     height: 100%;
     max-height: 100%;
     overflow: hidden;
   }
   .home-zone-mid {
     align-items: flex-start;
-    padding-top: 0.15rem;
+    padding-top: 0;
   }
   .home-zone-mid .home-layout {
     max-width: 100%;
-    gap: 1rem;
+    gap: 0.85rem;
   }
   .home-zone-bot {
     align-items: stretch;
     justify-content: flex-start;
-    min-height: 132px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    min-height: 120px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
   }
   .home-zone-bot .status-timeline-section,
   .status-timeline-section {
@@ -5062,59 +5093,87 @@ body.is-seek-magnet * {
     margin: 0;
     align-self: stretch;
   }
-  .status-timeline-header {
-    margin-bottom: 0.25rem;
-    padding: 0 0.15rem;
-  }
   .status-timeline-title { font-size: 0.86rem; }
   .status-timeline-hint { font-size: 0.65rem; }
   .status-timeline {
-    padding: 0.3rem 0 0.2rem;
     -webkit-overflow-scrolling: touch;
   }
   .status-timeline-item { width: 136px; flex-basis: 136px; }
   .status-timeline-item.is-current { width: 188px; flex-basis: 188px; }
-  .status-timeline-track { padding-left: 0.65rem; padding-right: 0.65rem; gap: 0.55rem; }
-  .status-timeline-line { left: 0.65rem; right: 0.65rem; }
 
-  /* 名片：当前布局等比例 75% */
+  /* 名片：恢复正常大小（不再整体 scale） */
   .win7-business-card {
-    flex-direction: row-reverse; /* 保持桌面同构，再整体缩放 */
-    text-align: left;
-    padding: 2.8rem;
-    gap: 2rem;
-    width: 133.333%; /* 1/0.75，缩放后视觉仍满宽 */
-    max-width: none;
-    margin-left: -16.6665%;
-    margin-right: -16.6665%;
-    transform: scale(0.75);
-    transform-origin: top center;
+    flex-direction: column;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    gap: 1.25rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    transform: none;
   }
-  .contact-wrap,
-  .panel-contact .panel-content {
-    overflow-x: hidden;
+  .win7-info-list { align-items: center; }
+  .win7-info-item { justify-content: center; }
+
+  /* 仅底部 5 个社交圆：尺寸与间距 ×0.75 */
+  .social-circles-bar {
+    gap: 0.9rem; /* 1.2 * 0.75 */
+    justify-content: center;
+  }
+  .social-circle-btn {
+    width: 39px;  /* 52 * 0.75 */
+    height: 39px;
+    font-size: 0.975rem; /* 1.3 * 0.75 */
+  }
+
+  /* 全屏播放器 90% */
+  body > .md-song-block.is-fs-zoom,
+  body > .md-song-block.is-fs-host.is-fs-zoom {
+    transform: translate(-50%, -50%) scale(0.9) !important;
+    width: min(var(--fs-w, 560px), 92vw) !important;
+  }
+
+  /* 博客列表内滚 */
+  #blogWhiteBox,
+  .blog-white-box {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 }
 
-html.is-phone .home-stack {
-  grid-template-rows: 0.2rem minmax(0, auto) minmax(132px, 1fr);
-  row-gap: 0.7rem;
+html.is-phone .panel {
+  padding-top: max(4.5rem, calc(env(safe-area-inset-top, 0px) + 3.75rem));
 }
-html.is-phone .home-zone-bot {
-  align-items: stretch;
-  min-height: 132px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+html.is-phone .panel-blog {
+  padding-top: 0;
+}
+html.is-phone .cover-inner {
+  transform: translateY(0);
+  padding-top: max(4.6rem, calc(env(safe-area-inset-top, 0px) + 3.9rem));
+}
+html.is-phone .home-stack {
+  grid-template-rows: 0.15rem minmax(0, auto) minmax(120px, 1fr);
+  row-gap: 0.65rem;
 }
 html.is-phone .win7-business-card {
-  flex-direction: row-reverse;
-  text-align: left;
-  padding: 2.8rem;
-  gap: 2rem;
-  width: 133.333%;
-  margin-left: -16.6665%;
-  margin-right: -16.6665%;
-  transform: scale(0.75);
-  transform-origin: top center;
+  flex-direction: column;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  width: 100%;
+  margin: 0 auto;
+  transform: none;
+}
+html.is-phone .social-circles-bar {
+  gap: 0.9rem;
+}
+html.is-phone .social-circle-btn {
+  width: 39px;
+  height: 39px;
+  font-size: 0.975rem;
+}
+html.is-phone body > .md-song-block.is-fs-zoom,
+html.is-phone body > .md-song-block.is-fs-host.is-fs-zoom {
+  transform: translate(-50%, -50%) scale(0.9) !important;
 }
 html.is-phone .global-avatar {
   backdrop-filter: none !important;
