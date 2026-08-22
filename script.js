@@ -636,8 +636,9 @@
 
   const STAGE1_RATIO = 0.72;
   const STAGE2_RATIO = 0.45;
-  const STAGE1_RATIO_MOBILE = 0.50;
-  const STAGE2_RATIO_MOBILE = 0.30;
+  /* 移动端：很短滚动距离即可跑完三阶段视差 */
+  const STAGE1_RATIO_MOBILE = 0.18;
+  const STAGE2_RATIO_MOBILE = 0.12;
   let stage1Height = 0;
   let stage2Height = 0;
   let stage3Extra = 0;
@@ -1358,7 +1359,10 @@
       }
       if (nodes[active] && (changed || forceScroll)) {
         const allowSync = (typeof lyricsSyncEnabled === 'undefined' || lyricsSyncEnabled !== false) && lyricsEl.dataset.syncScroll !== '0';
-        if (allowSync) scrollLineIntoCenter(nodes[active], smooth && !forceScroll);
+        if (allowSync) {
+          const phone = (typeof isCoarseOrPhone === 'function' && isCoarseOrPhone());
+          scrollLineIntoCenter(nodes[active], phone ? false : (smooth && !forceScroll));
+        }
       }
     };
 
@@ -1375,8 +1379,11 @@
           keepAlive = null;
           return;
         }
-        if (active >= 0 && nodes[active] && (typeof lyricsSyncEnabled === 'undefined' || lyricsSyncEnabled !== false) && lyricsEl.dataset.syncScroll !== '0') scrollLineIntoCenter(nodes[active], true);
-      }, 1200);
+        if (active >= 0 && nodes[active] && (typeof lyricsSyncEnabled === 'undefined' || lyricsSyncEnabled !== false) && lyricsEl.dataset.syncScroll !== '0') {
+          const phone = (typeof isCoarseOrPhone === 'function' && isCoarseOrPhone());
+          scrollLineIntoCenter(nodes[active], !phone);
+        }
+      }, (typeof isCoarseOrPhone === 'function' && isCoarseOrPhone()) ? 2000 : 1200);
     });
 
     audio.addEventListener('pause', function() {
@@ -1470,9 +1477,26 @@
     });
   }
 
+  function isCoarseOrPhone() {
+    try {
+      if (document.documentElement.classList.contains('is-phone')) return true;
+      if (window.matchMedia && window.matchMedia('(max-width: 480px)').matches) return true;
+      if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+    } catch (_) {}
+    return false;
+  }
+
   async function playWithFade(audio) {
     if (!audio) return;
     cancelAudioFade(audio);
+    // 移动端跳过音量淡入，避免 timeupdate/主线程抢占导致一卡一卡
+    if (isCoarseOrPhone()) {
+      try { audio.volume = 1; } catch (_) {}
+      try { await audio.play(); } catch (e) {
+        try { audio.volume = 1; await audio.play(); } catch (_) {}
+      }
+      return;
+    }
     try {
       audio.volume = 0;
       await audio.play();
@@ -1485,11 +1509,15 @@
   async function pauseWithFade(audio) {
     if (!audio) return;
     if (audio.paused) return;
+    if (isCoarseOrPhone()) {
+      try { audio.pause(); } catch (_) {}
+      try { audio.volume = 1; } catch (_) {}
+      return;
+    }
     try {
       await fadeAudioVolume(audio, 0, FADE_MS);
     } catch (_) {}
     try { audio.pause(); } catch (_) {}
-    // 恢复音量以便下次播放从淡入开始
     try { audio.volume = 1; } catch (_) {}
   }
 
@@ -2339,7 +2367,15 @@
       player._waiting = false;
       syncPlayUi();
     });
-    audio.addEventListener('timeupdate', syncProgress);
+    let _progRaf = 0;
+    const syncProgressThrottled = () => {
+      if (_progRaf) return;
+      _progRaf = requestAnimationFrame(() => {
+        _progRaf = 0;
+        syncProgress();
+      });
+    };
+    audio.addEventListener('timeupdate', isCoarseOrPhone() ? syncProgressThrottled : syncProgress);
     audio.addEventListener('loadedmetadata', () => {
       syncProgress();
       syncLoadingUi();
@@ -2488,6 +2524,7 @@
 
     magnetHost.addEventListener('pointermove', (e) => {
       if (player.classList.contains('is-collapsed')) return;
+      if (typeof isCoarseOrPhone === 'function' && isCoarseOrPhone()) return;
       if (performance.now() < magnetCooldownUntil) return;
 
       const cur = { x: e.clientX, y: e.clientY };
@@ -5246,7 +5283,28 @@
     });
   }
 
+  let avatarPosRaf = 0;
+  let avatarPosPending = false;
+  function scheduleGlobalAvatarPosition() {
+    if (avatarPosRaf) {
+      avatarPosPending = true;
+      return;
+    }
+    avatarPosRaf = requestAnimationFrame(() => {
+      avatarPosRaf = 0;
+      try { updateGlobalAvatarPositionNow(); } catch (_) {}
+      if (avatarPosPending) {
+        avatarPosPending = false;
+        scheduleGlobalAvatarPosition();
+      }
+    });
+  }
+
   function updateGlobalAvatarPosition() {
+    scheduleGlobalAvatarPosition();
+  }
+
+  function updateGlobalAvatarPositionNow() {
     const globalAvatar = document.getElementById('globalAvatar');
     if (apiOfflineLocked) {
       centerAvatarForOffline();
@@ -5258,7 +5316,10 @@
     const contactPlaceholder = document.getElementById('contactAvatarPlaceholder');
     if (!globalAvatar || !homePlaceholder || !blogPlaceholder || !worksPlaceholder || !contactPlaceholder) return;
 
-    const vw = scrollContainer.clientWidth;
+    const phone = document.documentElement.classList.contains('is-phone')
+      || (window.matchMedia && window.matchMedia('(max-width: 480px)').matches);
+
+    const vw = scrollContainer.clientWidth || window.innerWidth || 1;
     const scrollLeft = scrollContainer.scrollLeft;
     let p = scrollLeft / vw;
     if (adminUnlocked) p = p - 1;
@@ -5268,7 +5329,7 @@
       globalAvatar.style.width = r.width + 'px';
       globalAvatar.style.height = r.height + 'px';
       globalAvatar.style.transform =
-        `translate(calc(${r.left + r.width / 2}px - 50%), calc(${r.top + r.height / 2}px - 50%))`;
+        `translate3d(${r.left}px, ${r.top}px, 0)`;
       return;
     }
     if (p > 3) p = 3;
@@ -5299,15 +5360,16 @@
 
     globalAvatar.style.width = size + 'px';
     globalAvatar.style.height = size + 'px';
-    globalAvatar.style.transform = `translate(calc(${cx}px - 50%), calc(${cy}px - 50%))`;
+    // translate3d 走合成层，移动端更顺
+    globalAvatar.style.transform = `translate3d(${cx - size / 2}px, ${cy - size / 2}px, 0)`;
 
     if (blogPanel && isBlogActive) {
       const blogScrollTop = blogPanel.scrollTop;
-      const vh = blogPanel.clientHeight || window.innerHeight;
-      let p1 = Math.min(1, Math.max(0, blogScrollTop / (stage1Height || vh || 1)));
-      globalAvatar.style.opacity = Math.max(0, 1 - p1 * 1.2);
+      const vh = blogPanel.clientHeight || window.innerHeight || 1;
+      let p1 = Math.min(1, Math.max(0, blogScrollTop / (stage1Height || vh)));
+      globalAvatar.style.opacity = String(Math.max(0, 1 - p1 * 1.2));
     } else {
-      globalAvatar.style.opacity = 1;
+      globalAvatar.style.opacity = '1';
     }
   }
 
@@ -5512,7 +5574,7 @@
     const pinnedMax = Math.max(mobile ? 200 : 240, Math.round(vh - topMargin - bottomPad));
     blogWhiteBox.style.maxHeight = pinnedMax + 'px';
     blogWhiteBox.style.overflowY = 'auto';
-    stage3Extra = Math.round(vh * (mobile ? 0.30 : 0.35));
+    stage3Extra = Math.round(vh * (mobile ? 0.10 : 0.35));
     blogContent.style.height = (vh + stage1Height + stage2Height + stage3Extra) + 'px';
   }
 
@@ -5687,6 +5749,24 @@
   }
 
   let blogScrollHideTimer = null;
+  let blogStageSnapTimer = null;
+  function snapBlogStagesIfMobile() {
+    if (!blogPanel || isArticleReading || !isMobileBlogLayout()) return;
+    const s1 = stage1Height || 0;
+    const s2 = stage2Height || 0;
+    const s3 = stage3Extra || 0;
+    const end = s1 + s2 + s3;
+    if (end <= 8) return;
+    const top = blogPanel.scrollTop;
+    // 稍微下滑就自动滚完三阶段
+    if (top > 6 && top < end - 4) {
+      try {
+        blogPanel.scrollTo({ top: end, behavior: 'smooth' });
+      } catch (_) {
+        blogPanel.scrollTop = end;
+      }
+    }
+  }
   if (blogPanel) {
     blogPanel.addEventListener('scroll', () => {
       // 阅读模式：外层滚动一律钉回基线，正文在框内滚
@@ -5709,6 +5789,17 @@
         updateBlogScroll();
         updateGlobalAvatarPosition();
       });
+
+      if (isMobileBlogLayout()) {
+        if (blogStageSnapTimer) clearTimeout(blogStageSnapTimer);
+        blogStageSnapTimer = setTimeout(snapBlogStagesIfMobile, 90);
+      }
+    }, { passive: true });
+
+    blogPanel.addEventListener('touchend', () => {
+      if (isMobileBlogLayout() && !isArticleReading) {
+        setTimeout(snapBlogStagesIfMobile, 40);
+      }
     }, { passive: true });
 
     // 阅读模式：外层 overflow 已 hidden；框内原生滚动保留惯性
