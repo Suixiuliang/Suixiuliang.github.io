@@ -1067,6 +1067,7 @@ body {
   cursor: pointer; pointer-events: auto;
   will-change: transform, width, height, opacity;
   transform-origin: center center;
+  transition: none; /* 跟页滚动时不要插值动画 */
 }
 .global-avatar img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 
@@ -4531,13 +4532,13 @@ body.has-reveal-highlight .glass-card:hover {
   margin-top: 0.35rem;
 }
 .status-timeline-time {
-  margin-top:.3rem; font-size:.496rem; /* 0.62 * 0.8 */
+  margin-top:.3rem; font-size:.38rem; /* 再小约两号 */
   line-height:1.35; color:rgba(255,255,255,.34);
   font-variant-numeric:tabular-nums; white-space:nowrap;
 }
 .status-timeline-item.is-current .status-timeline-time {
-  font-size: 0.744rem;
-  margin-top: 0.4rem;
+  font-size: 0.58rem;
+  margin-top: 0.35rem;
   white-space: normal;
 }
 .status-timeline-now {
