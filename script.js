@@ -6420,56 +6420,101 @@
     return { blocked: false, apiOk: !!apiOk };
   }
 
-  /** 移动端尽量收起浏览器顶/底地址栏，避免挡内容 */
+  /** 移动端：按 visualViewport 避开顶/底浏览器栏（Safari/Edge 底栏也会挡） */
   function tryHideMobileBrowserChrome() {
     try {
       if (!(document.documentElement.classList.contains('is-phone')
-          || (window.matchMedia && window.matchMedia('(max-width: 480px)').matches))) {
+          || (window.matchMedia && window.matchMedia('(max-width: 480px)').matches)
+          || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.matchMedia('(max-width: 900px)').matches))) {
         return;
       }
     } catch (_) { return; }
 
-    const applyVh = () => {
+    const applyMobileViewport = () => {
       try {
         const vv = window.visualViewport;
-        const h = Math.round((vv && vv.height) ? vv.height : window.innerHeight);
+        const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+        const visualH = vv ? vv.height : layoutH;
+        const offsetTop = vv ? (vv.offsetTop || 0) : 0;
+        // 底栏占用：布局视口底部 − 可视区域底边
+        // 顶栏占用：offsetTop（Safari 顶栏展开时会下推 visual viewport）
+        const chromeTop = Math.max(0, offsetTop);
+        const chromeBottom = Math.max(0, layoutH - offsetTop - visualH);
+        // 再叠一层系统安全区（Home 条等）
+        let safeBottom = 0;
+        let safeTop = 0;
+        try {
+          const cs = getComputedStyle(document.documentElement);
+          // 若尚未写入，用 env 探测：放一个探针
+          safeBottom = 0;
+          safeTop = 0;
+        } catch (_) {}
+
+        const h = Math.max(1, Math.round(visualH));
+        const topPx = Math.round(chromeTop);
+        const bottomPx = Math.round(chromeBottom);
+
         document.documentElement.style.setProperty('--app-vh', h + 'px');
+        document.documentElement.style.setProperty('--app-chrome-top', topPx + 'px');
+        document.documentElement.style.setProperty('--app-chrome-bottom', bottomPx + 'px');
+        document.documentElement.style.setProperty('--app-vv-offset-top', topPx + 'px');
+        document.documentElement.classList.toggle('has-bottom-browser-chrome', bottomPx > 8);
+        document.documentElement.classList.toggle('has-top-browser-chrome', topPx > 8);
+
+        // 主壳高度 = 可视高度，避免内容画进底栏后面
         if (scrollContainer) {
           scrollContainer.style.height = h + 'px';
+          scrollContainer.style.maxHeight = h + 'px';
         }
         const hsc = document.querySelector('.horizontal-scroll-container');
-        if (hsc) hsc.style.height = h + 'px';
+        if (hsc) {
+          hsc.style.height = h + 'px';
+          hsc.style.maxHeight = h + 'px';
+        }
+        // 固定导航：底栏很大时不要再被顶栏公式挤歪；顶栏展开时整体下移
+        const nav = document.getElementById('mainNav');
+        if (nav) {
+          if (topPx > 0) {
+            nav.style.top = 'calc(' + topPx + 'px + max(8px, env(safe-area-inset-top, 0px)))';
+          } else {
+            nav.style.top = '';
+          }
+        }
       } catch (_) {}
     };
-    applyVh();
 
-    // 轻推页面滚动：多数移动浏览器会因此收起地址栏
+    applyMobileViewport();
+
+    // 轻推滚动：部分浏览器会收起工具栏（不保证，尤其是底栏常驻的 Safari/Edge）
     try {
       const se = document.scrollingElement || document.documentElement;
-      const y = se.scrollTop || 0;
-      se.scrollTop = y + 1;
+      se.scrollTop = 1;
       requestAnimationFrame(() => {
         se.scrollTop = 0;
-        applyVh();
-        // 再试一次（部分 WebView 需延迟）
+        applyMobileViewport();
         setTimeout(() => {
           try {
             se.scrollTop = 1;
-            requestAnimationFrame(() => { se.scrollTop = 0; applyVh(); });
+            requestAnimationFrame(() => { se.scrollTop = 0; applyMobileViewport(); });
           } catch (_) {}
-        }, 120);
+        }, 150);
       });
     } catch (_) {}
 
     if (window.visualViewport && !window.__maxsuiVvBound) {
       window.__maxsuiVvBound = true;
-      window.visualViewport.addEventListener('resize', applyVh);
-      window.visualViewport.addEventListener('scroll', applyVh);
+      const onVv = () => applyMobileViewport();
+      window.visualViewport.addEventListener('resize', onVv);
+      window.visualViewport.addEventListener('scroll', onVv);
+      window.addEventListener('resize', onVv, { passive: true });
     }
-    window.addEventListener('orientationchange', () => {
-      setTimeout(applyVh, 200);
-      setTimeout(tryHideMobileBrowserChrome, 280);
-    }, { passive: true });
+    if (!window.__maxsuiOrientBound) {
+      window.__maxsuiOrientBound = true;
+      window.addEventListener('orientationchange', () => {
+        setTimeout(applyMobileViewport, 180);
+        setTimeout(applyMobileViewport, 400);
+      }, { passive: true });
+    }
   }
 
   // ============================================================
