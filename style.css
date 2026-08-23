@@ -5180,3 +5180,66 @@ html.is-phone .global-avatar {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+
+/* 移动端：避开浏览器底栏 / 顶栏（Safari、Edge 等） */
+:root {
+  --app-chrome-top: 0px;
+  --app-chrome-bottom: 0px;
+  --app-vv-offset-top: 0px;
+}
+@media (max-width: 480px), (pointer: coarse) {
+  .horizontal-scroll-container {
+    height: var(--app-vh, 100dvh) !important;
+    max-height: var(--app-vh, 100dvh) !important;
+  }
+  /* 面板底部留出底栏高度 + 安全区，避免时间线/名片被挡 */
+  .panel {
+    padding-bottom: calc(
+      max(1.2rem, env(safe-area-inset-bottom, 0px))
+      + var(--app-chrome-bottom, 0px)
+    ) !important;
+  }
+  .panel-home {
+    padding-bottom: calc(
+      max(0.55rem, env(safe-area-inset-bottom, 0px))
+      + var(--app-chrome-bottom, 0px)
+    ) !important;
+  }
+  .home-zone-bot {
+    padding-bottom: calc(
+      max(8px, env(safe-area-inset-bottom, 0px))
+      + var(--app-chrome-bottom, 0px)
+    ) !important;
+  }
+  /* 迷你坞抬高，避免沉到底栏下 */
+  .audio-mini-dock {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--app-chrome-bottom, 0px)) !important;
+  }
+  /* 顶栏展开时：导航已由 JS 调 top；内容区再加一点上内边距 */
+  html.has-top-browser-chrome .panel:not(.panel-blog) {
+    padding-top: calc(
+      max(4.5rem, env(safe-area-inset-top, 0px) + 3.75rem)
+      + var(--app-chrome-top, 0px)
+    ) !important;
+  }
+}
+html.is-phone .horizontal-scroll-container {
+  height: var(--app-vh, 100dvh) !important;
+  max-height: var(--app-vh, 100dvh) !important;
+}
+html.is-phone .panel {
+  padding-bottom: calc(
+    max(1.2rem, env(safe-area-inset-bottom, 0px))
+    + var(--app-chrome-bottom, 0px)
+  ) !important;
+}
+html.is-phone .home-zone-bot {
+  padding-bottom: calc(
+    max(8px, env(safe-area-inset-bottom, 0px))
+    + var(--app-chrome-bottom, 0px)
+  ) !important;
+}
+html.is-phone .audio-mini-dock {
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--app-chrome-bottom, 0px)) !important;
+}
