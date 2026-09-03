@@ -2089,6 +2089,10 @@
         }, 180);
       } else {
         clearCollapseTimer();
+        // 收起前必须先释放磁吸，否则进度条消失后自定义光标会卡在吸附态
+        try {
+          if (typeof releaseMagnet === 'function' && magnetActive) releaseMagnet(true);
+        } catch (_) {}
         player.classList.remove('is-expanding', 'is-expanded');
         player.classList.add('is-collapsing');
         player.setAttribute('data-player-state', 'collapsing');
@@ -2185,8 +2189,17 @@
     const scheduleCollapseAfterPause = () => {
       clearCollapseTimer();
       collapseTimer = setTimeout(() => {
-        if (audio.paused && !audio.ended) setExpandedState(false);
         collapseTimer = null;
+        if (!audio.paused || audio.ended) return;
+        // 全屏 / 展开态下若鼠标仍磁吸在进度条上，不收起；否则收起后进度条消失，光标圆球会卡死
+        const inFs = !!(document.body.classList.contains('audio-fs-open')
+          || (song && song.classList.contains('is-fs-zoom')));
+        if (magnetActive || (inFs && document.body.classList.contains('is-seek-magnet'))) {
+          // 仍吸附：稍后再检查，不强制收起
+          scheduleCollapseAfterPause();
+          return;
+        }
+        setExpandedState(false);
       }, 10000);
     };
 
@@ -5503,7 +5516,10 @@
     }
   }
 
+  let capsuleDragging = false;
+
   function updateCapsuleFromScroll() {
+    if (capsuleDragging) return;
     ensureNavCapsule();
     if (!navCapsule) return;
     if (nav.classList.contains('blog-mode')) {
@@ -5537,6 +5553,176 @@
     capsuleW = w0 + (w1 - w0) * t;
     applyCapsuleTransform();
   }
+
+  /** 拖动导航指示器（胶囊）切换面板：可从胶囊或选项卡上水平拖动 */
+  function setupNavCapsuleDrag() {
+    const links = document.querySelector('.nav-links');
+    if (!links || links.dataset.capsuleDragBound === '1') return;
+    links.dataset.capsuleDragBound = '1';
+    ensureNavCapsule();
+    if (!navCapsule) return;
+
+    navCapsule.style.pointerEvents = 'auto';
+    navCapsule.style.cursor = 'grab';
+    navCapsule.setAttribute('aria-label', '拖动切换栏目');
+    navCapsule.setAttribute('role', 'slider');
+    links.style.touchAction = 'pan-y';
+
+    let dragPointerId = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragStartProgress = 0;
+    let dragMoved = false;
+    let pending = false;
+    let lastDragProgress = 0;
+    const DRAG_THRESHOLD = 8;
+
+    function getBtns() {
+      return Array.from(document.querySelectorAll('.nav-btn[data-section]'));
+    }
+
+    function applyProgressToCapsuleAndScroll(progress, liveScroll) {
+      const btns = getBtns();
+      if (btns.length < 2) return;
+      const parentRect = links.getBoundingClientRect();
+      const i0 = Math.floor(progress);
+      const i1 = Math.min(btns.length - 1, i0 + 1);
+      const t = progress - i0;
+      const r0 = btns[i0].getBoundingClientRect();
+      const r1 = btns[i1].getBoundingClientRect();
+      const x0 = r0.left - parentRect.left;
+      const x1 = r1.left - parentRect.left;
+      capsuleX = x0 + (x1 - x0) * t;
+      capsuleW = r0.width + (r1.width - r0.width) * t;
+      applyCapsuleTransform();
+
+      if (liveScroll && scrollContainer) {
+        const vw = scrollContainer.clientWidth || 1;
+        const maxScroll = Math.max(1, scrollContainer.scrollWidth - vw);
+        scrollContainer.scrollLeft = (progress / (btns.length - 1)) * maxScroll;
+      }
+      lastDragProgress = progress;
+    }
+
+    function beginDrag(e) {
+      capsuleDragging = true;
+      pending = false;
+      dragMoved = true;
+      navCapsule.style.cursor = 'grabbing';
+      navCapsule.classList.add('is-dragging');
+      document.body.classList.add('is-nav-capsule-dragging');
+      try { links.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    function onPointerDown(e) {
+      if (apiOfflineLocked) return;
+      if (nav.classList.contains('blog-mode')) return;
+      if (e.button != null && e.button !== 0) return;
+      if (!e.target || !links.contains(e.target)) return;
+
+      dragPointerId = e.pointerId;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragMoved = false;
+      pending = true;
+      capsuleDragging = false;
+
+      const btns = getBtns();
+      const vw = scrollContainer.clientWidth || 1;
+      const maxScroll = Math.max(1, scrollContainer.scrollWidth - vw);
+      dragStartProgress = (scrollContainer.scrollLeft / maxScroll) * Math.max(1, btns.length - 1);
+      lastDragProgress = dragStartProgress;
+
+      if (e.target === navCapsule || (e.target.closest && e.target.closest('.nav-capsule'))) {
+        e.preventDefault();
+        beginDrag(e);
+      }
+    }
+
+    function onPointerMove(e) {
+      if (e.pointerId !== dragPointerId) return;
+      if (!pending && !capsuleDragging) return;
+
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+
+      if (pending && !capsuleDragging) {
+        if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+        if (Math.abs(dx) < Math.abs(dy)) {
+          pending = false;
+          dragPointerId = null;
+          return;
+        }
+        e.preventDefault();
+        beginDrag(e);
+      }
+
+      if (!capsuleDragging) return;
+      e.preventDefault();
+
+      const btns = getBtns();
+      if (btns.length < 2) return;
+      const first = btns[0].getBoundingClientRect();
+      const last = btns[btns.length - 1].getBoundingClientRect();
+      const span = Math.max(1, (last.left + last.width / 2) - (first.left + first.width / 2));
+      const delta = (dx / span) * (btns.length - 1);
+      const progress = Math.max(0, Math.min(btns.length - 1, dragStartProgress + delta));
+      applyProgressToCapsuleAndScroll(progress, true);
+    }
+
+    function endDrag(e) {
+      if (e && e.pointerId != null && dragPointerId != null && e.pointerId !== dragPointerId) return;
+      const wasDragging = capsuleDragging && dragMoved;
+      const progressSnap = lastDragProgress;
+      pending = false;
+      capsuleDragging = false;
+      dragPointerId = null;
+      navCapsule.style.cursor = 'grab';
+      navCapsule.classList.remove('is-dragging');
+      document.body.classList.remove('is-nav-capsule-dragging');
+      try { links.releasePointerCapture(e.pointerId); } catch (_) {}
+
+      if (!wasDragging) {
+        updateCapsuleFromScroll();
+        return;
+      }
+
+      const suppressClick = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+      };
+      links.addEventListener('click', suppressClick, true);
+      setTimeout(() => links.removeEventListener('click', suppressClick, true), 0);
+
+      const btns = getBtns();
+      if (btns.length < 2 || !scrollContainer) {
+        updateCapsuleFromScroll();
+        return;
+      }
+      const nearest = Math.round(progressSnap);
+      const sectionId = btns[nearest] && btns[nearest].getAttribute('data-section');
+      if (sectionId) ensureRouteLoaded(sectionId);
+      const target = sectionId ? document.getElementById(sectionId) : null;
+      if (target) {
+        scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+      } else {
+        const vw = scrollContainer.clientWidth || 1;
+        const maxScroll = Math.max(1, scrollContainer.scrollWidth - vw);
+        scrollContainer.scrollTo({
+          left: (nearest / Math.max(1, btns.length - 1)) * maxScroll,
+          behavior: 'smooth'
+        });
+      }
+      requestAnimationFrame(() => updateCapsuleFromScroll());
+    }
+
+    links.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+  }
+
+  setupNavCapsuleDrag();
 
   scrollContainer.addEventListener('scroll', () => {
     if (apiOfflineLocked) {
@@ -6022,16 +6208,18 @@
       <p class="home-meta-row">${grade}${age ? ' · ' + age : ''}</p>
       <p class="home-bio">${profileData.bio || ''}</p>
       ${interestBtns ? `<div class="home-interests">${interestBtns}</div>` : ''}
-      <div class="home-actions">
-        <a href="#works" class="nav-btn apple-primary-btn" style="text-decoration:none;"><i class="fas fa-code"></i> 作品</a>
-        <a href="#contact" class="nav-btn apple-secondary-btn" style="text-decoration:none;"><i class="fas fa-paper-plane"></i> 联系</a>
-      </div>
     `;
 
     setupHomeStatusDetail();
 
     if (avatarContainer) {
-      avatarContainer.innerHTML = `<div class="avatar-circle-placeholder" id="homeAvatarPlaceholder"></div>`;
+      // 作品 / 联系按钮放在头像下方，中线与头像对齐
+      avatarContainer.innerHTML =
+        `<div class="avatar-circle-placeholder" id="homeAvatarPlaceholder"></div>` +
+        `<div class="home-actions home-actions-under-avatar">` +
+          `<a href="#works" class="nav-btn apple-primary-btn" style="text-decoration:none;"><i class="fas fa-code"></i> 作品</a>` +
+          `<a href="#contact" class="nav-btn apple-secondary-btn" style="text-decoration:none;"><i class="fas fa-paper-plane"></i> 联系</a>` +
+        `</div>`;
     }
 
     if (fullAvatarUrl) {
@@ -6040,13 +6228,18 @@
       globalAvatar.innerHTML = `<i class="fas fa-user-astronaut" style="font-size: 4rem; color: #ffffff;"></i>`;
     }
 
-    container.querySelectorAll('a[href^="#"]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const target = document.getElementById(btn.getAttribute('href').substring(1));
-        if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+    const bindHomeHashLinks = (root) => {
+      if (!root) return;
+      root.querySelectorAll('a[href^="#"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const target = document.getElementById(btn.getAttribute('href').substring(1));
+          if (target) scrollContainer.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+        });
       });
-    });
+    };
+    bindHomeHashLinks(container);
+    bindHomeHashLinks(avatarContainer);
 
     setupAvatarSecret();
     setupLogoTrailToggle();
@@ -6695,7 +6888,8 @@
     while (trailPoints.length > TRAIL_MAX_RAW) trailPoints.shift();
   }
 
-  let trailEffectEnabled = true;
+  // 默认关闭拖尾；连续点 Logo 7 次可开关
+  let trailEffectEnabled = false;
 
   function setTrailEffectEnabled(on) {
     trailEffectEnabled = !!on;
