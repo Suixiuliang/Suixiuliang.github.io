@@ -3711,6 +3711,8 @@
   }
 
   function bindNavLinkClick(link) {
+    link.setAttribute('draggable', 'false');
+    link.addEventListener('dragstart', (e) => { e.preventDefault(); });
     link.addEventListener('click', (e) => {
       e.preventDefault();
       if (apiOfflineLocked) {
@@ -5442,6 +5444,7 @@
           if (!isBlogActive) {
             nav.classList.remove('blog-mode');
             if (isArticleReading) closeArticleReader();
+            scheduleCapsuleRefresh();
           } else {
             if (blogPanel && !isArticleReading) blogPanel.scrollTop = 0;
             updateBlogScroll();
@@ -5517,15 +5520,32 @@
   }
 
   let capsuleDragging = false;
+  let capsuleRefreshTimer = null;
+
+  function scheduleCapsuleRefresh() {
+    ensureNavCapsule();
+    const run = () => {
+      if (capsuleDragging) return;
+      if (nav && nav.classList.contains('blog-mode')) return;
+      if (navCapsule) navCapsule.style.opacity = '1';
+      updateCapsuleFromScroll();
+    };
+    run();
+    requestAnimationFrame(() => requestAnimationFrame(run));
+    if (capsuleRefreshTimer) clearTimeout(capsuleRefreshTimer);
+    // nav-links 从 blog-mode 收回时 width/opacity 有 ~0.42s 过渡，分几拍重测
+    setTimeout(run, 80);
+    setTimeout(run, 240);
+    capsuleRefreshTimer = setTimeout(run, 520);
+  }
 
   function updateCapsuleFromScroll() {
     if (capsuleDragging) return;
     ensureNavCapsule();
     if (!navCapsule) return;
-    if (nav.classList.contains('blog-mode')) {
-      navCapsule.style.opacity = '0';
-      return;
-    }
+    // 博客工具栏展开时，指示器随 .nav-links 一起被 CSS 隐藏。
+    // 切勿在这里写死 opacity:0 —— 收回工具栏后指示器会再也回不来。
+    if (nav && nav.classList.contains('blog-mode')) return;
     navCapsule.style.opacity = '1';
 
     const links = document.querySelector('.nav-links');
@@ -5544,6 +5564,9 @@
     const parentRect = links.getBoundingClientRect();
     const r0 = btns[i0].getBoundingClientRect();
     const r1 = btns[i1].getBoundingClientRect();
+    // 过渡期宽度为 0 时不要把胶囊量成 0，否则看起来像「指示器没了」
+    if (r0.width < 8 || r1.width < 8 || parentRect.width < 8) return;
+
     const x0 = r0.left - parentRect.left;
     const x1 = r1.left - parentRect.left;
     const w0 = r0.width;
@@ -5554,7 +5577,7 @@
     applyCapsuleTransform();
   }
 
-  /** 拖动导航指示器（胶囊）切换面板：可从胶囊或选项卡上水平拖动 */
+  /** 拖动导航指示器（胶囊）切换面板 */
   function setupNavCapsuleDrag() {
     const links = document.querySelector('.nav-links');
     if (!links || links.dataset.capsuleDragBound === '1') return;
@@ -5564,9 +5587,17 @@
 
     navCapsule.style.pointerEvents = 'auto';
     navCapsule.style.cursor = 'grab';
+    navCapsule.style.zIndex = '2';
     navCapsule.setAttribute('aria-label', '拖动切换栏目');
     navCapsule.setAttribute('role', 'slider');
-    links.style.touchAction = 'pan-y';
+    links.style.touchAction = 'none';
+
+    function armNavButtons() {
+      Array.from(document.querySelectorAll('.nav-btn[data-section]')).forEach((btn) => {
+        btn.setAttribute('draggable', 'false');
+      });
+    }
+    armNavButtons();
 
     let dragPointerId = null;
     let dragStartX = 0;
@@ -5575,10 +5606,12 @@
     let dragMoved = false;
     let pending = false;
     let lastDragProgress = 0;
-    const DRAG_THRESHOLD = 8;
+    const DRAG_THRESHOLD = 6;
 
     function getBtns() {
-      return Array.from(document.querySelectorAll('.nav-btn[data-section]'));
+      const btns = Array.from(document.querySelectorAll('.nav-btn[data-section]'));
+      btns.forEach((btn) => btn.setAttribute('draggable', 'false'));
+      return btns;
     }
 
     function applyProgressToCapsuleAndScroll(progress, liveScroll) {
@@ -5590,6 +5623,7 @@
       const t = progress - i0;
       const r0 = btns[i0].getBoundingClientRect();
       const r1 = btns[i1].getBoundingClientRect();
+      if (r0.width < 8 || r1.width < 8) return;
       const x0 = r0.left - parentRect.left;
       const x1 = r1.left - parentRect.left;
       capsuleX = x0 + (x1 - x0) * t;
@@ -5633,8 +5667,10 @@
       dragStartProgress = (scrollContainer.scrollLeft / maxScroll) * Math.max(1, btns.length - 1);
       lastDragProgress = dragStartProgress;
 
-      if (e.target === navCapsule || (e.target.closest && e.target.closest('.nav-capsule'))) {
+      const onCapsule = e.target === navCapsule || (e.target.closest && e.target.closest('.nav-capsule'));
+      if (onCapsule) {
         e.preventDefault();
+        e.stopPropagation();
         beginDrag(e);
       }
     }
@@ -5692,7 +5728,7 @@
         ev.stopPropagation();
       };
       links.addEventListener('click', suppressClick, true);
-      setTimeout(() => links.removeEventListener('click', suppressClick, true), 0);
+      setTimeout(() => links.removeEventListener('click', suppressClick, true), 320);
 
       const btns = getBtns();
       if (btns.length < 2 || !scrollContainer) {
@@ -5716,10 +5752,18 @@
       requestAnimationFrame(() => updateCapsuleFromScroll());
     }
 
-    links.addEventListener('pointerdown', onPointerDown);
+    // 禁止把选项卡当超链接拖出
+    links.addEventListener('dragstart', (e) => { e.preventDefault(); }, true);
+    links.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove, { passive: false });
-    window.addEventListener('pointerup', endDrag);
-    window.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointerup', endDrag, true);
+    window.addEventListener('pointercancel', endDrag, true);
+
+    links.addEventListener('transitionend', (e) => {
+      if (!e) return;
+      if (e.target !== links && e.target !== nav) return;
+      scheduleCapsuleRefresh();
+    });
   }
 
   setupNavCapsuleDrag();
@@ -5945,7 +5989,11 @@
 
     if (isBlogActive) {
       if (p1 > 0.08) nav.classList.add('blog-mode');
-      else nav.classList.remove('blog-mode');
+      else {
+        const wasBlogMode = nav.classList.contains('blog-mode');
+        nav.classList.remove('blog-mode');
+        if (wasBlogMode) scheduleCapsuleRefresh();
+      }
     }
   }
 
