@@ -7821,9 +7821,211 @@ function saveImageAs(img) {
     }
   }
 
+  // ---------- LiquidGlass (ybouane/liquidglass) ----------
+  // 使用仓库原生的 WebGL 管线：DOM 捕获 -> 场景合成 -> refraction/chromatic
+  // aberration/Fresnel/specular/bevel shader。这里不复制仓库源码，而是直接加载其
+  // 已发布的 ESM 构建，并按“每个 glass 元素的父节点作为 root”组织现有 DOM。
+  let liquidGlassModulePromise = null;
+  const liquidGlassInstances = new Map();
+  const liquidGlassRoots = new Map();
+  const LIQUID_GLASS_SELECTOR = [
+    '.glass-nav',
+    '.glass-card',
+    '.blog-list .blog-card',
+    '.glass-audio-player',
+    '.apple-select-trigger',
+    '.site-context-menu',
+    '.nav-capsule'
+  ].join(', ');
+
+  const LIQUID_GLASS_DEFAULTS = {
+    blurAmount: 0.10,
+    refraction: 0.78,
+    chromAberration: 0.11,
+    edgeHighlight: 0.16,
+    specular: 0.42,
+    fresnel: 0.82,
+    distortion: 0.00,
+    cornerRadius: 28,
+    zRadius: 40,
+    opacity: 1.00,
+    saturation: 0.08,
+    tintStrength: 0.035,
+    brightness: 0.015,
+    shadowOpacity: 0.22,
+    shadowSpread: 10,
+    shadowOffsetY: 2,
+    floating: false,
+    button: false,
+    bevelMode: 0
+  };
+
+  function loadLiquidGlassModule() {
+    if (!liquidGlassModulePromise) {
+      liquidGlassModulePromise = import('https://cdn.jsdelivr.net/npm/@ybouane/liquidglass/dist/index.js')
+        .then(mod => {
+          if (!mod || !mod.LiquidGlass) throw new Error('LiquidGlass export not found');
+          return mod;
+        });
+    }
+    return liquidGlassModulePromise;
+  }
+
+  function liquidGlassConfigFor(el) {
+    const rect = el.getBoundingClientRect();
+    const radius = Math.max(8, Math.min(
+      parseFloat(getComputedStyle(el).borderTopLeftRadius) || 28,
+      Math.min(rect.width, rect.height) * 0.5
+    ));
+    return {
+      ...LIQUID_GLASS_DEFAULTS,
+      cornerRadius: radius,
+      zRadius: Math.max(24, Math.min(52, Math.min(rect.width, rect.height) * 0.5)),
+      button: el.matches('.nav-capsule, .calendar-btn, .apple-select-trigger')
+    };
+  }
+
+  function prepareLiquidGlassElement(el) {
+    if (!(el instanceof HTMLElement)) return;
+    el.classList.add('liquidglass-target');
+    // WebGL canvas is injected by the library as a negative-z child. A solid
+    // background on the host would cover it, so the host itself stays transparent.
+    el.style.setProperty('background', 'transparent', 'important');
+    el.style.setProperty('backdrop-filter', 'none', 'important');
+    el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+    el.dataset.config = JSON.stringify(liquidGlassConfigFor(el));
+  }
+
+  function ensureLiquidGlassSceneBackdrop() {
+    let bg = document.getElementById('liquidGlassSceneBackdrop');
+    if (bg) return bg;
+    bg = document.createElement('img');
+    bg.id = 'liquidGlassSceneBackdrop';
+    bg.className = 'liquidglass-scene-backdrop';
+    bg.alt = '';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.crossOrigin = 'anonymous';
+    const bodyStyle = getComputedStyle(document.body);
+    const bgImage = bodyStyle.backgroundImage;
+    if (bgImage && bgImage !== 'none') {
+      const m = bgImage.match(/url\([\"']?(.*?)[\"']?\)/);
+      if (m && m[1]) bg.src = m[1];
+    }
+    document.body.insertBefore(bg, document.body.firstChild);
+    return bg;
+  }
+
+  function collectLiquidGlassGroups() {
+    const groups = new Map();
+    ensureLiquidGlassSceneBackdrop();
+    document.querySelectorAll(LIQUID_GLASS_SELECTOR).forEach(el => {
+      if (!(el instanceof HTMLElement)) return;
+      if (!el.isConnected || el === document.body) return;
+      // Nested glass surfaces are handled by their own parent root. The library
+      // intentionally rejects a glass element that is not a direct child.
+      const parent = el.parentElement;
+      if (!parent) return;
+      if (parent.closest('.liquidglass-target') && parent.matches('.glass-card, .glass-nav, .blog-card, .glass-audio-player')) return;
+      if (!groups.has(parent)) groups.set(parent, []);
+      groups.get(parent).push(el);
+    });
+    return groups;
+  }
+
+  async function rebuildLiquidGlassRoot(root, elements) {
+    const old = liquidGlassInstances.get(root);
+    if (old) {
+      try { old.destroy(); } catch (_) {}
+      liquidGlassInstances.delete(root);
+    }
+    elements = elements.filter(el => el.isConnected && el.parentElement === root);
+    if (!elements.length) return;
+    elements.forEach(prepareLiquidGlassElement);
+    try {
+      const { LiquidGlass } = await loadLiquidGlassModule();
+      // Do not pass dynamic children as data-dynamic: this site has many ordinary
+      // DOM mutations, and the library's normal MutationObserver already handles
+      // the relevant glass subtrees.
+      const instance = await LiquidGlass.init({
+        root,
+        glassElements: elements,
+        defaults: LIQUID_GLASS_DEFAULTS
+      });
+      liquidGlassInstances.set(root, instance);
+      liquidGlassRoots.set(root, elements.slice());
+      // LiquidGlass sets user-select:none on its root by design. The blog's
+      // document root is also used by text inputs, so restore normal selection.
+      if (root === document.body) {
+        document.body.style.removeProperty('user-select');
+        document.body.style.removeProperty('-webkit-user-select');
+      }
+    } catch (err) {
+      console.error('[LiquidGlass] 初始化失败:', err);
+    }
+  }
+
+  let liquidGlassScanTimer = 0;
+  function scheduleLiquidGlassScan(delay = 120) {
+    clearTimeout(liquidGlassScanTimer);
+    liquidGlassScanTimer = setTimeout(() => {
+      liquidGlassScanTimer = 0;
+      syncLiquidGlass();
+    }, delay);
+  }
+
+  async function syncLiquidGlass() {
+    let groups;
+    try {
+      groups = collectLiquidGlassGroups();
+      const jobs = [];
+      for (const [root, elements] of groups) {
+        const current = liquidGlassRoots.get(root) || [];
+        const same = current.length === elements.length && current.every(el => elements.includes(el));
+        if (!same) jobs.push(rebuildLiquidGlassRoot(root, elements));
+      }
+      // Destroy roots whose glass children disappeared during route changes.
+      for (const [root, instance] of liquidGlassInstances) {
+        if (!groups.has(root)) {
+          try { instance.destroy(); } catch (_) {}
+          liquidGlassInstances.delete(root);
+          liquidGlassRoots.delete(root);
+        }
+      }
+      await Promise.all(jobs);
+    } catch (err) {
+      console.error('[LiquidGlass] 扫描失败:', err);
+    }
+  }
+
+  function setupLiquidGlass() {
+    // The library itself is responsible for the shader/render loop. This observer
+    // only notices route-generated glass elements; it never rebuilds on scroll.
+    const observer = new MutationObserver((mutations) => {
+      let relevant = false;
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          const el = node;
+          if (el.matches?.(LIQUID_GLASS_SELECTOR) || el.querySelector?.(LIQUID_GLASS_SELECTOR)) {
+            relevant = true;
+            break;
+          }
+        }
+        if (relevant) break;
+      }
+      if (relevant) scheduleLiquidGlassScan();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Initial scan is deliberately deferred until the current layout is stable.
+    requestAnimationFrame(() => scheduleLiquidGlassScan(80));
+    window.addEventListener('resize', () => scheduleLiquidGlassScan(180), { passive: true });
+  }
+
   // ---------- 初始化 ----------
   async function init() {
     loadSpriteImage();
+    setupLiquidGlass();
     const bootResult = await runBootLoader();
     const apiOk = !(bootResult && bootResult.apiOk === false);
 

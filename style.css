@@ -5286,3 +5286,58 @@ html.is-phone .home-zone-bot {
 html.is-phone .audio-mini-dock {
   bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--app-chrome-bottom, 0px)) !important;
 }
+
+/* ============================================================
+   ybouane/liquidglass WebGL integration
+   The shader canvas supplied by LiquidGlass is the visual surface.
+   Keep host backgrounds transparent so the injected canvas is visible.
+   ============================================================ */
+.liquidglass-target {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  isolation: auto !important;
+}
+.liquidglass-target::before,
+.liquidglass-target::after {
+  pointer-events: none;
+}
+
+/* Preserve the existing glass geometry and borders while moving the actual
+   refraction/blur/highlight work into WebGL. */
+.glass-nav.liquidglass-target,
+.glass-card.liquidglass-target,
+.blog-list .blog-card.liquidglass-target,
+.glass-audio-player.liquidglass-target,
+.apple-select-trigger.liquidglass-target,
+.site-context-menu.liquidglass-target,
+.nav-capsule.liquidglass-target {
+  border-color: rgba(255,255,255,.22);
+  box-shadow:
+    0 16px 36px rgba(0,0,0,.18),
+    inset 0 1px 1px rgba(255,255,255,.30),
+    inset 0 -0.5px 1px rgba(0,0,0,.08);
+}
+
+/* The repository renderer supplies its own shadow/highlight; don't stack the
+   old CSS blur underneath it. */
+.glass-nav.liquidglass-target.scrolled,
+.glass-card.liquidglass-target:hover,
+.blog-list .blog-card.liquidglass-target:hover,
+.glass-audio-player.liquidglass-target:hover {
+  background: transparent !important;
+}
+
+
+.liquidglass-scene-backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  object-position: center center;
+  z-index: -2147483000;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
