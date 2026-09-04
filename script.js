@@ -615,20 +615,22 @@
   let navCapsule = null;
   let lastScrollLeft = 0;
   let lastScrollTime = performance.now();
-  let capsuleScale = 1;
-  let capsuleScaleVel = 0;
-  let capsuleStretch = 1;
-  let capsuleStretchVel = 0;
-  let capsuleSkew = 0;
-  let capsuleSkewVel = 0;
-  let capsuleDeformRaf = null;
+  let capsuleScaleX = 1;
+  let capsuleScaleY = 1;
+  let capsuleScaleXVel = 0;
+  let capsuleScaleYVel = 0;
+  let capsuleShear = 0;
+  let capsuleShearVel = 0;
+  let capsuleLiquidRaf = null;
   let capsuleX = 0;
   let capsuleW = 0;
+  let capsulePointerLastX = 0;
+  let capsulePointerLastTime = 0;
   const CAPSULE_DRAG_SCALE = 1.10;
   const CAPSULE_DRAG_SCALE_Y = 1.055;
-  const CAPSULE_MAX_STRETCH = 1.24;
-  const CAPSULE_SPRING_K = 220;
-  const CAPSULE_SPRING_D = 18;
+  const CAPSULE_MAX_STRETCH = 1.28;
+  const CAPSULE_LIQUID_K = 250;
+  const CAPSULE_LIQUID_D = 19;
 
   let calCurrentDate = new Date();
   let calSelectedDateStr = null;
@@ -5489,65 +5491,58 @@
     if (!navCapsule) return;
     navCapsule.style.width = Math.max(0, capsuleW) + 'px';
     navCapsule.style.transform =
-      `translateY(-50%) translateX(${capsuleX}px) scaleX(${capsuleScale * capsuleStretch}) scaleY(${capsuleScaleY || 1}) skewX(${capsuleSkew}deg)`;
-  }
-
-  function tickCapsuleDeformation() {
-    const dt = 1 / 60;
-    const scaleTarget = capsuleDragging ? CAPSULE_DRAG_SCALE : 1;
-    const scaleYTarget = capsuleDragging ? CAPSULE_DRAG_SCALE_Y : 1;
-    const stretchTarget = capsuleDragging ? capsuleStretchTarget : 1;
-    const skewTarget = capsuleDragging ? capsuleSkewTarget : 0;
-
-    const aScale = -CAPSULE_SPRING_K * (capsuleScale - scaleTarget) - CAPSULE_SPRING_D * capsuleScaleVel;
-    capsuleScaleVel += aScale * dt;
-    capsuleScale += capsuleScaleVel * dt;
-
-    const aStretch = -260 * (capsuleStretch - stretchTarget) - 20 * capsuleStretchVel;
-    capsuleStretchVel += aStretch * dt;
-    capsuleStretch += capsuleStretchVel * dt;
-
-    const aSkew = -300 * (capsuleSkew - skewTarget) - 22 * capsuleSkewVel;
-    capsuleSkewVel += aSkew * dt;
-    capsuleSkew += capsuleSkewVel * dt;
-
-    capsuleScaleY += (scaleYTarget - capsuleScaleY) * 0.18;
-    applyCapsuleTransform();
-
-    const settled = !capsuleDragging &&
-      Math.abs(capsuleScale - 1) < 0.001 && Math.abs(capsuleScaleVel) < 0.01 &&
-      Math.abs(capsuleStretch - 1) < 0.001 && Math.abs(capsuleStretchVel) < 0.01 &&
-      Math.abs(capsuleSkew) < 0.02 && Math.abs(capsuleSkewVel) < 0.01;
-    if (settled) {
-      capsuleScale = 1; capsuleScaleVel = 0;
-      capsuleStretch = 1; capsuleStretchVel = 0;
-      capsuleSkew = 0; capsuleSkewVel = 0; capsuleScaleY = 1;
-      applyCapsuleTransform();
-      capsuleDeformRaf = null;
-      return;
-    }
-    capsuleDeformRaf = requestAnimationFrame(tickCapsuleDeformation);
-  }
-
-  let capsuleScaleY = 1;
-  let capsuleStretchTarget = 1;
-  let capsuleSkewTarget = 0;
-
-  function startCapsuleDeformation() {
-    if (!capsuleDeformRaf) capsuleDeformRaf = requestAnimationFrame(tickCapsuleDeformation);
-  }
-
-  function updateCapsuleDeformation(velocityPxPerSec) {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    if (!navCapsule || !capsuleDragging) return;
-    const speed = Math.min(1, Math.abs(velocityPxPerSec) / 1800);
-    // 速度越快，液体越被“拉长”；停止左右摇晃后由弹簧自然收回。
-    capsuleStretchTarget = 1 + speed * (CAPSULE_MAX_STRETCH - 1);
-    capsuleSkewTarget = Math.max(-4, Math.min(4, velocityPxPerSec / 500));
-    startCapsuleDeformation();
+      `translateY(-50%) translateX(${capsuleX}px) scaleX(${capsuleScaleX}) scaleY(${capsuleScaleY}) skewX(${capsuleShear}deg)`;
   }
 
   let capsuleDragging = false;
+  let capsuleLiquidTargetX = 1;
+  let capsuleLiquidTargetY = 1;
+  let capsuleLiquidTargetShear = 0;
+
+  function tickCapsuleLiquid() {
+    const dt = 1 / 60;
+    const ax = CAPSULE_LIQUID_K * (capsuleLiquidTargetX - capsuleScaleX) - CAPSULE_LIQUID_D * capsuleScaleXVel;
+    const ay = CAPSULE_LIQUID_K * (capsuleLiquidTargetY - capsuleScaleY) - CAPSULE_LIQUID_D * capsuleScaleYVel;
+    const as = 320 * (capsuleLiquidTargetShear - capsuleShear) - 22 * capsuleShearVel;
+
+    capsuleScaleXVel += ax * dt;
+    capsuleScaleX += capsuleScaleXVel * dt;
+    capsuleScaleYVel += ay * dt;
+    capsuleScaleY += capsuleScaleYVel * dt;
+    capsuleShearVel += as * dt;
+    capsuleShear += capsuleShearVel * dt;
+
+    applyCapsuleTransform();
+
+    const settled = !capsuleDragging &&
+      Math.abs(capsuleScaleX - 1) < 0.001 && Math.abs(capsuleScaleXVel) < 0.01 &&
+      Math.abs(capsuleScaleY - 1) < 0.001 && Math.abs(capsuleScaleYVel) < 0.01 &&
+      Math.abs(capsuleShear) < 0.02 && Math.abs(capsuleShearVel) < 0.01;
+
+    if (settled) {
+      capsuleScaleX = 1; capsuleScaleXVel = 0;
+      capsuleScaleY = 1; capsuleScaleYVel = 0;
+      capsuleShear = 0; capsuleShearVel = 0;
+      applyCapsuleTransform();
+      capsuleLiquidRaf = null;
+      return;
+    }
+    capsuleLiquidRaf = requestAnimationFrame(tickCapsuleLiquid);
+  }
+
+  function startCapsuleLiquid() {
+    if (!capsuleLiquidRaf) capsuleLiquidRaf = requestAnimationFrame(tickCapsuleLiquid);
+  }
+
+  function updateCapsuleLiquidFromPointerVelocity(velocity) {
+    if (!capsuleDragging) return;
+    const speed = Math.min(1, Math.abs(velocity) / 1800);
+    capsuleLiquidTargetX = CAPSULE_DRAG_SCALE + speed * (CAPSULE_MAX_STRETCH - CAPSULE_DRAG_SCALE);
+    capsuleLiquidTargetY = CAPSULE_DRAG_SCALE_Y;
+    capsuleLiquidTargetShear = Math.max(-5, Math.min(5, velocity / 360));
+    startCapsuleLiquid();
+  }
+
   let capsuleRefreshTimer = null;
 
   function scheduleCapsuleRefresh() {
@@ -5634,8 +5629,6 @@
     let dragMoved = false;
     let pending = false;
     let lastDragProgress = 0;
-    let lastPointerX = 0;
-    let lastPointerTime = 0;
     const DRAG_THRESHOLD = 6;
 
     function getBtns() {
@@ -5675,11 +5668,12 @@
       navCapsule.style.cursor = 'grabbing';
       navCapsule.classList.add('is-dragging');
       document.body.classList.add('is-nav-capsule-dragging');
-      capsuleStretchTarget = 1.04;
-      capsuleSkewTarget = 0;
-      lastPointerX = e.clientX;
-      lastPointerTime = performance.now();
-      startCapsuleDeformation();
+      capsuleLiquidTargetX = CAPSULE_DRAG_SCALE;
+      capsuleLiquidTargetY = CAPSULE_DRAG_SCALE_Y;
+      capsuleLiquidTargetShear = 0;
+      capsulePointerLastX = e.clientX;
+      capsulePointerLastTime = performance.now();
+      startCapsuleLiquid();
       try { links.setPointerCapture(e.pointerId); } catch (_) {}
     }
 
@@ -5732,11 +5726,11 @@
       e.preventDefault();
 
       const now = performance.now();
-      const moveDt = Math.max(8, now - lastPointerTime);
-      const pointerVelocity = (e.clientX - lastPointerX) / moveDt * 1000;
-      lastPointerX = e.clientX;
-      lastPointerTime = now;
-      updateCapsuleDeformation(pointerVelocity);
+      const dtMs = Math.max(8, now - capsulePointerLastTime);
+      const pointerVelocity = (e.clientX - capsulePointerLastX) / dtMs * 1000;
+      capsulePointerLastX = e.clientX;
+      capsulePointerLastTime = now;
+      updateCapsuleLiquidFromPointerVelocity(pointerVelocity);
 
       const btns = getBtns();
       if (btns.length < 2) return;
@@ -5755,12 +5749,13 @@
       pending = false;
       capsuleDragging = false;
       dragPointerId = null;
+      capsuleLiquidTargetX = 1;
+      capsuleLiquidTargetY = 1;
+      capsuleLiquidTargetShear = 0;
+      startCapsuleLiquid();
       navCapsule.style.cursor = 'grab';
       navCapsule.classList.remove('is-dragging');
       document.body.classList.remove('is-nav-capsule-dragging');
-      capsuleStretchTarget = 1;
-      capsuleSkewTarget = 0;
-      startCapsuleDeformation();
       try { links.releasePointerCapture(e.pointerId); } catch (_) {}
 
       if (!wasDragging) {
@@ -6554,7 +6549,9 @@
 
     updateCapsuleFromScroll();
 
-    // 普通页面滚动时不再放大导航指示器；只有按住指示器拖动时才发生液态变形。
+    if (velocity > 40) {
+      bumpCapsuleScaleFromVelocity(velocity);
+    }
   }
 
   function formatBytesMB(bytes) {
@@ -7742,126 +7739,321 @@ function saveImageAs(img) {
 
 
   // ============================================================
-  // Fluent Reveal Highlight — 仅液态玻璃边框；坐标始终以当前真实 DOMRect 为准
+  // Kube-style Liquid Glass Engine
+  // - Convex squircle bezel surface
+  // - Snell refraction
+  // - Per-element displacement map (R=X, G=Y, neutral=128)
+  // - SVG specular rim image blended above refraction
+  // - Progressive edge blur (10)
   // ============================================================
-  const REVEAL_SELECTOR = '.blog-list .blog-card, .work-card, .glass-card.win7-business-card, .glass-card.admin-card';
-  let revealEnabled = false;
-  let revealRaf = 0;
-  let revealLastX = 0;
-  let revealLastY = 0;
-  let revealActiveHost = null;
+  const LIQUID_GLASS = {
+    specularOpacity: 1,
+    specularSaturation: 25,
+    refractionLevel: 1,
+    blurLevel: 0,
+    progressiveBlurStrength: 10,
+    backgroundOpacity: 0.43,
+    refractiveIndex: 1.5,
+    specularAngleDeg: -60,
+    bezelRatio: 0.22,
+    glassThicknessRatio: 0.34,
+    samples: 128
+  };
 
-  function canUseRevealHighlight() {
-    try {
-      if (window.matchMedia('(max-width: 480px)').matches) return false;
-      if (window.matchMedia('(hover: none)').matches) return false;
-      if (window.matchMedia('(pointer: coarse)').matches) return false;
-      if (document.documentElement.classList.contains('is-phone')) return false;
-    } catch (_) {}
-    return true;
+  const LIQUID_GLASS_SELECTOR = [
+    '.glass-nav', '.nav-capsule', '.glass-card', '.home-status', '.home-interest-btn',
+    '.global-avatar', '.theme-rail-inner', '.blog-white-box', '.blog-sort-menu',
+    '.blog-search-box', '.blog-sort-btn', '.blog-sort-dir-btn', '.blog-page-btn',
+    '.calendar-btn', '.article-reader-sheet', '.article-reader-close',
+    '.boot-api-island-pill', '.boot-loader-card', '.work-circle-btn', '.social-circle-btn',
+    '.apple-calendar', '.apple-cal-day.selected', '.apple-primary-btn', '.apple-secondary-btn',
+    '.apple-select-trigger', '.apple-select-menu', '.site-context-menu',
+    '.md-audio-player', '.glass-audio-player', '.md-lyrics-tools', '.md-volume-popover',
+    '.audio-mini-dock'
+  ].filter(s => !s.includes('::before'));
+
+  let liquidGlassId = 0;
+  const liquidGlassRegistry = new WeakMap();
+  let liquidGlassRefreshTimer = 0;
+
+  function svgEl(tag, attrs = {}) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, String(v)));
+    return el;
   }
 
-  function ensureRevealLayers(el) {
-    if (!el || el.dataset.revealReady === '1') return;
-    el.dataset.revealReady = '1';
-    el.classList.add('reveal-host');
-    const border = document.createElement('span');
-    border.className = 'reveal-border';
-    border.setAttribute('aria-hidden', 'true');
-    el.insertBefore(border, el.firstChild);
+  function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
+  // Kube's convex squircle profile:
+  // y = (1 - (1-x)^4)^(1/4)
+  function convexSquircle(x) {
+    x = clamp01(x);
+    return Math.pow(Math.max(0, 1 - Math.pow(1 - x, 4)), 0.25);
   }
 
-  function prepareRevealHosts() {
-    if (!revealEnabled) return;
-    document.querySelectorAll(REVEAL_SELECTOR).forEach(ensureRevealLayers);
+  function smootherstep(x) {
+    x = clamp01(x);
+    return x * x * x * (x * (x * 6 - 15) + 10);
   }
 
-  function clearRevealActive() {
-    if (revealActiveHost) {
-      revealActiveHost.classList.remove('is-reveal-active');
-      revealActiveHost = null;
+  function surfaceDerivative(x) {
+    const d = 0.001;
+    const x1 = Math.max(0, x - d);
+    const x2 = Math.min(1, x + d);
+    return (convexSquircle(x2) - convexSquircle(x1)) / Math.max(1e-9, x2 - x1);
+  }
+
+  // One refraction event, orthogonal incoming ray, air -> glass (n=1.5).
+  // The returned offset is the lateral background displacement in pixels.
+  function refractedOffset(distanceNorm, thicknessPx) {
+    if (distanceNorm >= 1) return 0;
+    const derivative = surfaceDerivative(distanceNorm);
+    const normalTilt = Math.atan2(-derivative, 1);
+    const incidentAngle = Math.abs(normalTilt);
+    const sinRefracted = Math.sin(incidentAngle) / LIQUID_GLASS.refractiveIndex;
+    if (sinRefracted >= 1) return 0;
+    const refractedAngle = Math.asin(sinRefracted);
+    const sign = normalTilt < 0 ? -1 : 1;
+    const outgoingAngle = sign * refractedAngle + normalTilt;
+    const lateral = Math.tan(outgoingAngle) * thicknessPx;
+    return lateral * LIQUID_GLASS.refractionLevel;
+  }
+
+  function roundedRectDistanceInfo(x, y, w, h, radius) {
+    const qx = Math.abs(x - w / 2) - (w / 2 - radius);
+    const qy = Math.abs(y - h / 2) - (h / 2 - radius);
+    const ax = Math.max(qx, 0);
+    const ay = Math.max(qy, 0);
+    const outside = Math.hypot(ax, ay);
+    const inside = Math.min(Math.max(qx, qy), 0);
+    const signed = outside + inside;
+    if (signed <= 0) {
+      const dLeft = x;
+      const dRight = w - x;
+      const dTop = y;
+      const dBottom = h - y;
+      const d = Math.min(dLeft, dRight, dTop, dBottom);
+      let nx = 0, ny = 0;
+      if (d === dLeft) nx = -1;
+      else if (d === dRight) nx = 1;
+      else if (d === dTop) ny = -1;
+      else ny = 1;
+      return { distance: d, nx, ny };
     }
-  }
-
-  function updateRevealAt(clientX, clientY) {
-    if (!revealEnabled) return;
-    prepareRevealHosts();
-    const target = document.elementFromPoint(clientX, clientY);
-    const host = target?.closest?.(REVEAL_SELECTOR) || null;
-    if (!host || !host.isConnected) { clearRevealActive(); return; }
-
-    // 关键：每一帧对当前真实玻璃面板重新取 DOMRect。
-    // 博客阅读/返回、transform、滚动、动画都不会再使用旧坐标。
-    const rect = host.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) { clearRevealActive(); return; }
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    const pad = 170;
-    if (clientX < rect.left - pad || clientX > rect.right + pad || clientY < rect.top - pad || clientY > rect.bottom + pad) {
-      clearRevealActive();
-      return;
+    let nx = 0, ny = 0;
+    if (outside > 0) {
+      const cx = Math.sign(x - w / 2) * Math.max(w / 2 - radius, 0);
+      const cy = Math.sign(y - h / 2) * Math.max(h / 2 - radius, 0);
+      const dx = x - (w / 2 + cx);
+      const dy = y - (h / 2 + cy);
+      const len = Math.hypot(dx, dy) || 1;
+      nx = dx / len;
+      ny = dy / len;
     }
-    if (revealActiveHost && revealActiveHost !== host) revealActiveHost.classList.remove('is-reveal-active');
-    revealActiveHost = host;
-    host.style.setProperty('--reveal-x', `${x}px`);
-    host.style.setProperty('--reveal-y', `${y}px`);
-    const edgeDist = Math.min(x, rect.width - x, y, rect.height - y);
-    const edgeBoost = Math.max(0, 1 - edgeDist / 110);
-    host.style.setProperty('--reveal-edge', String(0.28 + edgeBoost * 0.72));
-    host.classList.add('is-reveal-active');
+    return { distance: signed, nx, ny };
   }
 
-  function onRevealPointerMove(e) {
-    revealLastX = e.clientX;
-    revealLastY = e.clientY;
-    if (revealRaf) return;
-    revealRaf = requestAnimationFrame(() => {
-      revealRaf = 0;
-      updateRevealAt(revealLastX, revealLastY);
+  function makeDisplacementDataURL(width, height, radius, bezel, thickness) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(width));
+    canvas.height = Math.max(1, Math.ceil(height));
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    const image = ctx.createImageData(canvas.width, canvas.height);
+    const data = image.data;
+    const maxBezel = Math.max(1, Math.min(bezel, Math.min(width, height) / 2));
+    const maxDisp = Math.max(0.001, thickness * 0.72);
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const info = roundedRectDistanceInfo(x + 0.5, y + 0.5, width, height, radius);
+        const edgeDistance = Math.max(0, info.distance);
+        const t = clamp01(edgeDistance / maxBezel);
+        const profile = 1 - t;
+        const local = Math.pow(profile, 0.72);
+        const disp = refractedOffset(local, thickness) * (0.55 + 0.45 * local);
+        const nx = info.nx;
+        const ny = info.ny;
+        const dx = Math.max(-1, Math.min(1, (nx * disp) / maxDisp));
+        const dy = Math.max(-1, Math.min(1, (ny * disp) / maxDisp));
+        const i = (y * canvas.width + x) * 4;
+        data[i] = Math.round(128 + dx * 127);
+        data[i + 1] = Math.round(128 + dy * 127);
+        data[i + 2] = 128;
+        data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    return { url: canvas.toDataURL('image/png'), maxDisplacement: maxDisp };
+  }
+
+  function makeSpecularDataURL(width, height, radius, bezel) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(width));
+    canvas.height = Math.max(1, Math.ceil(height));
+    const ctx = canvas.getContext('2d');
+    const image = ctx.createImageData(canvas.width, canvas.height);
+    const data = image.data;
+    const light = LIQUID_GLASS.specularAngleDeg * Math.PI / 180;
+    const lx = Math.cos(light), ly = Math.sin(light);
+    const maxBezel = Math.max(1, Math.min(bezel, Math.min(width, height) / 2));
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const info = roundedRectDistanceInfo(x + 0.5, y + 0.5, width, height, radius);
+        const edge = clamp01(1 - Math.max(0, info.distance) / maxBezel);
+        const normalLight = Math.max(0, info.nx * lx + info.ny * ly);
+        const rim = Math.pow(edge, 1.45) * Math.pow(normalLight, 1.35);
+        const alpha = Math.round(255 * clamp01(rim * LIQUID_GLASS.specularOpacity));
+        const i = (y * canvas.width + x) * 4;
+        data[i] = 255;
+        data[i + 1] = 255;
+        data[i + 2] = 255;
+        data[i + 3] = alpha;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  function buildLiquidFilter(el, width, height) {
+    const id = `liquidGlassFilter_${++liquidGlassId}`;
+    const radiusCss = getComputedStyle(el).borderRadius.split(' ')[0];
+    let radius = parseFloat(radiusCss);
+    if (!Number.isFinite(radius)) radius = Math.min(width, height) * 0.18;
+    radius = Math.max(1, Math.min(radius, Math.min(width, height) / 2));
+    const bezel = Math.max(4, Math.min(width, height) * LIQUID_GLASS.bezelRatio);
+    const thickness = Math.max(2, Math.min(width, height) * LIQUID_GLASS.glassThicknessRatio);
+
+    const disp = makeDisplacementDataURL(width, height, radius, bezel, thickness);
+    const spec = makeSpecularDataURL(width, height, radius, bezel);
+
+    const svg = svgEl('svg', { width, height, xmlns: 'http://www.w3.org/2000/svg' });
+    svg.style.position = 'absolute';
+    svg.style.width = '0';
+    svg.style.height = '0';
+    svg.style.pointerEvents = 'none';
+    svg.setAttribute('aria-hidden', 'true');
+
+    const defs = svgEl('defs');
+    const filter = svgEl('filter', {
+      id, x: 0, y: 0, width, height,
+      filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse',
+      colorInterpolationFilters: 'sRGB'
     });
+
+    const displacementImage = svgEl('feImage', {
+      href: disp.url, x: 0, y: 0, width, height, result: 'displacementMap'
+    });
+    const refracted = svgEl('feDisplacementMap', {
+      in: 'SourceGraphic', in2: 'displacementMap',
+      scale: disp.maxDisplacement * LIQUID_GLASS.refractionLevel,
+      xChannelSelector: 'R', yChannelSelector: 'G', result: 'refracted'
+    });
+    filter.appendChild(displacementImage);
+    filter.appendChild(refracted);
+
+    // Blur Level is explicitly 0: no uniform blur is inserted.
+    let current = 'refracted';
+
+    // Progressive blur is confined to the bezel/rim. Ten layers are used
+    // literally because the requested Progressive Blur Strength is 10.
+    const specImage = svgEl('feImage', {
+      href: spec, x: 0, y: 0, width, height, result: 'specularMap'
+    });
+    filter.appendChild(specImage);
+
+    for (let i = 1; i <= LIQUID_GLASS.progressiveBlurStrength; i++) {
+      const blur = svgEl('feGaussianBlur', {
+        in: current,
+        stdDeviation: (i / LIQUID_GLASS.progressiveBlurStrength) * LIQUID_GLASS.progressiveBlurStrength * 0.35,
+        result: `progressiveBlur_${i}`
+      });
+      filter.appendChild(blur);
+      const masked = svgEl('feComposite', {
+        in: `progressiveBlur_${i}`,
+        in2: 'specularMap',
+        operator: 'in',
+        result: `progressiveEdge_${i}`
+      });
+      filter.appendChild(masked);
+      const blend = svgEl('feBlend', {
+        in: current,
+        in2: `progressiveEdge_${i}`,
+        mode: 'normal',
+        result: `progressiveComposite_${i}`
+      });
+      filter.appendChild(blend);
+      current = `progressiveComposite_${i}`;
+    }
+
+    // Specular saturation is represented in the highlight branch. The map is
+    // white, so the saturation matrix intentionally preserves luminance while
+    // leaving the requested parameter explicit in the filter graph.
+    const specSat = svgEl('feColorMatrix', {
+      in: 'specularMap', type: 'saturate', values: LIQUID_GLASS.specularSaturation,
+      result: 'specularSaturated'
+    });
+    filter.appendChild(specSat);
+    const highlight = svgEl('feBlend', {
+      in: current, in2: 'specularSaturated', mode: 'screen', result: 'liquidGlassFinal'
+    });
+    filter.appendChild(highlight);
+
+    defs.appendChild(filter);
+    svg.appendChild(defs);
+    document.body.appendChild(svg);
+
+    return { id, svg, width, height };
   }
 
-  function onRevealPointerLeave() { clearRevealActive(); }
+  function applyLiquidGlassToElement(el, force = false) {
+    if (!el || !el.isConnected) return;
+    if (el.matches('.calendar-modal, .article-reader-modal, .audio-player-fs-backdrop')) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+    const width = Math.ceil(rect.width);
+    const height = Math.ceil(rect.height);
+    const old = liquidGlassRegistry.get(el);
+    if (!force && old && old.width === width && old.height === height) return;
+    if (old?.svg?.isConnected) old.svg.remove();
 
-  function refreshRevealAfterLayout() {
-    if (!revealEnabled || !revealRaf) {
-      if (revealEnabled) updateRevealAt(revealLastX, revealLastY);
-    }
+    el.classList.add('liquid-glass-surface');
+    el.style.setProperty('--liquid-backdrop-filter', `url(#liquidGlassFilter_${liquidGlassId + 1})`);
+    const record = buildLiquidFilter(el, width, height);
+    el.style.setProperty('--liquid-backdrop-filter', `url(#${record.id})`);
+    el.classList.add('is-liquid-glass-ready');
+    liquidGlassRegistry.set(el, record);
   }
 
-  function setupRevealHighlight() {
-    const enable = canUseRevealHighlight();
-    if (enable === revealEnabled) { if (enable) prepareRevealHosts(); return; }
-    revealEnabled = enable;
-    if (enable) {
-      document.addEventListener('pointermove', onRevealPointerMove, { passive: true });
-      window.addEventListener('blur', onRevealPointerLeave);
-      window.addEventListener('resize', refreshRevealAfterLayout, { passive: true });
-      document.body.classList.add('has-reveal-highlight');
-      prepareRevealHosts();
-      const blogList = document.getElementById('blogList');
-      if (blogList && !blogList._revealObs) {
-        blogList._revealObs = new MutationObserver(() => { prepareRevealHosts(); refreshRevealAfterLayout(); });
-        blogList._revealObs.observe(blogList, { childList: true, subtree: true });
-      }
-      const worksGrid = document.getElementById('worksGrid');
-      if (worksGrid && !worksGrid._revealObs) {
-        worksGrid._revealObs = new MutationObserver(() => { prepareRevealHosts(); refreshRevealAfterLayout(); });
-        worksGrid._revealObs.observe(worksGrid, { childList: true, subtree: true });
-      }
-      // 博客阅读视图切换会改变 transform / 几何位置；动画期间持续刷新，但不遍历所有卡片。
-      const blogPanel = document.getElementById('blog');
-      if (blogPanel && !blogPanel._revealLayoutObs) {
-        blogPanel._revealLayoutObs = new ResizeObserver(() => refreshRevealAfterLayout());
-        blogPanel._revealLayoutObs.observe(blogPanel);
-      }
-    } else {
-      document.removeEventListener('pointermove', onRevealPointerMove);
-      window.removeEventListener('blur', onRevealPointerLeave);
-      window.removeEventListener('resize', refreshRevealAfterLayout);
-      document.body.classList.remove('has-reveal-highlight');
-      onRevealPointerLeave();
-    }
+  function collectLiquidGlassElements() {
+    const set = new Set();
+    LIQUID_GLASS_SELECTOR.forEach(selector => {
+      document.querySelectorAll(selector).forEach(el => set.add(el));
+    });
+    // Include any existing component explicitly marked as glass.
+    document.querySelectorAll('[data-liquid-glass], .liquid-glass').forEach(el => set.add(el));
+    return [...set];
+  }
+
+  function refreshAllLiquidGlass(force = false) {
+    collectLiquidGlassElements().forEach(el => applyLiquidGlassToElement(el, force));
+  }
+
+  function scheduleLiquidGlassRefresh(force = false) {
+    if (liquidGlassRefreshTimer) clearTimeout(liquidGlassRefreshTimer);
+    liquidGlassRefreshTimer = setTimeout(() => {
+      liquidGlassRefreshTimer = 0;
+      refreshAllLiquidGlass(force);
+    }, 30);
+  }
+
+  function setupLiquidGlass() {
+    refreshAllLiquidGlass(true);
+    const observer = new MutationObserver(() => scheduleLiquidGlassRefresh(false));
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', () => scheduleLiquidGlassRefresh(true));
+    window.addEventListener('orientationchange', () => scheduleLiquidGlassRefresh(true));
+    window.addEventListener('scroll', () => scheduleLiquidGlassRefresh(false), { passive: true });
   }
 
   // ---------- 初始化 ----------
@@ -7911,15 +8103,14 @@ function saveImageAs(img) {
       else if (isArticleReading) closeArticleReader();
     });
 
-    setupRevealHighlight();
-    window.addEventListener('resize', setupRevealHighlight, { passive: true });
+    setupLiquidGlass();
 
     setTimeout(() => {
       setupBlogScrollHeights();
       updateBlogScroll();
       updateGlobalAvatarPosition();
       updateCapsuleFromScroll();
-      prepareRevealHosts();
+      refreshAllLiquidGlass(false);
     }, 500);
   }
 

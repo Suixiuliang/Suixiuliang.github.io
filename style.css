@@ -14,7 +14,6 @@
   --radius-circle: 50%;
   --radius-nav: 999px;
   --radius-scroll: 6px;
-  --liquid-refraction: 1;
   --blog-gap: 16px;
 }
 
@@ -44,8 +43,8 @@ body {
   padding: 0.4rem 1.2rem;
   border-radius: var(--radius-nav);
   background: rgba(255, 255, 255, 0.13);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.13),
@@ -106,9 +105,6 @@ body {
   z-index: 2;
   transform-origin: center center;
   will-change: transform, width;
-  /* 真正的液态玻璃：Chrome 中使用 SVG 折射，其他浏览器退回 blur */
-  backdrop-filter: blur(8px) saturate(185%);
-  -webkit-backdrop-filter: blur(8px) saturate(185%);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -126,7 +122,7 @@ body {
   position: relative;
   z-index: 1;
   background: transparent !important;
-  backdrop-filter: none !important;
+  backdrop-filter: none;
   border: none !important;
   box-shadow: none !important;
   padding: 0.5rem 1.1rem;
@@ -376,8 +372,8 @@ body.is-nav-capsule-dragging * {
   gap: 8px;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.13);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow:
     0 3px 10px rgba(0, 0, 0, 0.12),
@@ -403,8 +399,8 @@ body.is-nav-capsule-dragging * {
   border-radius: var(--radius-circle);
   transform-origin: center center;
   background: rgba(255, 255, 255, 0.13);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.32);
   box-shadow:
     0 3px 10px rgba(0, 0, 0, 0.14),
@@ -528,8 +524,8 @@ body.is-nav-capsule-dragging * {
   position: fixed;
   top: 0; left: 0; width: 100vw; height: 100vh;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   z-index: 2000;
   display: flex;
   align-items: center;
@@ -559,8 +555,8 @@ body.is-nav-capsule-dragging * {
 .apple-calendar {
   width: 100%;
   background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-md);
   padding: 1rem;
@@ -617,8 +613,8 @@ body.is-nav-capsule-dragging * {
 .apple-cal-day.empty { cursor: default; }
 .apple-cal-day.selected {
   background: rgba(0, 113, 227, 0.88) !important;
-  backdrop-filter: blur(10px) saturate(200%);
-  -webkit-backdrop-filter: blur(10px) saturate(200%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 4px 12px rgba(0, 113, 227, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.6);
   color: #ffffff;
@@ -628,8 +624,8 @@ body.is-nav-capsule-dragging * {
 
 .apple-primary-btn {
   background: rgba(0, 113, 227, 0.82) !important;
-  backdrop-filter: blur(12px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.38) !important;
   color: white !important;
   padding: 0.5rem 1.2rem;
@@ -651,8 +647,8 @@ body.is-nav-capsule-dragging * {
 }
 .apple-secondary-btn {
   background: rgba(255, 255, 255, 0.13) !important;
-  backdrop-filter: blur(12px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(160%) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.32) !important;
   color: white !important;
   padding: 0.5rem 1.2rem;
@@ -703,45 +699,20 @@ body.is-nav-capsule-dragging * {
 }
 
 .glass-card {
-  position: relative;
-  isolation: isolate;
-  background: rgba(255, 255, 255, 0.105);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-card);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.16),
-    inset 0 1px 1px rgba(255, 255, 255, 0.42),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.08);
-  transition: background 0.3s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.16), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
   color: #ffffff; word-break: break-word; overflow-wrap: break-word;
-}
-.glass-card::before,
-.glass-nav::before,
-.nav-capsule::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 10;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(255,255,255,.62), rgba(255,255,255,.08) 32%, rgba(255,255,255,.02) 68%, rgba(255,255,255,.38));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: .72;
 }
 .glass-card:hover {
   background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.34);
-  box-shadow:
-    0 20px 40px rgba(0, 0, 0, 0.22),
-    inset 0 1px 2px rgba(255, 255, 255, 0.5),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22), inset 0 1px 2px rgba(255, 255, 255, 0.5);
 }
-
 
 .panel-home {
   align-items: stretch;
@@ -880,8 +851,8 @@ body.is-nav-capsule-dragging * {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-btn);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28);
   box-sizing: border-box;
   width: max-content;
@@ -1011,8 +982,8 @@ body.is-nav-capsule-dragging * {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: var(--radius-btn);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 0.35),
     inset 0 -0.5px 0.5px rgba(0, 0, 0, 0.08);
@@ -1131,8 +1102,8 @@ body.is-nav-capsule-dragging * {
   border-radius: var(--radius-circle);
   overflow: hidden;
   background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 2px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
   display: flex; align-items: center; justify-content: center;
@@ -1237,8 +1208,8 @@ body.is-nav-capsule-dragging * {
   padding: var(--radius-pad) 0.75rem;
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.22);
   box-shadow:
     0 24px 48px rgba(0, 0, 0, 0.25),
@@ -1300,8 +1271,8 @@ body.is-nav-capsule-dragging * {
   max-width: 1050px;
   margin: 0;
   background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-card);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
@@ -1429,8 +1400,8 @@ body.is-nav-capsule-dragging * {
   padding: 6px;
   border-radius: 26px;
   background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.36),
@@ -1647,8 +1618,8 @@ a.blog-list .blog-card,
     color 0.18s ease,
     transform 0.12s ease,
     box-shadow 0.18s ease;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28);
 }
 .blog-page-btn:hover:not(:disabled):not(.is-active) {
@@ -1695,8 +1666,8 @@ a.blog-list .blog-card,
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.28s ease;
@@ -1714,8 +1685,8 @@ a.blog-list .blog-card,
   flex-direction: column;
   border-radius: var(--radius-card);
   background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.22);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28), inset 0 1px 1px rgba(255, 255, 255, 0.4);
 }
@@ -1954,8 +1925,8 @@ a.blog-list .blog-card,
     0 16px 40px rgba(0, 0, 0, 0.4),
     inset 0 1px 1.5px rgba(255, 255, 255, 0.42),
     inset 0 -0.5px 1px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: #f4f7ff;
 }
 .boot-api-island-icon {
@@ -2047,8 +2018,8 @@ a.blog-list .blog-card,
   padding: 0.85rem 1.1rem 0.9rem;
   border-radius: 18px;
   background: rgba(28, 52, 84, 0.42);
-  backdrop-filter: url(#liquidGlassFilter) blur(28px) saturate(160%);
-  -webkit-backdrop-filter: url(#liquidGlassFilter) blur(28px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(140, 180, 230, 0.28);
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.4),
@@ -2169,8 +2140,8 @@ a.blog-list .blog-card,
   height: 44px;
   border-radius: var(--radius-circle);
   background: rgba(0, 113, 227, 0.82);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.42);
   box-shadow:
     0 5px 14px rgba(0, 113, 227, 0.35),
@@ -2232,8 +2203,8 @@ a.blog-list .blog-card,
 .social-circle-btn {
   width: 52px; height: 52px; border-radius: var(--radius-circle);
   background: rgba(255, 255, 255, 0.13);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.32);
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.16),
@@ -2277,8 +2248,8 @@ a.blog-list .blog-card,
   border-radius: var(--radius-btn);
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: #ffffff;
   font-size: 0.95rem;
   outline: none;
@@ -2320,7 +2291,7 @@ a.blog-list .blog-card,
   border-radius: var(--radius-btn);
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(16px);
+  backdrop-filter: none;
   width: fit-content;
   max-width: 100%;
 }
@@ -2774,8 +2745,8 @@ textarea,
   pointer-events: none;
   opacity: 0;
   background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: url(#liquidGlassFilter) blur(0px) saturate(120%);
-  -webkit-backdrop-filter: url(#liquidGlassFilter) blur(0px) saturate(120%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: opacity 0.2s ease;
   will-change: opacity, backdrop-filter;
 }
@@ -2980,8 +2951,8 @@ body.is-reading-article .reading-dim-layer {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: var(--radius-btn);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   cursor: pointer;
   transition:
     background 0.2s ease,
@@ -3084,8 +3055,8 @@ body.is-reading-article .reading-dim-layer {
     0 12px 32px rgba(0, 0, 0, 0.22),
     inset 0 1px 1px rgba(255, 255, 255, 0.38),
     inset 0 -0.5px 1px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: #fff;
   display: flex;
   align-items: center;
@@ -3353,8 +3324,8 @@ body.is-reading-article .reading-dim-layer {
   box-shadow:
     0 10px 28px rgba(0, 0, 0, 0.16),
     inset 0 1px 1px rgba(255, 255, 255, 0.12);
-  backdrop-filter: url(#liquidGlassFilter) blur(18px) saturate(160%);
-  -webkit-backdrop-filter: url(#liquidGlassFilter) blur(18px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.32s ease;
@@ -3818,8 +3789,8 @@ body.is-reading-article .reading-dim-layer {
   background: rgba(255,255,255,.11);
   color: #fff;
   box-shadow: inset 0 1px 1px rgba(255,255,255,.22), 0 8px 22px rgba(0,0,0,.10);
-  backdrop-filter: url(#liquidGlassFilter) blur(18px) saturate(160%);
-  -webkit-backdrop-filter: url(#liquidGlassFilter) blur(18px) saturate(160%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -3853,8 +3824,8 @@ body.is-reading-article .reading-dim-layer {
   border-radius: 17px;
   background: rgba(28,28,30,.86);
   box-shadow: 0 18px 48px rgba(0,0,0,.34), inset 0 1px 1px rgba(255,255,255,.10);
-  backdrop-filter: url(#liquidGlassFilter) blur(26px) saturate(150%);
-  -webkit-backdrop-filter: url(#liquidGlassFilter) blur(26px) saturate(150%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-5px) scale(.985);
@@ -3944,8 +3915,8 @@ body.is-reading-article .reading-dim-layer {
     0 18px 48px rgba(0, 0, 0, 0.36),
     inset 0 1px 1.5px rgba(255, 255, 255, 0.38),
     inset 0 -0.5px 1px rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: #fff;
   transform-origin: top left;
   animation: siteCtxIn 0.14s ease-out;
@@ -4253,8 +4224,8 @@ body.api-offline-lock #homeAvatarPlaceholder {
     font-weight: 600;
     color: #fff;
     background: rgba(0, 0, 0, 0.92);
-    backdrop-filter: url(#liquidGlassFilter) blur(12px);
-    -webkit-backdrop-filter: url(#liquidGlassFilter) blur(12px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   html.is-phone body > *:not(.boot-loader) {
     visibility: hidden !important;
@@ -4439,52 +4410,6 @@ body.api-offline-lock #homeAvatarPlaceholder {
   .cursor-trail-canvas {
     display: none !important;
   }
-}
-
-/* ============================================================
-   Fluent Reveal Highlight — 仅液态玻璃边框
-   坐标来自当前真实 DOMRect；不再绘制鼠标周围内部光晕
-   ============================================================ */
-.reveal-host {
-  --reveal-x: 50%;
-  --reveal-y: 50%;
-  --reveal-edge: 0.6;
-  position: relative;
-  isolation: isolate;
-}
-.reveal-host > .reveal-border {
-  position: absolute;
-  inset: 0;
-  box-sizing: border-box;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  z-index: 3;
-  padding: 1.5px;
-  background: radial-gradient(
-    circle 170px at var(--reveal-x) var(--reveal-y),
-    rgba(255,255,255,calc(.98 * var(--reveal-edge))) 0%,
-    rgba(220,240,255,calc(.72 * var(--reveal-edge))) 32%,
-    rgba(255,255,255,calc(.24 * var(--reveal-edge))) 58%,
-    transparent 78%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  transition: opacity .12s ease;
-}
-.reveal-host.is-reveal-active > .reveal-border { opacity: 1; }
-.reveal-host > :not(.reveal-border) {
-  position: relative;
-  z-index: 1;
-}
-body.has-reveal-highlight .blog-list .blog-card:hover,
-body.has-reveal-highlight .glass-card:hover {
-  transform: none;
-}
-@media (max-width: 480px), (hover: none), (pointer: coarse) {
-  .reveal-host > .reveal-border { display: none !important; }
 }
 
 /* ===== 主页横向状态时间线：历史在右侧；当前状态在头像下方 ===== */
@@ -4728,8 +4653,8 @@ body.has-reveal-highlight .glass-card:hover {
   /* 液态玻璃 */
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.22),
     inset 0 1px 1.5px rgba(255, 255, 255, 0.42),
@@ -4798,8 +4723,8 @@ body.has-reveal-highlight .glass-card:hover {
   border-radius: 18px;
   background: rgba(28, 28, 30, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
@@ -4841,8 +4766,8 @@ body.has-reveal-highlight .glass-card:hover {
   inset: 0;
   z-index: 2500;
   background: rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.35s ease;
@@ -4976,8 +4901,8 @@ body.is-seek-magnet * {
   cursor: pointer;
   color: #fff;
   background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
     0 14px 36px rgba(0, 0, 0, 0.32),
     0 0 0 1px rgba(255, 255, 255, 0.18),
@@ -5096,8 +5021,8 @@ body.is-seek-magnet * {
 /* ========== 移动端：时间线 / 社交圆75% / 头像性能 / 全屏90% ========== */
 @media (max-width: 480px), (pointer: coarse) {
   .global-avatar {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     will-change: transform, width, height;
     contain: layout style;
     border-width: 1.5px;
@@ -5249,8 +5174,8 @@ html.is-phone body > .md-song-block.is-fs-host.is-fs-zoom {
   transform: translate(-50%, -50%) scale(0.9) !important;
 }
 html.is-phone .global-avatar {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 
@@ -5260,32 +5185,6 @@ html.is-phone .global-avatar {
   --app-chrome-bottom: 0px;
   --app-vv-offset-top: 0px;
 }
-
-/* ============================================================
-   Liquid Glass progressive enhancement
-   Base CSS above remains a portable blur fallback; Chromium gets
-   the SVG displacement/refraction layer described by kube.io.
-   ============================================================ */
-@supports (backdrop-filter: url(#liquidGlassFilter)) {
-  .glass-nav { backdrop-filter: url(#liquidGlassFilter) blur(20px) saturate(180%); }
-  .nav-capsule { backdrop-filter: url(#liquidGlassFilter) blur(8px) saturate(185%); }
-  .glass-card { backdrop-filter: url(#liquidGlassFilter) blur(24px) saturate(180%); }
-  .apple-calendar { backdrop-filter: url(#liquidGlassFilter) blur(20px) saturate(180%); }
-  .apple-cal-day.selected { backdrop-filter: url(#liquidGlassFilter) blur(10px) saturate(200%); }
-  .apple-primary-btn { backdrop-filter: url(#liquidGlassFilter) blur(12px) saturate(180%); }
-  .apple-secondary-btn { backdrop-filter: url(#liquidGlassFilter) blur(12px) saturate(160%); }
-  .calendar-btn, .blog-search-box, .blog-sort-btn, .blog-sort-dir-btn,
-  .blog-page-btn, .blog-filter-chip, .theme-chip, .article-reader-close {
-    backdrop-filter: url(#liquidGlassFilter) blur(10px) saturate(170%);
-  }
-  .blog-white-box, .blog-theme-rail, .article-reader-sheet, .boot-loader-card,
-  .boot-api-island-pill {
-    backdrop-filter: url(#liquidGlassFilter) blur(28px) saturate(180%);
-  }
-  .md-volume-popover { backdrop-filter: url(#liquidGlassFilter) blur(18px) saturate(180%); }
-  .audio-mini-dock { backdrop-filter: url(#liquidGlassFilter) blur(22px) saturate(180%); }
-}
-
 @media (max-width: 480px), (pointer: coarse) {
   .horizontal-scroll-container {
     height: var(--app-vh, 100dvh) !important;
@@ -5341,3 +5240,47 @@ html.is-phone .home-zone-bot {
 html.is-phone .audio-mini-dock {
   bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--app-chrome-bottom, 0px)) !important;
 }
+
+
+/* ========================================================================
+   Kube-style Liquid Glass — global rewrite
+   Source model: rounded-bezel convex squircle refraction + SVG displacement
+   map + SVG specular rim + progressive edge blur.
+   These values intentionally follow the requested parameter set.
+   ======================================================================== */
+:root {
+  --liquid-specular-opacity: 1;
+  --liquid-specular-saturation: 25;
+  --liquid-refraction-level: 1;
+  --liquid-blur-level: 0;
+  --liquid-progressive-blur-strength: 10;
+  --liquid-background-opacity: 0.43;
+}
+
+/* The article's SVG backdrop-filter path is Chromium-specific. Do not add a
+   soft blur fallback here: Blur Level is explicitly 0 and the user requested
+   the SVG/refraction implementation rather than an optimization fallback. */
+.liquid-glass-surface {
+  --liquid-glass-bg: rgba(255, 255, 255, var(--liquid-background-opacity));
+  background: var(--liquid-glass-bg) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.14),
+    inset 0 1px 1px rgba(255, 255, 255, 0.42),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.10);
+  isolation: isolate;
+}
+
+.liquid-glass-surface.is-liquid-glass-ready {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* The displacement filter supplies the actual specular/refraction body.
+   Keep the DOM content above the filtered backdrop. */
+.liquid-glass-surface > * {
+  position: relative;
+}
+
