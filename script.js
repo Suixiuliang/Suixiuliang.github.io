@@ -890,6 +890,7 @@
       `;
     });
     list.innerHTML = html;
+    initYbouaneGlassInContainer(list, ".blog-card").catch(err => console.warn("[LiquidGlass] 博客卡片初始化失败", err));
     if (countEl) countEl.textContent = `${total} 篇文章`;
     renderBlogPagination(total);
 
@@ -2033,6 +2034,10 @@
     }
 
     const song = player.closest('.md-song-block');
+    // 播放器 root 很小，等 DOM 完成后直接交给仓库实现。
+    if (song) {
+      initYbouaneGlassRoot(song, [player]).catch(err => console.warn("[LiquidGlass] 音频玻璃初始化失败", err));
+    }
     const lyrics = song ? song.querySelector('.md-lyrics') : null;
     const playBtn = player.querySelector('.gap-play');
     const playIcon = playBtn.querySelector('i');
@@ -6338,6 +6343,7 @@
     });
 
     grid.innerHTML = html;
+    initYbouaneGlassInContainer(grid, ".glass-card").catch(err => console.warn("[LiquidGlass] 作品卡片初始化失败", err));
   }
 
   // ---------- 路由懒加载：各面板数据首次进入时再拉取 ----------
@@ -7699,146 +7705,289 @@ function saveImageAs(img) {
 
 
   // ============================================================
-  // Native LiquidGlass integration (ybouane/liquidglass)
-  // 只负责把仓库原生实现接入现有 DOM；不重写 shader、不自己生成位移图。
-  // 为降低性能开销：按父容器复用实例，并只初始化当前可见的玻璃面板。
+  // Fluent Reveal Highlight — 仅液态玻璃边框；坐标始终以当前真实 DOMRect 为准
   // ============================================================
-  const NATIVE_LIQUID_GLASS_SELECTOR = [
-    '.glass-nav',
-    '.glass-card',
-    '.blog-white-box',
-    '.theme-rail-inner',
-    '.glass-audio-player',
-    '.site-context-menu',
-    '.md-volume-popover',
-    '.apple-select-menu',
-    '.boot-loader-card'
-  ].join(',');
+  const REVEAL_SELECTOR = '.blog-list .blog-card, .work-card, .glass-card.win7-business-card, .glass-card.admin-card';
+  let revealEnabled = false;
+  let revealRaf = 0;
+  let revealLastX = 0;
+  let revealLastY = 0;
+  let revealActiveHost = null;
 
-  let nativeLiquidGlassModule = null;
-  const nativeLiquidGlassInstances = new Map();
-  const nativeLiquidGlassPending = new WeakSet();
+  function canUseRevealHighlight() {
+    try {
+      if (window.matchMedia('(max-width: 480px)').matches) return false;
+      if (window.matchMedia('(hover: none)').matches) return false;
+      if (window.matchMedia('(pointer: coarse)').matches) return false;
+      if (document.documentElement.classList.contains('is-phone')) return false;
+    } catch (_) {}
+    return true;
+  }
 
-  function nativeLiquidGlassConfig(el) {
-    const r = el.getBoundingClientRect();
-    const radius = Math.max(8, Math.min(65, Math.min(r.width || 65, r.height || 65) * 0.5));
+  function ensureRevealLayers(el) {
+    if (!el || el.dataset.revealReady === '1') return;
+    el.dataset.revealReady = '1';
+    el.classList.add('reveal-host');
+    const border = document.createElement('span');
+    border.className = 'reveal-border';
+    border.setAttribute('aria-hidden', 'true');
+    el.insertBefore(border, el.firstChild);
+  }
+
+  function prepareRevealHosts() {
+    if (!revealEnabled) return;
+    document.querySelectorAll(REVEAL_SELECTOR).forEach(ensureRevealLayers);
+  }
+
+  function clearRevealActive() {
+    if (revealActiveHost) {
+      revealActiveHost.classList.remove('is-reveal-active');
+      revealActiveHost = null;
+    }
+  }
+
+  function updateRevealAt(clientX, clientY) {
+    if (!revealEnabled) return;
+    prepareRevealHosts();
+    const target = document.elementFromPoint(clientX, clientY);
+    const host = target?.closest?.(REVEAL_SELECTOR) || null;
+    if (!host || !host.isConnected) { clearRevealActive(); return; }
+
+    // 关键：每一帧对当前真实玻璃面板重新取 DOMRect。
+    // 博客阅读/返回、transform、滚动、动画都不会再使用旧坐标。
+    const rect = host.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) { clearRevealActive(); return; }
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const pad = 170;
+    if (clientX < rect.left - pad || clientX > rect.right + pad || clientY < rect.top - pad || clientY > rect.bottom + pad) {
+      clearRevealActive();
+      return;
+    }
+    if (revealActiveHost && revealActiveHost !== host) revealActiveHost.classList.remove('is-reveal-active');
+    revealActiveHost = host;
+    host.style.setProperty('--reveal-x', `${x}px`);
+    host.style.setProperty('--reveal-y', `${y}px`);
+    const edgeDist = Math.min(x, rect.width - x, y, rect.height - y);
+    const edgeBoost = Math.max(0, 1 - edgeDist / 110);
+    host.style.setProperty('--reveal-edge', String(0.28 + edgeBoost * 0.72));
+    host.classList.add('is-reveal-active');
+  }
+
+  function onRevealPointerMove(e) {
+    revealLastX = e.clientX;
+    revealLastY = e.clientY;
+    if (revealRaf) return;
+    revealRaf = requestAnimationFrame(() => {
+      revealRaf = 0;
+      updateRevealAt(revealLastX, revealLastY);
+    });
+  }
+
+  function onRevealPointerLeave() { clearRevealActive(); }
+
+  function refreshRevealAfterLayout() {
+    if (!revealEnabled || !revealRaf) {
+      if (revealEnabled) updateRevealAt(revealLastX, revealLastY);
+    }
+  }
+
+  function setupRevealHighlight() {
+    const enable = canUseRevealHighlight();
+    if (enable === revealEnabled) { if (enable) prepareRevealHosts(); return; }
+    revealEnabled = enable;
+    if (enable) {
+      document.addEventListener('pointermove', onRevealPointerMove, { passive: true });
+      window.addEventListener('blur', onRevealPointerLeave);
+      window.addEventListener('resize', refreshRevealAfterLayout, { passive: true });
+      document.body.classList.add('has-reveal-highlight');
+      prepareRevealHosts();
+      const blogList = document.getElementById('blogList');
+      if (blogList && !blogList._revealObs) {
+        blogList._revealObs = new MutationObserver(() => { prepareRevealHosts(); refreshRevealAfterLayout(); });
+        blogList._revealObs.observe(blogList, { childList: true, subtree: true });
+      }
+      const worksGrid = document.getElementById('worksGrid');
+      if (worksGrid && !worksGrid._revealObs) {
+        worksGrid._revealObs = new MutationObserver(() => { prepareRevealHosts(); refreshRevealAfterLayout(); });
+        worksGrid._revealObs.observe(worksGrid, { childList: true, subtree: true });
+      }
+      // 博客阅读视图切换会改变 transform / 几何位置；动画期间持续刷新，但不遍历所有卡片。
+      const blogPanel = document.getElementById('blog');
+      if (blogPanel && !blogPanel._revealLayoutObs) {
+        blogPanel._revealLayoutObs = new ResizeObserver(() => refreshRevealAfterLayout());
+        blogPanel._revealLayoutObs.observe(blogPanel);
+      }
+    } else {
+      document.removeEventListener('pointermove', onRevealPointerMove);
+      window.removeEventListener('blur', onRevealPointerLeave);
+      window.removeEventListener('resize', refreshRevealAfterLayout);
+      document.body.classList.remove('has-reveal-highlight');
+      onRevealPointerLeave();
+    }
+  }
+
+  // ============================================================
+  // ybouane/liquidglass 原生接入
+  // 只调用仓库公开 API，不重写 shader / 位移 / 渲染器。
+  //
+  // 重要：不要把 glass 宿主 background 清空。仓库注入的 canvas
+  // 本身就在宿主内部绘制；保留原背景可以避免 WebGL 捕获失败时
+  // 出现整块透明/空白，同时也不会遮挡 canvas。
+  // ============================================================
+  const YBOUANE_LIQUIDGLASS_URL = 'https://cdn.jsdelivr.net/npm/@ybouane/liquidglass@1.0.3/dist/index.js';
+  let ybouaneLiquidGlassModulePromise = null;
+  const ybouaneLiquidGlassInstances = new Map();
+
+  function loadYbouaneLiquidGlass() {
+    if (!ybouaneLiquidGlassModulePromise) {
+      ybouaneLiquidGlassModulePromise = import(YBOUANE_LIQUIDGLASS_URL).then(mod => {
+        if (!mod || !mod.LiquidGlass) throw new Error('LiquidGlass export not found');
+        return mod;
+      });
+    }
+    return ybouaneLiquidGlassModulePromise;
+  }
+
+  function ybouaneGlassConfig(el) {
+    const rect = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const parsedRadius = parseFloat(cs.borderTopLeftRadius);
+    const radius = Number.isFinite(parsedRadius) && parsedRadius > 0
+      ? parsedRadius
+      : Math.min(rect.width || 1, rect.height || 1) * 0.5;
     return {
-      blurAmount: 0.0,
+      // 使用仓库默认参数；只降低 specular，避免大量卡片同时高光计算。
+      blurAmount: 0,
       refraction: 0.69,
       chromAberration: 0.05,
-      edgeHighlight: 0.08,
-      specular: 0.12,
-      fresnel: 0.85,
-      distortion: 0.0,
-      cornerRadius: radius,
-      zRadius: Math.max(12, Math.min(40, radius)),
-      opacity: 1.0,
-      saturation: 0.0,
-      tintStrength: 0.0,
-      brightness: 0.0,
+      edgeHighlight: 0.05,
+      specular: 0,
+      fresnel: 1,
+      distortion: 0,
+      cornerRadius: Math.max(8, Math.min(radius, Math.min(rect.width || 1, rect.height || 1) * 0.5)),
+      zRadius: Math.max(24, Math.min(40, Math.min(rect.width || 1, rect.height || 1) * 0.5)),
+      opacity: 1,
+      saturation: 0,
+      tintStrength: 0,
+      brightness: 0,
       shadowOpacity: 0.18,
       shadowSpread: 8,
       shadowOffsetY: 1,
       floating: false,
-      button: false,
+      button: el.matches('.work-circle-btn, .calendar-btn, .blog-page-btn') && !el.matches('.glass-card') ,
       bevelMode: 0
     };
   }
 
-  function nativeLiquidGlassTargets() {
-    return Array.from(document.querySelectorAll(NATIVE_LIQUID_GLASS_SELECTOR))
-      .filter(el => el instanceof HTMLElement)
-      .filter(el => !el.closest('.global-avatar'))
-      .filter(el => {
-        const parentGlass = el.parentElement?.closest(NATIVE_LIQUID_GLASS_SELECTOR);
-        return !parentGlass;
-      });
+  function prepareYbouaneGlassElement(el) {
+    if (!(el instanceof HTMLElement)) return;
+    // 不删除/覆盖原 background。LiquidGlass canvas 会作为第一个子节点绘制。
+    el.style.removeProperty('background');
+    el.style.removeProperty('backdrop-filter');
+    el.style.removeProperty('-webkit-backdrop-filter');
+    el.dataset.config = JSON.stringify(ybouaneGlassConfig(el));
   }
 
-  async function initNativeLiquidGlassForParent(parent) {
-    if (!parent || nativeLiquidGlassInstances.has(parent)) return;
-    const glasses = Array.from(parent.children)
-      .filter(el => el instanceof HTMLElement && el.matches(NATIVE_LIQUID_GLASS_SELECTOR));
-    if (!glasses.length) return;
+  async function initYbouaneGlassRoot(root, elements) {
+    if (!(root instanceof HTMLElement)) return null;
+    const glassElements = Array.from(new Set(elements || [])).filter(el =>
+      el instanceof HTMLElement && el.isConnected && el.parentElement === root
+    );
+    if (!glassElements.length) return null;
 
-    const visible = glasses.filter(el => {
-      const r = el.getBoundingClientRect();
-      return r.width > 0 && r.height > 0;
-    });
-    if (!visible.length) return;
-
-    if (!nativeLiquidGlassModule) {
-      nativeLiquidGlassModule = import('https://cdn.jsdelivr.net/npm/@ybouane/liquidglass/dist/index.js');
+    const old = ybouaneLiquidGlassInstances.get(root);
+    if (old) {
+      // 只有玻璃集合发生变化时才重建；正常 idle 状态绝不重复初始化。
+      const same = old.__glassElements && old.__glassElements.length === glassElements.length &&
+        old.__glassElements.every(el => glassElements.includes(el));
+      if (same) {
+        glassElements.forEach(prepareYbouaneGlassElement);
+        return old;
+      }
+      try { old.__glassElements?.forEach(el => el.classList.remove('liquidglass-active')); } catch (_) {}
+      try { old.destroy(); } catch (_) {}
+      ybouaneLiquidGlassInstances.delete(root);
     }
 
+    glassElements.forEach(prepareYbouaneGlassElement);
+
     try {
-      const mod = await nativeLiquidGlassModule;
-      const instance = await mod.LiquidGlass.init({
-        root: parent,
-        glassElements: visible,
+      const { LiquidGlass } = await loadYbouaneLiquidGlass();
+      const instance = await LiquidGlass.init({
+        root,
+        glassElements,
         defaults: {
-          blurAmount: 0.0,
+          blurAmount: 0,
           refraction: 0.69,
           chromAberration: 0.05,
-          edgeHighlight: 0.08,
-          specular: 0.12,
-          fresnel: 0.85,
-          distortion: 0.0,
-          opacity: 1.0,
-          saturation: 0.0,
-          tintStrength: 0.0,
-          brightness: 0.0,
+          edgeHighlight: 0.05,
+          specular: 0,
+          fresnel: 1,
+          distortion: 0,
+          opacity: 1,
+          saturation: 0,
+          tintStrength: 0,
+          brightness: 0,
           shadowOpacity: 0.18,
           shadowSpread: 8,
           shadowOffsetY: 1,
           floating: false,
-          button: false,
           bevelMode: 0
         }
       });
-      nativeLiquidGlassInstances.set(parent, instance);
-      for (const el of visible) {
-        el.classList.add('liquidglass-native');
-        el.dataset.liquidglassNative = '1';
-      }
+      instance.__glassElements = glassElements.slice();
+      glassElements.forEach(el => el.classList.add('liquidglass-active'));
+      ybouaneLiquidGlassInstances.set(root, instance);
+      return instance;
     } catch (err) {
-      console.warn('[LiquidGlass] ybouane/liquidglass 初始化失败，保留原 CSS 玻璃效果。', err);
+      // 初始化失败时完全保留原 CSS glass，不把宿主改成透明。
+      console.warn('[LiquidGlass] 原生仓库初始化失败，已保留 CSS 玻璃效果。', err);
+      return null;
     }
   }
 
-  function scheduleNativeLiquidGlassScan() {
-    if (nativeLiquidGlassScanRaf) return;
-    nativeLiquidGlassScanRaf = requestAnimationFrame(() => {
-      nativeLiquidGlassScanRaf = 0;
-      for (const el of nativeLiquidGlassTargets()) {
-        if (el.dataset.liquidglassNative === '1' || nativeLiquidGlassPending.has(el)) continue;
-        const r = el.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0) continue;
-        if (r.bottom < -200 || r.top > window.innerHeight + 200) continue;
-        nativeLiquidGlassPending.add(el);
-        initNativeLiquidGlassForParent(el.parentElement).finally(() => {
-          nativeLiquidGlassPending.delete(el);
-        });
-      }
-    });
+  async function initYbouaneGlassInContainer(root, selector) {
+    if (!(root instanceof HTMLElement)) return null;
+    const elements = Array.from(root.children).filter(el => el.matches(selector));
+    return initYbouaneGlassRoot(root, elements);
   }
-  let nativeLiquidGlassScanRaf = 0;
 
-  function setupNativeLiquidGlass() {
-    // 原来的 backdrop-filter 只作为 WebGL 初始化失败时的降级方案。
-    scheduleNativeLiquidGlassScan();
+  async function setupYbouaneLiquidGlass() {
+    // 这些 root 都比较小：仓库只需要捕获同一 root 下的兄弟内容，
+    // 不会把整个 body/横向页面一起 rasterize。
+    const jobs = [];
 
-    const io = new IntersectionObserver(entries => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) scheduleNativeLiquidGlassScan();
-      }
-    }, { root: null, rootMargin: '200px' });
-    nativeLiquidGlassTargets().forEach(el => io.observe(el));
+    const worksGrid = document.getElementById('worksGrid');
+    if (worksGrid) jobs.push(initYbouaneGlassInContainer(worksGrid, '.glass-card'));
 
-    const observer = new MutationObserver(() => scheduleNativeLiquidGlassScan());
-    observer.observe(document.body, { childList: true, subtree: true });
+    const blogList = document.getElementById('blogList');
+    if (blogList) jobs.push(initYbouaneGlassInContainer(blogList, '.blog-card'));
 
-    window.addEventListener('resize', () => scheduleNativeLiquidGlassScan(), { passive: true });
+    const blogStage = document.getElementById('blogStageDuo');
+    const whiteBox = document.getElementById('blogWhiteBox');
+    if (blogStage && whiteBox) jobs.push(initYbouaneGlassRoot(blogStage, [whiteBox]));
+
+    const themeRail = document.getElementById('blogThemeRail');
+    const themeInner = themeRail && themeRail.querySelector(':scope > .theme-rail-inner');
+    if (themeRail && themeInner) jobs.push(initYbouaneGlassRoot(themeRail, [themeInner]));
+
+    // 静态弹窗玻璃：root 很小，且只有打开时才需要真正看到它。
+    document.querySelectorAll('.calendar-modal').forEach(modal => {
+      const card = modal.querySelector(':scope > .calendar-modal-content.glass-card');
+      if (card) jobs.push(initYbouaneGlassRoot(modal, [card]));
+    });
+
+    // 不给 body 建 LiquidGlass root：body 会把整个横向页面 rasterize，
+    // 这正是高性能开销和空白问题最容易出现的来源。
+    await Promise.allSettled(jobs);
+  }
+
+  function refreshYbouaneGlassForRoot(root) {
+    const instance = ybouaneLiquidGlassInstances.get(root);
+    if (instance && typeof instance.markChanged === 'function') {
+      instance.markChanged();
+    }
   }
 
   // ---------- 初始化 ----------
@@ -7865,7 +8014,8 @@ function saveImageAs(img) {
     setupBlogScrollHeights();
     updateBlogScroll();
     updateGlobalAvatarPosition();
-    setupNativeLiquidGlass();
+    // LiquidGlass 使用仓库原生 WebGL 实现；异步启动，不阻塞站点主流程。
+    setupYbouaneLiquidGlass().catch(err => console.warn("[LiquidGlass] 初始化失败", err));
 
     if (!apiOk) {
       applyApiOfflineHomeMode();
@@ -7889,11 +8039,15 @@ function saveImageAs(img) {
       else if (isArticleReading) closeArticleReader();
     });
 
+    setupRevealHighlight();
+    window.addEventListener('resize', setupRevealHighlight, { passive: true });
+
     setTimeout(() => {
       setupBlogScrollHeights();
       updateBlogScroll();
       updateGlobalAvatarPosition();
       updateCapsuleFromScroll();
+      prepareRevealHosts();
     }, 500);
   }
 

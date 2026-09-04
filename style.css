@@ -4412,6 +4412,52 @@ body.api-offline-lock #homeAvatarPlaceholder {
   }
 }
 
+/* ============================================================
+   Fluent Reveal Highlight — 仅液态玻璃边框
+   坐标来自当前真实 DOMRect；不再绘制鼠标周围内部光晕
+   ============================================================ */
+.reveal-host {
+  --reveal-x: 50%;
+  --reveal-y: 50%;
+  --reveal-edge: 0.6;
+  position: relative;
+  isolation: isolate;
+}
+.reveal-host > .reveal-border {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 3;
+  padding: 1.5px;
+  background: radial-gradient(
+    circle 170px at var(--reveal-x) var(--reveal-y),
+    rgba(255,255,255,calc(.98 * var(--reveal-edge))) 0%,
+    rgba(220,240,255,calc(.72 * var(--reveal-edge))) 32%,
+    rgba(255,255,255,calc(.24 * var(--reveal-edge))) 58%,
+    transparent 78%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: opacity .12s ease;
+}
+.reveal-host.is-reveal-active > .reveal-border { opacity: 1; }
+.reveal-host > :not(.reveal-border) {
+  position: relative;
+  z-index: 1;
+}
+body.has-reveal-highlight .blog-list .blog-card:hover,
+body.has-reveal-highlight .glass-card:hover {
+  transform: none;
+}
+@media (max-width: 480px), (hover: none), (pointer: coarse) {
+  .reveal-host > .reveal-border { display: none !important; }
+}
+
 /* ===== 主页横向状态时间线：历史在右侧；当前状态在头像下方 ===== */
 .status-timeline-section {
   width: 100%;
@@ -5243,15 +5289,22 @@ html.is-phone .audio-mini-dock {
 
 
 /* ============================================================
-   ybouane/liquidglass 原生 WebGL 接入层
-   WebGL canvas 负责实际折射；这里不再叠加 backdrop-filter。
-   未成功初始化的元素仍保留原 CSS，作为降级方案。
+   ybouane/liquidglass 兼容层
+   仓库会把 WebGL canvas 注入玻璃元素内部。
+   不覆盖宿主 background，避免 WebGL 捕获失败时出现整块空白。
    ============================================================ */
-.liquidglass-native {
-  background: transparent !important;
+.glass-card,
+.blog-list .blog-card,
+.glass-audio-player,
+.theme-rail-inner,
+.calendar-modal-content.glass-card {
+  position: relative;
+}
+
+/* WebGL 初始化成功后才关闭原 CSS blur；background 保留，避免空白。 */
+.liquidglass-active {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-.liquidglass-native > canvas {
-  pointer-events: none !important;
-}
+
+/* 动态内容仍由原页面自己的动画负责，不把整个页面标记为 data-dynamic。 */
