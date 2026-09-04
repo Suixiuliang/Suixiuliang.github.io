@@ -22,24 +22,6 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<!-- Global Liquid Glass filter: SVG displacement + soft specular rim. Chrome supports SVG in backdrop-filter; other engines use the CSS blur fallback. -->
-<svg class="liquid-glass-defs" aria-hidden="true" focusable="false" width="1" height="1" style="position:fixed;left:-10px;top:-10px;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none">
-  <defs>
-    <filter id="liquidGlassFilter" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.018 0.026" numOctaves="2" seed="17" result="liquidNoise"/>
-      <feColorMatrix in="liquidNoise" type="saturate" values="0" result="monoNoise"/>
-      <feComponentTransfer in="monoNoise" result="softNoise">
-        <feFuncR type="gamma" amplitude="0.78" exponent="1.35" offset="0.12"/>
-        <feFuncG type="gamma" amplitude="0.78" exponent="1.35" offset="0.12"/>
-        <feFuncB type="gamma" amplitude="0.78" exponent="1.35" offset="0.12"/>
-      </feComponentTransfer>
-      <feDisplacementMap in="SourceGraphic" in2="softNoise" scale="7" xChannelSelector="R" yChannelSelector="G" result="refracted"/>
-      <feGaussianBlur in="refracted" stdDeviation="0.35" result="refractedSoft"/>
-      <feBlend in="refracted" in2="refractedSoft" mode="screen" result="glassBody"/>
-    </filter>
-  </defs>
-</svg>
-
 
 <!-- 资源加载门禁：图片未就绪 / API 不可达 不可进入主内容 -->
 <div class="boot-loader" id="bootLoader" aria-live="polite" aria-busy="true">
