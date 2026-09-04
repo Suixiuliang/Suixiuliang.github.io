@@ -42,7 +42,7 @@ body {
   margin: 0 auto;
   padding: 0.4rem 1.2rem;
   border-radius: var(--radius-nav);
-  background: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -58,7 +58,7 @@ body {
     box-shadow 0.3s ease;
 }
 .glass-nav.scrolled {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.17),
     inset 0 1px 1px rgba(255, 255, 255, 0.4),
@@ -699,7 +699,7 @@ body.is-nav-capsule-dragging * {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -709,7 +709,7 @@ body.is-nav-capsule-dragging * {
   color: #ffffff; word-break: break-word; overflow-wrap: break-word;
 }
 .glass-card:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.11);
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22), inset 0 1px 2px rgba(255, 255, 255, 0.5);
 }
@@ -1207,7 +1207,7 @@ body.is-nav-capsule-dragging * {
   height: 100%;
   padding: var(--radius-pad) 0.75rem;
   border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -1242,7 +1242,7 @@ body.is-nav-capsule-dragging * {
 .theme-chip {
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
   color: rgba(255, 255, 255, 0.78);
   border-radius: var(--radius-btn);
   padding: 0.45rem 0.55rem;
@@ -1270,7 +1270,7 @@ body.is-nav-capsule-dragging * {
   width: 100%;
   max-width: 1050px;
   margin: 0;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -1489,7 +1489,7 @@ body.is-nav-capsule-dragging * {
 
 .blog-list { display: flex; flex-direction: column; gap: 0.65rem; }
 .blog-list .blog-card {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--radius-md);
   padding: 0.75rem 0.95rem;
@@ -1509,7 +1509,7 @@ a.blog-list .blog-card,
   text-decoration: none;
   color: inherit;
 }
-.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.12); }
+.blog-list .blog-card:hover { background: rgba(255, 255, 255, 0.085); }
 .blog-list .blog-card:focus-visible {
   outline: 2px solid rgba(0, 113, 227, 0.7);
   outline-offset: 2px;
@@ -1684,7 +1684,7 @@ a.blog-list .blog-card,
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -3027,8 +3027,8 @@ body.is-reading-article .reading-dim-layer {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   background: rgba(0, 0, 0, 0.2);
 }
-/* —— 液态玻璃音乐播放器：默认圆形，播放时展开为胶囊条 ——
-   歌词背板（液态玻璃，四角圆）与歌词滚动区分离：
+/* —— 透明玻璃音乐播放器：默认圆形，播放时展开为胶囊条 ——
+   歌词背板（透明玻璃，四角圆）与歌词滚动区分离：
    背板上界与播放条上界重合；滚动区透明，上界为播放条下界。
    播放按钮始终保持正圆（用 scale 缩放，避免横向展开时被拉成椭圆）。 */
 .blog-article-body .md-audio-player,
@@ -3049,7 +3049,7 @@ body.is-reading-article .reading-dim-layer {
   min-width: var(--player-h);
   box-sizing: border-box;
   border-radius: var(--player-radius);
-  background: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.22),
@@ -3822,7 +3822,7 @@ body.is-reading-article .reading-dim-layer {
   padding: 6px;
   border: 1px solid rgba(255,255,255,.28);
   border-radius: 17px;
-  background: rgba(28,28,30,.86);
+  background: rgba(28, 28, 30, 0.55);
   box-shadow: 0 18px 48px rgba(0,0,0,.34), inset 0 1px 1px rgba(255,255,255,.10);
   backdrop-filter: blur(26px) saturate(150%);
   -webkit-backdrop-filter: blur(26px) saturate(150%);
@@ -3909,7 +3909,7 @@ body.is-reading-article .reading-dim-layer {
   max-width: min(300px, calc(100vw - 16px));
   padding: var(--ctx-pad);
   border-radius: var(--ctx-shell-r);
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.36),
@@ -4767,7 +4767,7 @@ body.has-reveal-highlight .glass-card:hover {
   height: 120px;
   padding: 10px 0;
   border-radius: 18px;
-  background: rgba(28, 28, 30, 0.72);
+  background: rgba(28, 28, 30, 0.52);
   border: 1px solid rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(18px) saturate(180%);
   -webkit-backdrop-filter: blur(18px) saturate(180%);
@@ -5286,25 +5286,3 @@ html.is-phone .home-zone-bot {
 html.is-phone .audio-mini-dock {
   bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--app-chrome-bottom, 0px)) !important;
 }
-
-
-/* ============================================================
-   ybouane/liquidglass 兼容层
-   仓库会把 WebGL canvas 注入玻璃元素内部。
-   不覆盖宿主 background，避免 WebGL 捕获失败时出现整块空白。
-   ============================================================ */
-.glass-card,
-.blog-list .blog-card,
-.glass-audio-player,
-.theme-rail-inner,
-.calendar-modal-content.glass-card {
-  position: relative;
-}
-
-/* WebGL 初始化成功后才关闭原 CSS blur；background 保留，避免空白。 */
-.liquidglass-active {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* 动态内容仍由原页面自己的动画负责，不把整个页面标记为 data-dynamic。 */

@@ -890,7 +890,6 @@
       `;
     });
     list.innerHTML = html;
-    initYbouaneGlassInContainer(list, ".blog-card").catch(err => console.warn("[LiquidGlass] 博客卡片初始化失败", err));
     if (countEl) countEl.textContent = `${total} 篇文章`;
     renderBlogPagination(total);
 
@@ -2036,7 +2035,6 @@
     const song = player.closest('.md-song-block');
     // 播放器 root 很小，等 DOM 完成后直接交给仓库实现。
     if (song) {
-      initYbouaneGlassRoot(song, [player]).catch(err => console.warn("[LiquidGlass] 音频玻璃初始化失败", err));
     }
     const lyrics = song ? song.querySelector('.md-lyrics') : null;
     const playBtn = player.querySelector('.gap-play');
@@ -6343,7 +6341,6 @@
     });
 
     grid.innerHTML = html;
-    initYbouaneGlassInContainer(grid, ".glass-card").catch(err => console.warn("[LiquidGlass] 作品卡片初始化失败", err));
   }
 
   // ---------- 路由懒加载：各面板数据首次进入时再拉取 ----------
@@ -7824,169 +7821,6 @@ function saveImageAs(img) {
       window.removeEventListener('resize', refreshRevealAfterLayout);
       document.body.classList.remove('has-reveal-highlight');
       onRevealPointerLeave();
-    }
-  }
-
-  // ============================================================
-  // ybouane/liquidglass 原生接入
-  // 只调用仓库公开 API，不重写 shader / 位移 / 渲染器。
-  //
-  // 重要：不要把 glass 宿主 background 清空。仓库注入的 canvas
-  // 本身就在宿主内部绘制；保留原背景可以避免 WebGL 捕获失败时
-  // 出现整块透明/空白，同时也不会遮挡 canvas。
-  // ============================================================
-  const YBOUANE_LIQUIDGLASS_URL = 'https://cdn.jsdelivr.net/npm/@ybouane/liquidglass@1.0.3/dist/index.js';
-  let ybouaneLiquidGlassModulePromise = null;
-  const ybouaneLiquidGlassInstances = new Map();
-
-  function loadYbouaneLiquidGlass() {
-    if (!ybouaneLiquidGlassModulePromise) {
-      ybouaneLiquidGlassModulePromise = import(YBOUANE_LIQUIDGLASS_URL).then(mod => {
-        if (!mod || !mod.LiquidGlass) throw new Error('LiquidGlass export not found');
-        return mod;
-      });
-    }
-    return ybouaneLiquidGlassModulePromise;
-  }
-
-  function ybouaneGlassConfig(el) {
-    const rect = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
-    const parsedRadius = parseFloat(cs.borderTopLeftRadius);
-    const radius = Number.isFinite(parsedRadius) && parsedRadius > 0
-      ? parsedRadius
-      : Math.min(rect.width || 1, rect.height || 1) * 0.5;
-    return {
-      // 使用仓库默认参数；只降低 specular，避免大量卡片同时高光计算。
-      blurAmount: 0,
-      refraction: 0.69,
-      chromAberration: 0.05,
-      edgeHighlight: 0.05,
-      specular: 0,
-      fresnel: 1,
-      distortion: 0,
-      cornerRadius: Math.max(8, Math.min(radius, Math.min(rect.width || 1, rect.height || 1) * 0.5)),
-      zRadius: Math.max(24, Math.min(40, Math.min(rect.width || 1, rect.height || 1) * 0.5)),
-      opacity: 1,
-      saturation: 0,
-      tintStrength: 0,
-      brightness: 0,
-      shadowOpacity: 0.18,
-      shadowSpread: 8,
-      shadowOffsetY: 1,
-      floating: false,
-      button: el.matches('.work-circle-btn, .calendar-btn, .blog-page-btn') && !el.matches('.glass-card') ,
-      bevelMode: 0
-    };
-  }
-
-  function prepareYbouaneGlassElement(el) {
-    if (!(el instanceof HTMLElement)) return;
-    // 不删除/覆盖原 background。LiquidGlass canvas 会作为第一个子节点绘制。
-    el.style.removeProperty('background');
-    el.style.removeProperty('backdrop-filter');
-    el.style.removeProperty('-webkit-backdrop-filter');
-    el.dataset.config = JSON.stringify(ybouaneGlassConfig(el));
-  }
-
-  async function initYbouaneGlassRoot(root, elements) {
-    if (!(root instanceof HTMLElement)) return null;
-    const glassElements = Array.from(new Set(elements || [])).filter(el =>
-      el instanceof HTMLElement && el.isConnected && el.parentElement === root
-    );
-    if (!glassElements.length) return null;
-
-    const old = ybouaneLiquidGlassInstances.get(root);
-    if (old) {
-      // 只有玻璃集合发生变化时才重建；正常 idle 状态绝不重复初始化。
-      const same = old.__glassElements && old.__glassElements.length === glassElements.length &&
-        old.__glassElements.every(el => glassElements.includes(el));
-      if (same) {
-        glassElements.forEach(prepareYbouaneGlassElement);
-        return old;
-      }
-      try { old.__glassElements?.forEach(el => el.classList.remove('liquidglass-active')); } catch (_) {}
-      try { old.destroy(); } catch (_) {}
-      ybouaneLiquidGlassInstances.delete(root);
-    }
-
-    glassElements.forEach(prepareYbouaneGlassElement);
-
-    try {
-      const { LiquidGlass } = await loadYbouaneLiquidGlass();
-      const instance = await LiquidGlass.init({
-        root,
-        glassElements,
-        defaults: {
-          blurAmount: 0,
-          refraction: 0.69,
-          chromAberration: 0.05,
-          edgeHighlight: 0.05,
-          specular: 0,
-          fresnel: 1,
-          distortion: 0,
-          opacity: 1,
-          saturation: 0,
-          tintStrength: 0,
-          brightness: 0,
-          shadowOpacity: 0.18,
-          shadowSpread: 8,
-          shadowOffsetY: 1,
-          floating: false,
-          bevelMode: 0
-        }
-      });
-      instance.__glassElements = glassElements.slice();
-      glassElements.forEach(el => el.classList.add('liquidglass-active'));
-      ybouaneLiquidGlassInstances.set(root, instance);
-      return instance;
-    } catch (err) {
-      // 初始化失败时完全保留原 CSS glass，不把宿主改成透明。
-      console.warn('[LiquidGlass] 原生仓库初始化失败，已保留 CSS 玻璃效果。', err);
-      return null;
-    }
-  }
-
-  async function initYbouaneGlassInContainer(root, selector) {
-    if (!(root instanceof HTMLElement)) return null;
-    const elements = Array.from(root.children).filter(el => el.matches(selector));
-    return initYbouaneGlassRoot(root, elements);
-  }
-
-  async function setupYbouaneLiquidGlass() {
-    // 这些 root 都比较小：仓库只需要捕获同一 root 下的兄弟内容，
-    // 不会把整个 body/横向页面一起 rasterize。
-    const jobs = [];
-
-    const worksGrid = document.getElementById('worksGrid');
-    if (worksGrid) jobs.push(initYbouaneGlassInContainer(worksGrid, '.glass-card'));
-
-    const blogList = document.getElementById('blogList');
-    if (blogList) jobs.push(initYbouaneGlassInContainer(blogList, '.blog-card'));
-
-    const blogStage = document.getElementById('blogStageDuo');
-    const whiteBox = document.getElementById('blogWhiteBox');
-    if (blogStage && whiteBox) jobs.push(initYbouaneGlassRoot(blogStage, [whiteBox]));
-
-    const themeRail = document.getElementById('blogThemeRail');
-    const themeInner = themeRail && themeRail.querySelector(':scope > .theme-rail-inner');
-    if (themeRail && themeInner) jobs.push(initYbouaneGlassRoot(themeRail, [themeInner]));
-
-    // 静态弹窗玻璃：root 很小，且只有打开时才需要真正看到它。
-    document.querySelectorAll('.calendar-modal').forEach(modal => {
-      const card = modal.querySelector(':scope > .calendar-modal-content.glass-card');
-      if (card) jobs.push(initYbouaneGlassRoot(modal, [card]));
-    });
-
-    // 不给 body 建 LiquidGlass root：body 会把整个横向页面 rasterize，
-    // 这正是高性能开销和空白问题最容易出现的来源。
-    await Promise.allSettled(jobs);
-  }
-
-  function refreshYbouaneGlassForRoot(root) {
-    const instance = ybouaneLiquidGlassInstances.get(root);
-    if (instance && typeof instance.markChanged === 'function') {
-      instance.markChanged();
     }
   }
 
