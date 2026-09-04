@@ -620,17 +620,9 @@
   let capsuleScaleRaf = null;
   let capsuleX = 0;
   let capsuleW = 0;
-  let capsuleSX = 1;
-  let capsuleSY = 1;
-  let capsuleSXVel = 0;
-  let capsuleSYVel = 0;
-  let capsuleSXTarget = 1;
-  let capsuleSYTarget = 1;
-  const CAPSULE_GRAB_SCALE = 1.34;
-  const CAPSULE_SPRING_K = 168;
+  const CAPSULE_SCALE_MAX = 1.12;
+  const CAPSULE_SPRING_K = 220;
   const CAPSULE_SPRING_D = 16;
-  const CAPSULE_STRETCH_K = 118;
-  const CAPSULE_STRETCH_D = 11;
 
   let calCurrentDate = new Date();
   let calSelectedDateStr = null;
@@ -5490,51 +5482,20 @@
   function applyCapsuleTransform() {
     if (!navCapsule) return;
     navCapsule.style.width = Math.max(0, capsuleW) + 'px';
-    const sx = Math.max(0.72, capsuleScale * capsuleSX);
-    const sy = Math.max(0.72, capsuleScale * capsuleSY);
     navCapsule.style.transform =
-      `translateY(-50%) translateX(${capsuleX}px) scale(${sx}, ${sy})`;
+      `translateY(-50%) translateX(${capsuleX}px) scale(${capsuleScale})`;
   }
 
   function tickCapsuleScaleSpring() {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const scaleTarget = (!reduce && capsuleDragging) ? CAPSULE_GRAB_SCALE : 1;
-    const sxTarget = (!reduce && capsuleDragging) ? capsuleSXTarget : 1;
-    const syTarget = (!reduce && capsuleDragging) ? capsuleSYTarget : 1;
+    const target = 1;
+    const disp = capsuleScale - target;
+    const accel = -CAPSULE_SPRING_K * disp - CAPSULE_SPRING_D * capsuleScaleVel;
     const dt = 1 / 60;
-
-    const step = (value, vel, target, k, d) => {
-      const disp = value - target;
-      const accel = -k * disp - d * vel;
-      vel += accel * dt;
-      value += vel * dt;
-      return [value, vel, disp];
-    };
-
-    let ds, dx, dy;
-    [capsuleScale, capsuleScaleVel, ds] = step(
-      capsuleScale, capsuleScaleVel, scaleTarget, CAPSULE_SPRING_K, CAPSULE_SPRING_D
-    );
-    [capsuleSX, capsuleSXVel, dx] = step(
-      capsuleSX, capsuleSXVel, sxTarget, CAPSULE_STRETCH_K, CAPSULE_STRETCH_D
-    );
-    [capsuleSY, capsuleSYVel, dy] = step(
-      capsuleSY, capsuleSYVel, syTarget, CAPSULE_STRETCH_K, CAPSULE_STRETCH_D
-    );
-
-    const settled =
-      Math.abs(ds) < 0.001 && Math.abs(capsuleScaleVel) < 0.002 &&
-      Math.abs(dx) < 0.001 && Math.abs(capsuleSXVel) < 0.002 &&
-      Math.abs(dy) < 0.001 && Math.abs(capsuleSYVel) < 0.002 &&
-      !capsuleDragging;
-
-    if (settled) {
+    capsuleScaleVel += accel * dt;
+    capsuleScale += capsuleScaleVel * dt;
+    if (Math.abs(disp) < 0.001 && Math.abs(capsuleScaleVel) < 0.002) {
       capsuleScale = 1;
       capsuleScaleVel = 0;
-      capsuleSX = 1;
-      capsuleSY = 1;
-      capsuleSXVel = 0;
-      capsuleSYVel = 0;
       applyCapsuleTransform();
       capsuleScaleRaf = null;
       return;
@@ -5543,50 +5504,19 @@
     capsuleScaleRaf = requestAnimationFrame(tickCapsuleScaleSpring);
   }
 
-  function ensureCapsuleMorphLoop() {
+  function bumpCapsuleScaleFromVelocity(velocityPxPerSec) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!navCapsule || nav.classList.contains('blog-mode')) return;
+    const t = Math.min(1, velocityPxPerSec / 2600);
+    const next = 1 + (CAPSULE_SCALE_MAX - 1) * t;
+    if (next > capsuleScale) {
+      capsuleScale = next;
+      capsuleScaleVel = 0;
+      applyCapsuleTransform();
+    }
     if (!capsuleScaleRaf) {
       capsuleScaleRaf = requestAnimationFrame(tickCapsuleScaleSpring);
     }
-  }
-
-  function sampleCapsuleDragVelocity(clientX) {
-    const now = performance.now();
-    if (!sampleCapsuleDragVelocity._t) {
-      sampleCapsuleDragVelocity._t = now;
-      sampleCapsuleDragVelocity._x = clientX;
-      sampleCapsuleDragVelocity._vx = 0;
-      return;
-    }
-    const dt = Math.max(8, now - sampleCapsuleDragVelocity._t);
-    const vx = (clientX - sampleCapsuleDragVelocity._x) / dt * 1000;
-    const prev = sampleCapsuleDragVelocity._vx || 0;
-    sampleCapsuleDragVelocity._t = now;
-    sampleCapsuleDragVelocity._x = clientX;
-
-    // 左右甩动换向：先变窄再回弹拉长（液滴质感）
-    if (prev * vx < 0 && Math.abs(vx) > 180 && Math.abs(prev) > 140) {
-      const punch = Math.min(0.5, (Math.abs(vx) + Math.abs(prev)) / 4200);
-      capsuleSX = Math.max(0.58, 1 - punch * 1.25);
-      capsuleSY = Math.min(1.42, 1 + punch * 0.85);
-      capsuleSXVel = Math.sign(vx) * (1.8 + punch * 3);
-      capsuleSYVel = -1.1 - punch;
-    }
-    sampleCapsuleDragVelocity._vx = vx;
-
-    const speed = Math.abs(vx);
-    const t = Math.min(1, speed / 980);
-    const ease = t * t * (3 - 2 * t);
-    capsuleSXTarget = 1 + ease * 0.72;
-    capsuleSYTarget = 1 - ease * 0.32;
-    ensureCapsuleMorphLoop();
-  }
-
-  function resetCapsuleDragVelocitySample(clientX) {
-    sampleCapsuleDragVelocity._t = performance.now();
-    sampleCapsuleDragVelocity._x = clientX;
-    sampleCapsuleDragVelocity._vx = 0;
-    capsuleSXTarget = 1;
-    capsuleSYTarget = 1;
   }
 
   let capsuleDragging = false;
@@ -5716,8 +5646,6 @@
       navCapsule.classList.add('is-dragging');
       document.body.classList.add('is-nav-capsule-dragging');
       try { links.setPointerCapture(e.pointerId); } catch (_) {}
-      resetCapsuleDragVelocitySample(e.clientX);
-      ensureCapsuleMorphLoop();
     }
 
     function onPointerDown(e) {
@@ -5768,8 +5696,6 @@
       if (!capsuleDragging) return;
       e.preventDefault();
 
-      sampleCapsuleDragVelocity(e.clientX);
-
       const btns = getBtns();
       if (btns.length < 2) return;
       const first = btns[0].getBoundingClientRect();
@@ -5790,9 +5716,6 @@
       navCapsule.style.cursor = 'grab';
       navCapsule.classList.remove('is-dragging');
       document.body.classList.remove('is-nav-capsule-dragging');
-      capsuleSXTarget = 1;
-      capsuleSYTarget = 1;
-      ensureCapsuleMorphLoop();
       try { links.releasePointerCapture(e.pointerId); } catch (_) {}
 
       if (!wasDragging) {
@@ -6585,6 +6508,10 @@
     lastScrollTime = now;
 
     updateCapsuleFromScroll();
+
+    if (velocity > 40) {
+      bumpCapsuleScaleFromVelocity(velocity);
+    }
   }
 
   function formatBytesMB(bytes) {
@@ -7896,7 +7823,6 @@ function saveImageAs(img) {
 
   // ---------- 初始化 ----------
   async function init() {
-    setupLiquidGlass();
     loadSpriteImage();
     const bootResult = await runBootLoader();
     const apiOk = !(bootResult && bootResult.apiOk === false);
