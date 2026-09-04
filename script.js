@@ -617,12 +617,18 @@
   let lastScrollTime = performance.now();
   let capsuleScale = 1;
   let capsuleScaleVel = 0;
-  let capsuleScaleRaf = null;
+  let capsuleStretch = 1;
+  let capsuleStretchVel = 0;
+  let capsuleSkew = 0;
+  let capsuleSkewVel = 0;
+  let capsuleDeformRaf = null;
   let capsuleX = 0;
   let capsuleW = 0;
-  const CAPSULE_SCALE_MAX = 1.12;
+  const CAPSULE_DRAG_SCALE = 1.10;
+  const CAPSULE_DRAG_SCALE_Y = 1.055;
+  const CAPSULE_MAX_STRETCH = 1.24;
   const CAPSULE_SPRING_K = 220;
-  const CAPSULE_SPRING_D = 16;
+  const CAPSULE_SPRING_D = 18;
 
   let calCurrentDate = new Date();
   let calSelectedDateStr = null;
@@ -5483,40 +5489,62 @@
     if (!navCapsule) return;
     navCapsule.style.width = Math.max(0, capsuleW) + 'px';
     navCapsule.style.transform =
-      `translateY(-50%) translateX(${capsuleX}px) scale(${capsuleScale})`;
+      `translateY(-50%) translateX(${capsuleX}px) scaleX(${capsuleScale * capsuleStretch}) scaleY(${capsuleScaleY || 1}) skewX(${capsuleSkew}deg)`;
   }
 
-  function tickCapsuleScaleSpring() {
-    const target = 1;
-    const disp = capsuleScale - target;
-    const accel = -CAPSULE_SPRING_K * disp - CAPSULE_SPRING_D * capsuleScaleVel;
+  function tickCapsuleDeformation() {
     const dt = 1 / 60;
-    capsuleScaleVel += accel * dt;
+    const scaleTarget = capsuleDragging ? CAPSULE_DRAG_SCALE : 1;
+    const scaleYTarget = capsuleDragging ? CAPSULE_DRAG_SCALE_Y : 1;
+    const stretchTarget = capsuleDragging ? capsuleStretchTarget : 1;
+    const skewTarget = capsuleDragging ? capsuleSkewTarget : 0;
+
+    const aScale = -CAPSULE_SPRING_K * (capsuleScale - scaleTarget) - CAPSULE_SPRING_D * capsuleScaleVel;
+    capsuleScaleVel += aScale * dt;
     capsuleScale += capsuleScaleVel * dt;
-    if (Math.abs(disp) < 0.001 && Math.abs(capsuleScaleVel) < 0.002) {
-      capsuleScale = 1;
-      capsuleScaleVel = 0;
+
+    const aStretch = -260 * (capsuleStretch - stretchTarget) - 20 * capsuleStretchVel;
+    capsuleStretchVel += aStretch * dt;
+    capsuleStretch += capsuleStretchVel * dt;
+
+    const aSkew = -300 * (capsuleSkew - skewTarget) - 22 * capsuleSkewVel;
+    capsuleSkewVel += aSkew * dt;
+    capsuleSkew += capsuleSkewVel * dt;
+
+    capsuleScaleY += (scaleYTarget - capsuleScaleY) * 0.18;
+    applyCapsuleTransform();
+
+    const settled = !capsuleDragging &&
+      Math.abs(capsuleScale - 1) < 0.001 && Math.abs(capsuleScaleVel) < 0.01 &&
+      Math.abs(capsuleStretch - 1) < 0.001 && Math.abs(capsuleStretchVel) < 0.01 &&
+      Math.abs(capsuleSkew) < 0.02 && Math.abs(capsuleSkewVel) < 0.01;
+    if (settled) {
+      capsuleScale = 1; capsuleScaleVel = 0;
+      capsuleStretch = 1; capsuleStretchVel = 0;
+      capsuleSkew = 0; capsuleSkewVel = 0; capsuleScaleY = 1;
       applyCapsuleTransform();
-      capsuleScaleRaf = null;
+      capsuleDeformRaf = null;
       return;
     }
-    applyCapsuleTransform();
-    capsuleScaleRaf = requestAnimationFrame(tickCapsuleScaleSpring);
+    capsuleDeformRaf = requestAnimationFrame(tickCapsuleDeformation);
   }
 
-  function bumpCapsuleScaleFromVelocity(velocityPxPerSec) {
+  let capsuleScaleY = 1;
+  let capsuleStretchTarget = 1;
+  let capsuleSkewTarget = 0;
+
+  function startCapsuleDeformation() {
+    if (!capsuleDeformRaf) capsuleDeformRaf = requestAnimationFrame(tickCapsuleDeformation);
+  }
+
+  function updateCapsuleDeformation(velocityPxPerSec) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    if (!navCapsule || nav.classList.contains('blog-mode')) return;
-    const t = Math.min(1, velocityPxPerSec / 2600);
-    const next = 1 + (CAPSULE_SCALE_MAX - 1) * t;
-    if (next > capsuleScale) {
-      capsuleScale = next;
-      capsuleScaleVel = 0;
-      applyCapsuleTransform();
-    }
-    if (!capsuleScaleRaf) {
-      capsuleScaleRaf = requestAnimationFrame(tickCapsuleScaleSpring);
-    }
+    if (!navCapsule || !capsuleDragging) return;
+    const speed = Math.min(1, Math.abs(velocityPxPerSec) / 1800);
+    // 速度越快，液体越被“拉长”；停止左右摇晃后由弹簧自然收回。
+    capsuleStretchTarget = 1 + speed * (CAPSULE_MAX_STRETCH - 1);
+    capsuleSkewTarget = Math.max(-4, Math.min(4, velocityPxPerSec / 500));
+    startCapsuleDeformation();
   }
 
   let capsuleDragging = false;
@@ -5606,6 +5634,8 @@
     let dragMoved = false;
     let pending = false;
     let lastDragProgress = 0;
+    let lastPointerX = 0;
+    let lastPointerTime = 0;
     const DRAG_THRESHOLD = 6;
 
     function getBtns() {
@@ -5645,6 +5675,11 @@
       navCapsule.style.cursor = 'grabbing';
       navCapsule.classList.add('is-dragging');
       document.body.classList.add('is-nav-capsule-dragging');
+      capsuleStretchTarget = 1.04;
+      capsuleSkewTarget = 0;
+      lastPointerX = e.clientX;
+      lastPointerTime = performance.now();
+      startCapsuleDeformation();
       try { links.setPointerCapture(e.pointerId); } catch (_) {}
     }
 
@@ -5696,6 +5731,13 @@
       if (!capsuleDragging) return;
       e.preventDefault();
 
+      const now = performance.now();
+      const moveDt = Math.max(8, now - lastPointerTime);
+      const pointerVelocity = (e.clientX - lastPointerX) / moveDt * 1000;
+      lastPointerX = e.clientX;
+      lastPointerTime = now;
+      updateCapsuleDeformation(pointerVelocity);
+
       const btns = getBtns();
       if (btns.length < 2) return;
       const first = btns[0].getBoundingClientRect();
@@ -5716,6 +5758,9 @@
       navCapsule.style.cursor = 'grab';
       navCapsule.classList.remove('is-dragging');
       document.body.classList.remove('is-nav-capsule-dragging');
+      capsuleStretchTarget = 1;
+      capsuleSkewTarget = 0;
+      startCapsuleDeformation();
       try { links.releasePointerCapture(e.pointerId); } catch (_) {}
 
       if (!wasDragging) {
@@ -6509,9 +6554,7 @@
 
     updateCapsuleFromScroll();
 
-    if (velocity > 40) {
-      bumpCapsuleScaleFromVelocity(velocity);
-    }
+    // 普通页面滚动时不再放大导航指示器；只有按住指示器拖动时才发生液态变形。
   }
 
   function formatBytesMB(bytes) {
