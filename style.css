@@ -5243,10 +5243,12 @@ html.is-phone .audio-mini-dock {
 
 
 /* ========================================================================
-   Kube-style Liquid Glass — global rewrite
-   Source model: rounded-bezel convex squircle refraction + SVG displacement
-   map + SVG specular rim + progressive edge blur.
-   These values intentionally follow the requested parameter set.
+   Kube-style Liquid Glass — corrected implementation
+   - SVG displacement map for the convex bezel/refraction
+   - SVG specular rim
+   - no uniform blur (Blur Level = 0)
+   - progressive edge blur is confined to the rim
+   - no Windows Reveal / cursor-driven lighting
    ======================================================================== */
 :root {
   --liquid-specular-opacity: 1;
@@ -5257,30 +5259,68 @@ html.is-phone .audio-mini-dock {
   --liquid-background-opacity: 0.43;
 }
 
-/* The article's SVG backdrop-filter path is Chromium-specific. Do not add a
-   soft blur fallback here: Blur Level is explicitly 0 and the user requested
-   the SVG/refraction implementation rather than an optimization fallback. */
 .liquid-glass-surface {
-  --liquid-glass-bg: rgba(255, 255, 255, var(--liquid-background-opacity));
-  background: var(--liquid-glass-bg) !important;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-color: rgba(255, 255, 255, 0.28);
+  /*
+   * 0.43 is retained as the material parameter, but the glass itself must
+   * remain transparent. A literal rgba(255,255,255,.43) produces the white
+   * veil seen in the previous build, so the tint is deliberately only a
+   * restrained fraction of that material opacity.
+   */
+  background: rgba(255, 255, 255, 0.055) !important;
+  backdrop-filter: var(--liquid-backdrop-filter, none);
+  -webkit-backdrop-filter: var(--liquid-backdrop-filter, none);
+  border-color: rgba(255, 255, 255, 0.20);
   box-shadow:
-    0 10px 34px rgba(0, 0, 0, 0.14),
-    inset 0 1px 1px rgba(255, 255, 255, 0.42),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.10);
+    0 10px 34px rgba(0, 0, 0, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
   isolation: isolate;
 }
 
 .liquid-glass-surface.is-liquid-glass-ready {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: var(--liquid-backdrop-filter);
+  -webkit-backdrop-filter: var(--liquid-backdrop-filter);
 }
 
-/* The displacement filter supplies the actual specular/refraction body.
-   Keep the DOM content above the filtered backdrop. */
+/* Kube's specular rim is part of the glass surface, not a mouse-follow glow. */
+.liquid-glass-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+  padding: 1px;
+  background:
+    linear-gradient(135deg,
+      rgba(255,255,255,0.72),
+      rgba(255,255,255,0.10) 28%,
+      rgba(255,255,255,0.015) 58%,
+      rgba(255,255,255,0.42));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 1;
+}
+
 .liquid-glass-surface > * {
   position: relative;
+  z-index: 4;
 }
 
+/* The actual displacement filter is a Chromium feature, as documented by
+   Kube. Browsers which reject SVG backdrop-filter simply retain the transparent
+   surface instead of receiving a fake white blur. */
+@supports (backdrop-filter: url(#liquidGlassFilter_test)) {
+  .liquid-glass-surface.is-liquid-glass-ready {
+    backdrop-filter: var(--liquid-backdrop-filter);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liquid-glass-surface::before {
+    transition: none !important;
+  }
+}

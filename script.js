@@ -7762,7 +7762,7 @@ function saveImageAs(img) {
 
   const LIQUID_GLASS_SELECTOR = [
     '.glass-nav', '.nav-capsule', '.glass-card', '.home-status', '.home-interest-btn',
-    '.global-avatar', '.theme-rail-inner', '.blog-white-box', '.blog-sort-menu',
+    '.theme-rail-inner', '.blog-white-box', '.blog-sort-menu',
     '.blog-search-box', '.blog-sort-btn', '.blog-sort-dir-btn', '.blog-page-btn',
     '.calendar-btn', '.article-reader-sheet', '.article-reader-close',
     '.boot-api-island-pill', '.boot-loader-card', '.work-circle-btn', '.social-circle-btn',
@@ -8048,12 +8048,14 @@ function saveImageAs(img) {
   }
 
   function setupLiquidGlass() {
+    // Filter geometry depends on the element's own size, not its viewport position.
+    // Rebuilding displacement maps during page scrolling makes moving elements
+    // such as the floating avatar stutter and is not part of Kube's model.
     refreshAllLiquidGlass(true);
     const observer = new MutationObserver(() => scheduleLiquidGlassRefresh(false));
     observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('resize', () => scheduleLiquidGlassRefresh(true));
     window.addEventListener('orientationchange', () => scheduleLiquidGlassRefresh(true));
-    window.addEventListener('scroll', () => scheduleLiquidGlassRefresh(false), { passive: true });
   }
 
   // ---------- 初始化 ----------
