@@ -8,9 +8,6 @@
     'https://free.picui.cn/free/2026/08/11/6a7a7bd8363ce.jpg',
     'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
     'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
-    'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
-    'https://pic.imgdd.cc/i/0345tgWcwr2l5scSYRh7Ch.jpg',
-    'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png'
   ];
 
   // ============================================================
@@ -18,7 +15,7 @@
   // ============================================================
   const SPRITE_CONFIG = {
     imageUrl: 'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
-    fallbackUrl: 'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png',
+    fallbackUrl: '',
     frameWidth: 256,
     frameHeight: 256,
     totalFrames: 30,
@@ -6549,9 +6546,6 @@
 
     updateCapsuleFromScroll();
 
-    if (velocity > 40) {
-      bumpCapsuleScaleFromVelocity(velocity);
-    }
   }
 
   function formatBytesMB(bytes) {
@@ -7955,40 +7949,34 @@ function saveImageAs(img) {
     // Blur Level is explicitly 0: no uniform blur is inserted.
     let current = 'refracted';
 
-    // Progressive blur is confined to the bezel/rim. Ten layers are used
-    // literally because the requested Progressive Blur Strength is 10.
+    // Progressive blur is an edge-only treatment. Do one controlled blur
+    // and clip it to the rim mask; repeated full-frame blending creates the
+    // white veil that is not present in the reference effect.
     const specImage = svgEl('feImage', {
       href: spec, x: 0, y: 0, width, height, result: 'specularMap'
     });
     filter.appendChild(specImage);
 
-    for (let i = 1; i <= LIQUID_GLASS.progressiveBlurStrength; i++) {
-      const blur = svgEl('feGaussianBlur', {
-        in: current,
-        stdDeviation: (i / LIQUID_GLASS.progressiveBlurStrength) * LIQUID_GLASS.progressiveBlurStrength * 0.35,
-        result: `progressiveBlur_${i}`
-      });
-      filter.appendChild(blur);
-      const masked = svgEl('feComposite', {
-        in: `progressiveBlur_${i}`,
-        in2: 'specularMap',
-        operator: 'in',
-        result: `progressiveEdge_${i}`
-      });
-      filter.appendChild(masked);
-      const blend = svgEl('feBlend', {
-        in: current,
-        in2: `progressiveEdge_${i}`,
-        mode: 'normal',
-        result: `progressiveComposite_${i}`
-      });
-      filter.appendChild(blend);
-      current = `progressiveComposite_${i}`;
-    }
+    const progressiveBlur = svgEl('feGaussianBlur', {
+      in: current,
+      stdDeviation: Math.max(0.01, LIQUID_GLASS.progressiveBlurStrength * 0.22),
+      result: 'progressiveBlur'
+    });
+    filter.appendChild(progressiveBlur);
+    const progressiveEdge = svgEl('feComposite', {
+      in: 'progressiveBlur',
+      in2: 'specularMap',
+      operator: 'in',
+      result: 'progressiveEdge'
+    });
+    filter.appendChild(progressiveEdge);
+    const progressiveComposite = svgEl('feBlend', {
+      in: current, in2: 'progressiveEdge', mode: 'normal', result: 'progressiveComposite'
+    });
+    filter.appendChild(progressiveComposite);
+    current = 'progressiveComposite';
 
-    // Specular saturation is represented in the highlight branch. The map is
-    // white, so the saturation matrix intentionally preserves luminance while
-    // leaving the requested parameter explicit in the filter graph.
+    // Specular saturation is represented in the highlight branch.
     const specSat = svgEl('feColorMatrix', {
       in: 'specularMap', type: 'saturate', values: LIQUID_GLASS.specularSaturation,
       result: 'specularSaturated'
@@ -8048,9 +8036,6 @@ function saveImageAs(img) {
   }
 
   function setupLiquidGlass() {
-    // Filter geometry depends on the element's own size, not its viewport position.
-    // Rebuilding displacement maps during page scrolling makes moving elements
-    // such as the floating avatar stutter and is not part of Kube's model.
     refreshAllLiquidGlass(true);
     const observer = new MutationObserver(() => scheduleLiquidGlassRefresh(false));
     observer.observe(document.body, { childList: true, subtree: true });
