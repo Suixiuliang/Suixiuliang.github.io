@@ -6714,7 +6714,7 @@
     const q = String(filter || '').trim().toLowerCase();
     const rows = amState.tracks.filter((t) => {
       if (!q) return true;
-      return [t.title, t.artist, t.album].some((x) => String(x || '').toLowerCase().includes(q));
+      return [t.title, t.artist, t.album, t.year].some((x) => String(x || '').toLowerCase().includes(q));
     });
     if (!rows.length) {
       list.innerHTML = '<div class="am-track-empty">没有匹配的曲目</div>';
@@ -6729,7 +6729,9 @@
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
           '<span class="am-col-idx" role="cell">' + (active && amState.playing ? '<i class="fas fa-volume-up"></i>' : (i + 1)) + '</span>' +
-          '<span class="am-col-title" role="cell">' + cover + '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title) + '</span></span></span>' +
+          '<span class="am-col-title" role="cell">' + cover +
+            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span>' +
+          '</span></span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
           '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '—') + '</span>' +
           '<span class="am-col-year" role="cell">' + escapeHtml(t.year || '—') + '</span>' +
@@ -6765,9 +6767,9 @@
       return;
     }
     bar.hidden = false;
-    if (title) title.textContent = track.title;
+    if (title) title.textContent = track.title || '未命名歌曲';
     if (artist) artist.textContent = track.artist || '—';
-    if (meta) meta.textContent = [track.album, track.year].filter(Boolean).join(' · ') || '—';
+    if (meta) meta.textContent = [track.album || '—', track.year || '—'].join(' · ');
     amSetCover(document.getElementById('amNpArt'), track.cover);
     if (toggle) {
       const icon = toggle.querySelector('i');
@@ -6794,7 +6796,7 @@
     if (!body) return;
     amState.lyricsCues = [];
     if (!track || !track.lyrics) {
-      body.innerHTML = '<p class="am-lyrics-empty">这首歌没有歌词链接</p>';
+      body.innerHTML = '<p class="am-lyrics-empty">这首歌没有内嵌歌词</p>';
       return;
     }
     if (!/^(https?:\/\/|\/)/i.test(track.lyrics)) {

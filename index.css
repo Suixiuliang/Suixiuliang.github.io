@@ -5592,3 +5592,106 @@ html.is-phone .audio-mini-dock {
   .am-np-seek { order: 3; flex-basis: 100%; max-width: none; min-width: 0; }
   .am-np-volume { display: none; }
 }
+
+
+/* ============================================================
+   v12 播放器布局修正：统一留白 / 放大播放器 / 控制条左对齐
+   ============================================================ */
+.panel-playlist { padding: 1.15rem; box-sizing: border-box; }
+.playlist-content { height: 100%; min-height: 0; }
+.am-player {
+  width: 100%; height: 100%; min-height: 0;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  gap: 0;
+}
+.am-player.has-lyrics {
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr) minmax(250px, 320px);
+}
+.am-sidebar { padding: 1.2rem 1rem; }
+.am-main-header { padding: 1rem 1.35rem .6rem; }
+.am-hero { padding: .65rem 1.35rem 1.5rem; }
+.am-track-table { padding: 0 1rem 1.4rem; }
+.am-track-head, .am-track-row {
+  grid-template-columns: 34px minmax(220px, 2.6fr) minmax(130px, 1.15fr) minmax(160px, 1.45fr) 72px 72px;
+  column-gap: .8rem;
+}
+.am-track-row { min-height: 52px; }
+.am-row-cover { width: 42px; height: 42px; border-radius: 7px; }
+.am-col-title { gap: .75rem; }
+.am-col-title .t { font-size: .94rem; }
+.am-col-title .s { display: none; }
+.am-col-artist, .am-col-album, .am-col-year, .am-col-time { font-size: .84rem; }
+
+/* 底部播放条：严格按照「封面 -> 控制 -> 信息 -> 进度 -> 音量」排列 */
+.am-now-playing {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  width: 100%; min-height: 58px;
+  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: 48px auto minmax(190px, 300px) minmax(260px, 1fr) auto;
+  align-items: center;
+  column-gap: .75rem;
+  padding: .55rem 1rem;
+  margin: 0;
+  justify-content: initial;
+}
+.am-np-art { width: 48px; height: 48px; flex: none; grid-column: 1; grid-row: 1; }
+.am-np-controls {
+  grid-column: 2; grid-row: 1;
+  display: flex; align-items: center; justify-content: flex-start;
+  gap: .12rem; width: auto; flex: none; order: initial;
+}
+/* 圆缩小、里面的文字符号/图标放大 */
+.am-np-controls .am-ctrl {
+  width: 24px; height: 24px; min-width: 24px;
+  padding: 0; border-radius: 50%;
+  font-size: 1.28rem;
+  line-height: 1;
+}
+.am-np-controls .am-ctrl-main {
+  width: 30px; height: 30px; min-width: 30px;
+  font-size: 1.42rem;
+}
+.am-np-info {
+  grid-column: 3; grid-row: 1;
+  min-width: 0; max-width: none; width: auto;
+  order: initial;
+}
+.am-np-title { font-size: .92rem; }
+.am-np-artist { font-size: .76rem; }
+.am-np-meta { font-size: .68rem; }
+.am-np-seek {
+  grid-column: 4; grid-row: 1;
+  min-width: 160px; max-width: none; width: auto;
+  flex: none; order: initial;
+}
+.am-np-volume {
+  grid-column: 5; grid-row: 1;
+  order: initial; flex: none;
+}
+
+@media (max-width: 900px) {
+  .panel-playlist { padding: .7rem; }
+  .am-player, .am-player.has-lyrics { grid-template-columns: 1fr; }
+  .am-track-head, .am-track-row { grid-template-columns: 32px minmax(0,1fr) 58px; }
+  .am-track-head .am-col-artist, .am-track-row .am-col-artist,
+  .am-track-head .am-col-album, .am-track-row .am-col-album,
+  .am-track-head .am-col-year, .am-track-row .am-col-year { display:none; }
+  .am-now-playing {
+    grid-template-columns: 42px auto minmax(0,1fr);
+    grid-template-rows: 48px 18px;
+    column-gap: .55rem; row-gap: .1rem;
+    padding: .45rem .6rem;
+  }
+  .am-np-art { width:42px; height:42px; grid-column:1; grid-row:1; }
+  .am-np-controls { grid-column:2; grid-row:1; }
+  .am-np-info { grid-column:3; grid-row:1; }
+  .am-np-seek { grid-column:1 / -1; grid-row:2; min-width:0; }
+  .am-np-volume { display:none; }
+}
+
+/* v12: make the playlist card substantially larger while keeping equal outer whitespace */
+.panel-playlist .panel-content { max-width: 1500px; width: 100%; height: calc(100vh - 2.3rem); min-height: 0; }
+@media (max-width: 900px) { .panel-playlist .panel-content { height: calc(100vh - 1.4rem); } }
