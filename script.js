@@ -5,7 +5,7 @@
   //  图床门禁：关键图片资源（主图床 + 备用图床）
   // ============================================================
   const CRITICAL_IMAGE_URLS = [
-    'https://free.picui.cn/free/2026/08/11/6a7a7bd8363ce.jpg',
+    'https://pan.huang1111.cn/f/mLN1S2/Background.png',
     'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
     'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
     'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
