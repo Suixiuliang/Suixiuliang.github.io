@@ -14,12 +14,20 @@
   ];
 
   const BOOT_BACKGROUND_URL = CRITICAL_IMAGE_URLS[0];
-  const BOOT_CACHE_NAME = 'maxsui-boot-assets-v2';
+  const BOOT_CACHE_NAME = 'maxsui-boot-assets-v1';
   let bootBackgroundObjectUrl = '';
 
-  function applyBootBackgroundResponse(response) {
-    if (!response) return false;
-    return response.blob().then((blob) => {
+  async function loadBootBackgroundCached() {
+    try {
+      if (!('caches' in window)) throw new Error('Cache Storage unsupported');
+      const cache = await caches.open(BOOT_CACHE_NAME);
+      let response = await cache.match(BOOT_BACKGROUND_URL);
+      if (!response) {
+        response = await fetch(BOOT_BACKGROUND_URL, { mode: 'cors', credentials: 'omit' });
+        if (!response.ok) throw new Error('background fetch failed');
+        await cache.put(BOOT_BACKGROUND_URL, response.clone());
+      }
+      const blob = await response.blob();
       if (bootBackgroundObjectUrl) { try { URL.revokeObjectURL(bootBackgroundObjectUrl); } catch (_) {} }
       bootBackgroundObjectUrl = URL.createObjectURL(blob);
       document.body.style.backgroundImage = 'url("' + bootBackgroundObjectUrl + '")';
@@ -27,41 +35,10 @@
       document.body.style.backgroundPosition = 'center center';
       document.body.style.backgroundAttachment = 'fixed';
       document.body.style.backgroundSize = 'cover';
-      return { ok: true, size: blob.size || 0 };
-    });
-  }
-
-  // 门禁阶段唯一负责下载/写入；进入网站后只从 Cache Storage 读取，不再访问背景图床。
-  async function cacheBootBackgroundDuringGate() {
-    if (!('caches' in window)) return { ok: false, size: 0, cacheSupported: false };
-    try {
-      const cache = await caches.open(BOOT_CACHE_NAME);
-      let response = await cache.match(BOOT_BACKGROUND_URL);
-      if (!response) {
-        response = await fetch(BOOT_BACKGROUND_URL, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
-        if (!response.ok) throw new Error('background fetch failed: ' + response.status);
-        await cache.put(BOOT_BACKGROUND_URL, response.clone());
-      }
-      const blob = await response.clone().blob();
-      return { ok: true, size: blob.size || 0, cacheSupported: true };
-    } catch (e) {
-      console.warn('[boot] background cache failed', e);
-      return { ok: false, size: 0, cacheSupported: true };
-    }
-  }
-
-  // 门禁结束后重新从本地 Cache Storage 取出背景，绝不重新请求在线图床。
-  async function applyBootBackgroundFromCache() {
-    if (!('caches' in window)) return false;
-    try {
-      const cache = await caches.open(BOOT_CACHE_NAME);
-      const response = await cache.match(BOOT_BACKGROUND_URL);
-      if (!response) return false;
-      await applyBootBackgroundResponse(response);
-      return true;
-    } catch (e) {
-      console.warn('[boot] background cache read failed', e);
-      return false;
+      return { ok: true, size: blob.size || 0, cached: !!response };
+    } catch (_) {
+      // 不支持 Cache Storage 时退回一次性网络加载，不阻断门禁。
+      return loadImageWithProgress(BOOT_BACKGROUND_URL);
     }
   }
 
@@ -6941,52 +6918,18 @@
     amPlayAt(next);
   }
 
-  let amPlayerPlaceholder = null;
-  let amPlayerOriginalParent = null;
-  let amPlayerOriginalNextSibling = null;
-
   function amSetPlayerMode(on) {
-    const player = document.getElementById('amPlayer');
-    if (!player) return;
-    const enable = !!on;
-    if (enable === amState.playerMode) return;
-
-    if (enable) {
-      amPlayerOriginalParent = player.parentNode;
-      amPlayerOriginalNextSibling = player.nextSibling;
-      amPlayerPlaceholder = document.createComment('am-player-placeholder');
-      if (amPlayerOriginalParent) amPlayerOriginalParent.insertBefore(amPlayerPlaceholder, player);
-      // Portal to body: fixed positioning can never be trapped by a transformed/snap-scrolling ancestor.
-      document.body.appendChild(player);
-      amState.playerMode = true;
-      player.classList.add('is-player-mode');
-      document.body.classList.add('am-player-mode-open');
-      amSetLyricsOpen(true);
-      amEnsureVisualizer();
-      if (amState.index < 0 && amState.tracks.length) amPlayAt(0);
+    const player=document.getElementById('amPlayer'); if(!player) return;
+    amState.playerMode=!!on; player.classList.toggle('is-player-mode',amState.playerMode); document.body.classList.toggle('am-player-mode-open',amState.playerMode);
+    if(amState.playerMode){
+      amSetLyricsOpen(true); amEnsureVisualizer();
+      try { if(document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); } catch(_) {}
+      if(amState.index<0 && amState.tracks.length) amPlayAt(0);
     } else {
-      amState.playerMode = false;
-      player.classList.remove('is-player-mode');
-      document.body.classList.remove('am-player-mode-open');
       amSetLyricsOpen(false);
-      if (amPlayerPlaceholder && amPlayerPlaceholder.parentNode) {
-        amPlayerPlaceholder.parentNode.insertBefore(player, amPlayerPlaceholder);
-        amPlayerPlaceholder.remove();
-      } else if (amPlayerOriginalParent) {
-        amPlayerOriginalParent.insertBefore(player, amPlayerOriginalNextSibling || null);
-      }
-      amPlayerPlaceholder = null;
-      amPlayerOriginalParent = null;
-      amPlayerOriginalNextSibling = null;
+      try { if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); } catch(_) {}
     }
-
-    const btn = document.getElementById('amLyricsBtn');
-    if (btn) {
-      const span = btn.querySelector('span');
-      const icon = btn.querySelector('i');
-      if (span) span.textContent = amState.playerMode ? '退出播放器' : '进入播放器';
-      if (icon) icon.className = amState.playerMode ? 'fas fa-compress' : 'fas fa-expand';
-    }
+    const btn=document.getElementById('amLyricsBtn'); if(btn){ const span=btn.querySelector('span'); const icon=btn.querySelector('i'); if(span) span.textContent=amState.playerMode?'退出播放器':'进入播放器'; if(icon) icon.className=amState.playerMode?'fas fa-compress':'fas fa-expand'; }
   }
 
   function amEnsureVisualizer(){
@@ -7016,6 +6959,7 @@
     if (amState.bound) return;
     amState.bound = true;
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && amState.playerMode) amSetPlayerMode(false); });
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && amState.playerMode) { const player=document.getElementById('amPlayer'); if(player) player.classList.remove('is-player-mode'); document.body.classList.remove('am-player-mode-open'); amState.playerMode=false; const btn=document.getElementById('amLyricsBtn'); if(btn){const span=btn.querySelector('span'),icon=btn.querySelector('i'); if(span)span.textContent='进入播放器'; if(icon)icon.className='fas fa-expand';} amSetLyricsOpen(false); } });
     const search = document.getElementById('amSearchInput');
     if (search) search.addEventListener('input', () => renderAmTracks(search.value));
     const playAll = document.getElementById('amPlayAllBtn');
@@ -7223,7 +7167,7 @@
     if (scrollContainer) scrollContainer.style.overflow = 'hidden';
 
     const urls = CRITICAL_IMAGE_URLS.slice(1);
-    const backgroundPromise = cacheBootBackgroundDuringGate();
+    const backgroundPromise = loadBootBackgroundCached();
     const healthPromise = resolveApiBase();
     // 字体与图片并行启动；进入站点前两者都要完成
     const fontPromise = waitForFontAwesome(15000);
@@ -7265,8 +7209,6 @@
     }
 
     const apiOk = await healthPromise;
-    // 所有门禁资源完成后，背景只从本地 Cache Storage 注入页面。
-    await applyBootBackgroundFromCache();
     await new Promise(r => setTimeout(r, 160));
 
     if (loader) {
