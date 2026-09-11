@@ -16,21 +16,19 @@
   const HUANG_BACKGROUND_PROXY = huangProxyUrl('image', HUANG_BACKGROUND_ORIGIN);
 
   const CRITICAL_IMAGE_URLS = [
-    // 主背景：Worker 反代 huang1111（有 CORS）
+    // 站点背景：仅 pan.huang1111（经 Worker 反代，解决 CORS）
     HUANG_BACKGROUND_PROXY,
-    // 其它关键资源
+    // 其它关键资源（精灵图等，不是背景）
     'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
     'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
     'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
     'https://pic.imgdd.cc/i/0345tgWcwr2l5scSYRh7Ch.jpg',
     'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png'
   ];
-  // 背景专用候选：代理优先 → 直连 → 其它图床
+  // 背景只允许这一张 pan 图：优先 Worker 反代，失败再试同源直连（仍是同一文件）
   const BACKGROUND_CANDIDATE_URLS = [
     HUANG_BACKGROUND_PROXY,
-    HUANG_BACKGROUND_ORIGIN,
-    'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
-    'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg'
+    HUANG_BACKGROUND_ORIGIN
   ];
 
   // ============================================================
