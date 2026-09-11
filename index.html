@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=20260911a">
 </head>
 <body>
 
@@ -357,15 +357,15 @@
         </aside>
         <div class="am-now-playing" id="amNowPlaying" hidden>
           <div class="am-np-art" id="amNpArt"><i class="fas fa-music"></i></div>
-          <div class="am-np-info">
-            <div class="am-np-title" id="amNpTitle">未在播放</div>
-            <div class="am-np-artist" id="amNpArtist">—</div>
-            <div class="am-np-meta" id="amNpMeta">—</div>
-          </div>
           <div class="am-np-controls">
             <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><i class="fas fa-step-backward"></i></button>
             <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><i class="fas fa-play"></i></button>
             <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><i class="fas fa-step-forward"></i></button>
+          </div>
+          <div class="am-np-info">
+            <div class="am-np-title" id="amNpTitle">未在播放</div>
+            <div class="am-np-artist" id="amNpArtist">—</div>
+            <div class="am-np-meta" id="amNpMeta">—</div>
           </div>
           <div class="am-np-seek">
             <span class="am-time" id="amTimeCur">0:00</span>
@@ -446,6 +446,6 @@
   <p>© 2025-2026 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
-<script src="/script.js"></script>
+<script src="/script.js?v=20260911a"></script>
 </body>
 </html>

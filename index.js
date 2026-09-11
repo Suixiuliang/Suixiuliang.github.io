@@ -7028,24 +7028,62 @@
     return (n / (1024 * 1024)).toFixed(2) + 'MB';
   }
 
+  // ============================================================
+  //  关键图片持久化缓存：首次下载后写入 Cache Storage，
+  //  之后的访问直接从缓存读取，不再发起网络请求
+  // ============================================================
+  const ASSET_CACHE_NAME = 'maxsui-boot-assets-v1';
+  const BOOT_BACKGROUND_URL = CRITICAL_IMAGE_URLS[0];
+  let assetCachePromise = null;
+  function getAssetCache() {
+    if (!('caches' in window)) return Promise.resolve(null);
+    if (!assetCachePromise) {
+      assetCachePromise = caches.open(ASSET_CACHE_NAME).catch(() => null);
+    }
+    return assetCachePromise;
+  }
+  /** 优先读取本地持久缓存；未命中时才发起网络请求，并把结果写入缓存供下次直接使用 */
+  async function fetchBlobWithCache(url) {
+    const cache = await getAssetCache();
+    if (cache) {
+      try {
+        const hit = await cache.match(url);
+        if (hit) {
+          const blob = await hit.blob();
+          return { blob, size: blob.size || 0, fromCache: true };
+        }
+      } catch (_) {}
+    }
+    const res = await fetch(url, { mode: 'cors', cache: 'force-cache', credentials: 'omit' });
+    if (!res.ok) throw new Error('fetch failed: ' + url);
+    if (cache) {
+      try { await cache.put(url, res.clone()); } catch (_) {}
+    }
+    const blob = await res.blob();
+    return { blob, size: blob.size || 0, fromCache: false };
+  }
+  /** 将已缓存的背景图应用到页面（对象 URL 常驻，不提前 revoke） */
+  function applyCachedBoolBackground(objUrl) {
+    try { document.body.style.backgroundImage = 'url("' + objUrl + '")'; } catch (_) {}
+  }
+
   function loadImageWithProgress(url) {
     return new Promise(async (resolve) => {
       let size = 0;
       try {
-        const res = await fetch(url, { mode: 'cors', cache: 'force-cache', credentials: 'omit' });
-        if (res.ok) {
-          const cl = Number(res.headers.get('content-length') || 0);
-          const buf = await res.arrayBuffer();
-          size = buf.byteLength || cl || 0;
-          // 触发解码缓存
-          const blob = new Blob([buf]);
-          const obj = URL.createObjectURL(blob);
-          const img = new Image();
-          img.onload = () => { try { URL.revokeObjectURL(obj); } catch (_) {} resolve({ ok: true, url, size }); };
-          img.onerror = () => { try { URL.revokeObjectURL(obj); } catch (_) {} resolve({ ok: true, url, size }); };
-          img.src = obj;
-          return;
-        }
+        const { blob, size: sz } = await fetchBlobWithCache(url);
+        size = sz;
+        const obj = URL.createObjectURL(blob);
+        const img = new Image();
+        const isBg = url === BOOT_BACKGROUND_URL;
+        img.onload = () => {
+          if (isBg) applyCachedBoolBackground(obj);
+          else { try { URL.revokeObjectURL(obj); } catch (_) {} }
+          resolve({ ok: true, url, size });
+        };
+        img.onerror = () => { try { URL.revokeObjectURL(obj); } catch (_) {} resolve({ ok: true, url, size }); };
+        img.src = obj;
+        return;
       } catch (_) {}
       const img = new Image();
       img.crossOrigin = 'anonymous';
