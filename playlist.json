@@ -1,0 +1,21 @@
+{
+  "日常循环": {
+    "夜空中最亮的星": {
+      "封面": "https://example.com/covers/star.jpg",
+      "歌词": "https://example.com/lyrics/star.lrc",
+      "歌曲": "https://example.com/audio/star.mp3"
+    },
+    "起风了": {
+      "封面": "https://example.com/covers/wind.jpg",
+      "歌词": "https://example.com/lyrics/wind.lrc",
+      "歌曲": "https://example.com/audio/wind.mp3"
+    }
+  },
+  "纯音乐": {
+    "River Flows in You": {
+      "封面": "https://example.com/covers/river.jpg",
+      "歌词": "",
+      "歌曲": "https://example.com/audio/river.mp3"
+    }
+  }
+}

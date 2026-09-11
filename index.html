@@ -63,6 +63,7 @@
     <a href="#home" class="nav-btn active" data-section="home" draggable="false"><i class="fas fa-home"></i><span>主页</span></a>
     <a href="#blog" class="nav-btn" data-section="blog" draggable="false"><i class="fas fa-feather-alt"></i><span>博客</span></a>
     <a href="#works" class="nav-btn" data-section="works" draggable="false"><i class="fas fa-laptop-code"></i><span>我的作品</span></a>
+    <a href="#playlist" class="nav-btn" data-section="playlist" draggable="false"><i class="fas fa-music"></i><span>我的歌单</span></a>
     <a href="#contact" class="nav-btn" data-section="contact" draggable="false"><i class="fas fa-envelope"></i><span>联系我</span></a>
   </div>
   <!-- 博客模式下展开的头部工具栏：列表=搜索+日历；阅读=标题+元信息 -->
@@ -284,7 +285,103 @@
     </div>
   </section>
 
-  <!-- ===== 联系我 (第4页) ===== -->
+  <!-- ===== 我的歌单 (第4页) — Apple Music 风格 ===== -->
+  <section id="playlist" class="panel panel-playlist">
+    <div class="panel-content playlist-content">
+      <div class="am-player" id="amPlayer">
+        <div class="am-sidebar">
+          <div class="am-sidebar-brand">
+            <i class="fas fa-music"></i>
+            <span>我的歌单</span>
+          </div>
+          <nav class="am-sidebar-nav" aria-label="歌单分类">
+            <button type="button" class="am-nav-item is-active" data-am-view="library">
+              <i class="fas fa-layer-group"></i><span>资料库</span>
+            </button>
+          </nav>
+          <div class="am-playlist-list" id="amPlaylistList">
+            <div class="am-playlist-list-label">播放列表</div>
+            <div class="am-playlist-loading">加载歌单…</div>
+          </div>
+        </div>
+        <div class="am-main">
+          <header class="am-main-header">
+            <div class="am-search">
+              <i class="fas fa-search"></i>
+              <input type="search" id="amSearchInput" placeholder="搜索歌曲…" autocomplete="off">
+            </div>
+          </header>
+          <div class="am-hero" id="amHero">
+            <div class="am-hero-art" id="amHeroArt" aria-hidden="true">
+              <i class="fas fa-music"></i>
+            </div>
+            <div class="am-hero-meta">
+              <p class="am-hero-kicker">播放列表</p>
+              <h1 class="am-hero-title" id="amHeroTitle">我的歌单</h1>
+              <p class="am-hero-sub" id="amHeroSub">从仓库根目录 playlist.json 加载</p>
+              <div class="am-hero-actions">
+                <button type="button" class="am-btn am-btn-primary" id="amPlayAllBtn">
+                  <i class="fas fa-play"></i><span>播放</span>
+                </button>
+                <button type="button" class="am-btn am-btn-secondary" id="amShuffleBtn">
+                  <i class="fas fa-random"></i><span>随机播放</span>
+                </button>
+                <button type="button" class="am-btn am-btn-secondary" id="amLyricsBtn">
+                  <i class="fas fa-align-center"></i><span>歌词</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="am-track-table" role="table" aria-label="曲目列表">
+            <div class="am-track-head" role="row">
+              <span class="am-col-idx" role="columnheader">#</span>
+              <span class="am-col-title" role="columnheader">标题</span>
+              <span class="am-col-album" role="columnheader">歌单</span>
+              <span class="am-col-time" role="columnheader"><i class="far fa-clock"></i></span>
+            </div>
+            <div class="am-track-body" id="amTrackList" role="rowgroup">
+              <div class="am-track-empty">加载曲目中…</div>
+            </div>
+          </div>
+        </div>
+        <aside class="am-lyrics-pane" id="amLyricsPane" hidden>
+          <div class="am-lyrics-head">
+            <span>歌词</span>
+            <button type="button" class="am-lyrics-close" id="amLyricsClose" aria-label="关闭歌词"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="am-lyrics-body" id="amLyricsBody">
+            <p class="am-lyrics-empty">选择一首有歌词的曲目</p>
+          </div>
+        </aside>
+        <div class="am-now-playing" id="amNowPlaying" hidden>
+          <div class="am-np-art" id="amNpArt"><i class="fas fa-music"></i></div>
+          <div class="am-np-info">
+            <div class="am-np-title" id="amNpTitle">未在播放</div>
+            <div class="am-np-artist" id="amNpArtist">—</div>
+          </div>
+          <div class="am-np-controls">
+            <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><i class="fas fa-step-backward"></i></button>
+            <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><i class="fas fa-play"></i></button>
+            <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><i class="fas fa-step-forward"></i></button>
+          </div>
+          <div class="am-np-seek">
+            <span class="am-time" id="amTimeCur">0:00</span>
+            <div class="am-seek-track" id="amSeekTrack">
+              <div class="am-seek-fill" id="amSeekFill"></div>
+            </div>
+            <span class="am-time" id="amTimeDur">0:00</span>
+          </div>
+          <div class="am-np-volume">
+            <i class="fas fa-volume-up"></i>
+            <input type="range" id="amVolume" min="0" max="1" step="0.01" value="0.85" aria-label="音量">
+          </div>
+        </div>
+        <audio id="amAudio" preload="metadata" crossorigin="anonymous"></audio>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 联系我 (第5页) ===== -->
   <section id="contact" class="panel">
     <div class="panel-content">
       <div class="section-title"><i class="fas fa-address-card"></i><span>联系我</span></div>
