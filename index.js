@@ -7083,7 +7083,13 @@
   }
   /** 将已缓存的背景图应用到页面（对象 URL 常驻，不提前 revoke） */
   function applyCachedBoolBackground(objUrl) {
-    try { document.body.style.backgroundImage = 'url("' + objUrl + '")'; } catch (_) {}
+    try {
+      document.body.style.backgroundImage = 'url("' + objUrl + '")';
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundRepeat = 'no-repeat';
+      document.body.style.backgroundColor = '#1c1c1e';
+    } catch (_) {}
   }
 
     function loadImageWithProgress(url) {
