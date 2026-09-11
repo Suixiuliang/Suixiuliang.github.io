@@ -5291,9 +5291,26 @@ html.is-phone .audio-mini-dock {
    我的歌单 — Apple Music 风格播放器（唯一权威布局定义）
    ============================================================ */
 .panel-playlist {
+  /* 占满水平滚动容器可用高度，底栏贴底而不是悬在内容中间 */
   padding: max(4.8rem, calc(env(safe-area-inset-top, 0px) + 4rem)) 1rem 1rem;
   box-sizing: border-box;
   overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+.panel-playlist > .panel-content,
+.panel-playlist .playlist-content {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 .playlist-content {
   width: 100%;
@@ -5307,8 +5324,10 @@ html.is-phone .audio-mini-dock {
   position: relative;
   flex: 1 1 auto;
   width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  max-height: 100%;
   display: grid;
   grid-template-columns: minmax(185px, 220px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
@@ -5400,6 +5419,10 @@ html.is-phone .audio-mini-dock {
   grid-template-columns:48px auto minmax(190px,300px) minmax(260px,1fr) auto;
   grid-template-rows:64px; gap:.8rem; align-items:center;
   padding:.55rem 1rem; background:rgba(0,0,0,.42); border-top:1px solid rgba(255,255,255,.1); z-index:8;
+  align-self: end;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 .am-now-playing[hidden] { display:none !important; }
 .am-np-art { width:48px; height:48px; border-radius:8px; background:rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; overflow:hidden; }
@@ -5425,7 +5448,33 @@ html.is-phone .audio-mini-dock {
 .am-np-volume input[type=range] { width:88px; accent-color:#fa2d48; }
 
 /* 全屏播放器模式：左边封面/歌曲信息，右边歌词，下边统一控制栏 */
-.am-player.is-player-mode { position:fixed; inset:0; z-index:10000; width:100vw; height:100vh; height:100dvh; max-width:none; max-height:none; border-radius:0; grid-template-columns:minmax(280px,42vw) minmax(0,1fr); grid-template-rows:minmax(0,1fr) 84px; background:rgba(12,12,15,.58); }
+.am-player.is-player-mode {
+  /* 页内全屏：铺满浏览器内容区，不触发系统 Fullscreen（任务栏仍可见） */
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10000;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0;
+  grid-template-columns: minmax(280px, 42vw) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 84px;
+  background: rgba(12, 12, 15, 0.72);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+}
+.am-player:not(.is-player-mode) {
+  /* 退出全屏后强制回到相对定位网格，防止残留 fixed 把布局压成一坨 */
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  max-height: 100%;
+}
+
 .am-player.is-player-mode .am-sidebar,.am-player.is-player-mode .am-main-header,.am-player.is-player-mode .am-track-table { display:none; }
 .am-player.is-player-mode .am-main { grid-column:1; grid-row:1; overflow:hidden; }
 .am-player.is-player-mode.has-lyrics .am-main { grid-column:1; }

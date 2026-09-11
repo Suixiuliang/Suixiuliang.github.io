@@ -5,12 +5,19 @@
   //  图床门禁：关键图片资源（主图床 + 备用图床）
   // ============================================================
   const CRITICAL_IMAGE_URLS = [
+    // 主背景（可用）；旧 pan 图床已 404，仅作兼容回退
     'https://pan.huang1111.cn/f/mLN1S2/Background.png',
     'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
-    'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
     'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
+    'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
     'https://pic.imgdd.cc/i/0345tgWcwr2l5scSYRh7Ch.jpg',
     'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png'
+  ];
+  // 背景专用候选（按优先级尝试，避免主图床失效时整页黑底）
+  const BACKGROUND_CANDIDATE_URLS = [
+    'https://pan.huang1111.cn/f/mLN1S2/Background.png', 
+    'https://pic.imgdd.cc/i/0345tgsOexc7lBC0qPIz8n.png',
+    'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
   ];
 
   // ============================================================
@@ -6497,6 +6504,30 @@
   }
 
   // ---------- 我的歌单：GitHub 根目录 playlist.json ----------
+  const amState = {
+    playlists: [],
+    activePlaylistId: '',
+    tracks: [],
+    index: -1,
+    playing: false,
+    bound: false,
+    lyricsOpen: false,
+    playerMode: false,
+    lyricsCues: []
+  };
+
+  function amSetLyricsOpen(on) {
+    const player = document.getElementById('amPlayer');
+    const pane = document.getElementById('amLyricsPane');
+    amState.lyricsOpen = !!on;
+    if (pane) pane.hidden = !on;
+    if (player) {
+      if (on) player.classList.add('has-lyrics');
+      else if (!amState.playerMode) player.classList.remove('has-lyrics');
+    }
+  }
+
+
   const AM_CATALOG_URLS = [
     '/playlist.json',
     (typeof SITE_PUBLIC_ORIGIN !== 'undefined' ? SITE_PUBLIC_ORIGIN : '') + '/playlist.json',
@@ -6850,16 +6881,36 @@
     if (!player) return;
     amState.playerMode = !!on;
     if (on) {
-      // 全屏模式必须有歌词面板，否则右列空、布局塌
+      // 页内全屏（CSS fixed 铺满视口），不调用浏览器 Fullscreen API，避免盖住系统任务栏
       amState.lyricsOpen = true;
       const pane = document.getElementById('amLyricsPane');
       if (pane) pane.hidden = false;
       player.classList.add('has-lyrics', 'is-player-mode');
       document.body.classList.add('am-player-mode-open');
     } else {
+      // 退出时完整还原资料库网格，避免残留 fixed/has-lyrics 导致「缩成一坨」
       player.classList.remove('is-player-mode');
-      amSetLyricsOpen(false);
       document.body.classList.remove('am-player-mode-open');
+      amSetLyricsOpen(false);
+      player.classList.remove('has-lyrics');
+      player.style.removeProperty('width');
+      player.style.removeProperty('height');
+      player.style.removeProperty('top');
+      player.style.removeProperty('left');
+      player.style.removeProperty('right');
+      player.style.removeProperty('bottom');
+      const main = player.querySelector('.am-main');
+      if (main) {
+        main.style.removeProperty('display');
+        main.style.removeProperty('height');
+      }
+      const sidebar = player.querySelector('.am-sidebar');
+      if (sidebar) sidebar.style.removeProperty('display');
+      const trackTable = player.querySelector('.am-track-table');
+      if (trackTable) trackTable.style.removeProperty('display');
+      const header = player.querySelector('.am-main-header');
+      if (header) header.style.removeProperty('display');
+      void player.offsetHeight;
     }
   }
 
@@ -7051,8 +7102,8 @@
   //  关键图片持久化缓存：首次下载后写入 Cache Storage，
   //  之后的访问直接从缓存读取，不再发起网络请求
   // ============================================================
-  const ASSET_CACHE_NAME = 'maxsui-boot-assets-v1';
-  const BOOT_BACKGROUND_URL = CRITICAL_IMAGE_URLS[0];
+  const ASSET_CACHE_NAME = 'maxsui-boot-assets-v2';
+  const BOOT_BACKGROUND_URL = BACKGROUND_CANDIDATE_URLS[0];
   let assetCachePromise = null;
   function getAssetCache() {
     if (!('caches' in window)) return Promise.resolve(null);
@@ -7093,7 +7144,7 @@
   }
 
     function loadImageWithProgress(url) {
-    const isBg = url === BOOT_BACKGROUND_URL;
+    const isBg = (typeof BACKGROUND_CANDIDATE_URLS !== 'undefined' && BACKGROUND_CANDIDATE_URLS.includes(url)) || url === BOOT_BACKGROUND_URL;
     return new Promise(async (resolve) => {
       // ① 走 Cache Storage：命中直接用，未命中 fetch 并写入缓存
       try {
@@ -7191,7 +7242,22 @@
 
     if (scrollContainer) scrollContainer.style.overflow = 'hidden';
 
-    const urls = CRITICAL_IMAGE_URLS.slice();
+    // 先单独尝试背景候选，成功一个即停止，避免主图床 404 导致整页黑底
+    let bgOk = false;
+    for (const bgUrl of BACKGROUND_CANDIDATE_URLS) {
+      try {
+        const result = await loadImageWithProgress(bgUrl);
+        if (result && result.ok) { bgOk = true; break; }
+      } catch (_) {}
+    }
+    if (!bgOk) {
+      try {
+        document.body.style.backgroundImage = 'linear-gradient(160deg, #1c1c1e 0%, #2c2c2e 45%, #1a1a1c 100%)';
+        document.body.style.backgroundColor = '#1c1c1e';
+      } catch (_) {}
+    }
+
+    const urls = CRITICAL_IMAGE_URLS.slice().filter((u) => !(BACKGROUND_CANDIDATE_URLS || []).includes(u));
     const healthPromise = resolveApiBase();
     // 字体与图片并行启动；进入站点前两者都要完成
     const fontPromise = waitForFontAwesome(15000);
