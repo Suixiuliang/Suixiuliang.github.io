@@ -13,6 +13,35 @@
     'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png'
   ];
 
+  const BOOT_BACKGROUND_URL = CRITICAL_IMAGE_URLS[0];
+  const BOOT_CACHE_NAME = 'maxsui-boot-assets-v1';
+  let bootBackgroundObjectUrl = '';
+
+  async function loadBootBackgroundCached() {
+    try {
+      if (!('caches' in window)) throw new Error('Cache Storage unsupported');
+      const cache = await caches.open(BOOT_CACHE_NAME);
+      let response = await cache.match(BOOT_BACKGROUND_URL);
+      if (!response) {
+        response = await fetch(BOOT_BACKGROUND_URL, { mode: 'cors', credentials: 'omit' });
+        if (!response.ok) throw new Error('background fetch failed');
+        await cache.put(BOOT_BACKGROUND_URL, response.clone());
+      }
+      const blob = await response.blob();
+      if (bootBackgroundObjectUrl) { try { URL.revokeObjectURL(bootBackgroundObjectUrl); } catch (_) {} }
+      bootBackgroundObjectUrl = URL.createObjectURL(blob);
+      document.body.style.backgroundImage = 'url("' + bootBackgroundObjectUrl + '")';
+      document.body.style.backgroundRepeat = 'no-repeat';
+      document.body.style.backgroundPosition = 'center center';
+      document.body.style.backgroundAttachment = 'fixed';
+      document.body.style.backgroundSize = 'cover';
+      return { ok: true, size: blob.size || 0, cached: !!response };
+    } catch (_) {
+      // 不支持 Cache Storage 时退回一次性网络加载，不阻断门禁。
+      return loadImageWithProgress(BOOT_BACKGROUND_URL);
+    }
+  }
+
   // ============================================================
   //  精灵图点击特效配置（与独立演示版一致）
   // ============================================================
@@ -6504,35 +6533,18 @@
     'https://raw.githubusercontent.com/Suixiuliang/Suixiuliang.github.io/main/playlist.json'
   ].filter((u, i, arr) => u && arr.indexOf(u) === i);
 
-  const AM_COVER_KEYS = ['cover', '封面', 'pic', 'image', 'artwork', 'coverUrl', 'cover_url', 'coverImage'];
-  const AM_LYRIC_KEYS = ['lyrics', 'lyric', '歌词', 'lrc', 'lyricsUrl', 'lyrics_url', 'lyricUrl'];
   const AM_AUDIO_KEYS = ['audio', 'src', 'url', 'song', 'file', '歌曲', '音频', 'music', 'mp3', 'audioUrl', 'songUrl'];
   const AM_TITLE_KEYS = ['title', 'name', '歌名', '歌曲名', '曲名'];
-  const AM_ARTIST_KEYS = ['artist', 'singer', '艺人', '歌手', '作者'];
-  const AM_ALBUM_KEYS = ['album', '专辑', 'playlist'];
 
   let amState = {
-    playlists: [],
-    activePlaylistId: '',
-    tracks: [],
-    index: -1,
-    playing: false,
-    bound: false,
-    lyricsCues: [],
-    lyricsOpen: false
+    playlists: [], activePlaylistId: '', tracks: [], index: -1, playing: false,
+    bound: false, lyricsCues: [], lyricsOpen: false, playerMode: false,
+    audioContext: null, analyser: null, audioSource: null, visualizerRaf: 0
   };
 
   function amPick(obj, keys) {
     if (!obj || typeof obj !== 'object') return '';
-    for (const k of keys) {
-      if (obj[k] != null && String(obj[k]).trim()) return String(obj[k]).trim();
-    }
-    const map = {};
-    Object.keys(obj).forEach((k) => { map[String(k).toLowerCase()] = obj[k]; });
-    for (const k of keys) {
-      const v = map[String(k).toLowerCase()];
-      if (v != null && String(v).trim()) return String(v).trim();
-    }
+    for (const k of keys) if (obj[k] != null && String(obj[k]).trim()) return String(obj[k]).trim();
     return '';
   }
 
@@ -6540,41 +6552,100 @@
     if (!val) return false;
     if (typeof val === 'string' && /^(https?:\/\/|\/)/i.test(val)) return true;
     if (Array.isArray(val) && val.length >= 1) return true;
-    if (typeof val !== 'object') return false;
-    return !!(amPick(val, AM_AUDIO_KEYS) || amPick(val, AM_COVER_KEYS) || amPick(val, AM_LYRIC_KEYS));
+    return typeof val === 'object' && !!amPick(val, AM_AUDIO_KEYS);
   }
 
-  function amParseSong(key, val, playlistName, idx) {
-    const id = String(playlistName || 'pl') + '-' + idx + '-' + String(key || 't');
-    if (typeof val === 'string') {
-      return {
-        id, title: String(key || '未命名'), artist: playlistName || '', album: playlistName || '',
-        cover: '', lyrics: /lrc|lyric|歌词/i.test(val) ? val : '', src: val, duration: 0
-      };
+  function amDecodeText(bytes, encoding) {
+    try {
+      if (!bytes || !bytes.length) return '';
+      let b = bytes;
+      if (encoding === 1) return new TextDecoder('utf-16').decode(b).replace(/^\uFEFF/, '').replace(/\0+$/,'').trim();
+      if (encoding === 2) return new TextDecoder('utf-16be').decode(b).replace(/^\uFEFF/, '').replace(/\0+$/,'').trim();
+      if (encoding === 3) return new TextDecoder('utf-8').decode(b).replace(/\0+$/,'').trim();
+      return new TextDecoder('latin1').decode(b).replace(/\0+$/,'').trim();
+    } catch (_) { return ''; }
+  }
+
+  function amZeroIndex(bytes, start) { for (let i=start;i<bytes.length;i++) if (bytes[i]===0) return i; return bytes.length; }
+  function amSyncSafe(bytes, off) { return ((bytes[off]&0x7f)<<21)|((bytes[off+1]&0x7f)<<14)|((bytes[off+2]&0x7f)<<7)|(bytes[off+3]&0x7f); }
+  function amU32(bytes, off) { return bytes[off]*16777216 + bytes[off+1]*65536 + bytes[off+2]*256 + bytes[off+3]; }
+
+  function amParseId3(buffer) {
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 10 || bytes[0]!==0x49 || bytes[1]!==0x44 || bytes[2]!==0x33) return null;
+    const ver=bytes[3], flags=bytes[5], tagSize=amSyncSafe(bytes,6);
+    let pos=10, end=Math.min(bytes.length,10+tagSize);
+    if (flags & 0x40 && pos+4<=end) { const ex=ver===4?amSyncSafe(bytes,pos):amU32(bytes,pos); pos+=4+ex; }
+    const out={title:'',artist:'',album:'',year:'',lyrics:'',cover:''};
+    while (pos+10<=end) {
+      let id='', size=0, header=10;
+      if (ver===2) { id=String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2]); size=bytes[pos+3]*65536+bytes[pos+4]*256+bytes[pos+5]; header=6; }
+      else { id=String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2],bytes[pos+3]); size=ver===4?amSyncSafe(bytes,pos+4):amU32(bytes,pos+4); }
+      if (!id || /^\0+$/.test(id) || size<=0) { pos+=header; continue; }
+      const dataStart=pos+header, dataEnd=Math.min(end,dataStart+size); if (dataEnd<=dataStart) break;
+      const data=bytes.subarray(dataStart,dataEnd);
+      try {
+        if (['TIT2','TT2'].includes(id)) out.title=amDecodeText(data[0],data.subarray(1));
+        else if (['TPE1','TP1'].includes(id)) out.artist=amDecodeText(data[0],data.subarray(1));
+        else if (['TALB','TAL'].includes(id)) out.album=amDecodeText(data[0],data.subarray(1));
+        else if (['TDRC','TYER','TDOR','TYE','TOR'].includes(id)) out.year=amDecodeText(data[0],data.subarray(1)).match(/\d{4}/)?.[0] || '';
+        else if (id==='USLT' || id==='ULT') {
+          let off=0, enc=data[off++]; off=Math.min(data.length,off+3); const z=enc===1||enc===2? (amZeroIndex(data,off+1)):amZeroIndex(data,off); off=(z<data.length?z+((enc===1||enc===2)?2:1):data.length); const text=amDecodeText(data[0],data.subarray(off)); if(text) out.lyrics=text;
+        } else if (id==='APIC') {
+          const enc=data[0]; let off=1, mimeEnd=amZeroIndex(data,off); let mime=new TextDecoder('latin1').decode(data.subarray(off,mimeEnd)) || 'image/jpeg'; off=mimeEnd+1; if(off>=data.length) throw 0; off++; const descEnd=(enc===1||enc===2)?amZeroIndex(data,off):amZeroIndex(data,off); off=descEnd+((enc===1||enc===2)?2:1); if(off<data.length){ const blob=new Blob([data.subarray(off)],{type:mime}); out.cover=URL.createObjectURL(blob); }
+        }
+      } catch (_) {}
+      pos=dataEnd;
     }
-    if (Array.isArray(val)) {
-      const cover = String(val[0] || '');
-      const lyrics = String(val[1] || '');
-      const src = String(val[2] || val[0] || '');
-      return {
-        id, title: String(key || '未命名'), artist: playlistName || '', album: playlistName || '',
-        cover, lyrics, src, duration: 0
-      };
-    }
-    if (!val || typeof val !== 'object') return null;
-    const title = amPick(val, AM_TITLE_KEYS) || String(key || '未命名');
-    const artist = amPick(val, AM_ARTIST_KEYS) || playlistName || '';
-    const album = amPick(val, AM_ALBUM_KEYS) || playlistName || '';
-    return {
-      id,
-      title,
-      artist,
-      album,
-      cover: amPick(val, AM_COVER_KEYS),
-      lyrics: amPick(val, AM_LYRIC_KEYS),
-      src: amPick(val, AM_AUDIO_KEYS),
-      duration: Number(val.duration || val.time || val['时长'] || 0) || 0
-    };
+    return out;
+  }
+
+  async function amFetchMetadata(url) {
+    if (!url) return null;
+    try {
+      const res=await fetch(url,{mode:'cors',credentials:'omit',headers:{Range:'bytes=0-524287'},cache:'force-cache'});
+      if (!res.ok) return null;
+      return amParseId3(await res.arrayBuffer());
+    } catch (_) { return null; }
+  }
+
+  async function amLoadTrackMetadata(track) {
+    if (!track || !track.src || track._metaLoaded) return track;
+    track._metaLoaded=true;
+    const meta=await amFetchMetadata(track.src);
+    if (!meta) return track;
+    if (meta.title) track.title=meta.title;
+    if (meta.artist) track.artist=meta.artist;
+    if (meta.album) track.album=meta.album;
+    if (meta.year) track.year=meta.year;
+    if (meta.lyrics) track.lyrics=meta.lyrics;
+    if (meta.cover) { if(track.cover && String(track.cover).startsWith('blob:')) try{URL.revokeObjectURL(track.cover)}catch(_){}; track.cover=meta.cover; }
+    return track;
+  }
+
+  function amLoadTrackDuration(track) {
+    return new Promise(resolve=>{
+      if(!track || !track.src || track.duration){ resolve(track); return; }
+      const a=document.createElement('audio'); a.preload='metadata'; a.crossOrigin='anonymous';
+      const done=()=>{ if(Number.isFinite(a.duration)&&a.duration>0) track.duration=a.duration; a.removeAttribute('src'); try{a.load()}catch(_){}; resolve(track); };
+      a.addEventListener('loadedmetadata',done,{once:true}); a.addEventListener('error',()=>resolve(track),{once:true}); a.src=track.src;
+    });
+  }
+
+  async function amHydrateTracks(tracks) {
+    const queue=Array.isArray(tracks)?tracks:[];
+    for(let i=0;i<queue.length;i+=3){ await Promise.all(queue.slice(i,i+3).map(async t=>{ await amLoadTrackMetadata(t); await amLoadTrackDuration(t); })); }
+    renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    const first=queue.find(s=>s.cover); if(first) amSetCover(document.getElementById('amHeroArt'),first.cover);
+  }
+
+  function amParseSong(key,val,playlistName,idx) {
+    const id=String(playlistName||'pl')+'-'+idx+'-'+String(key||'t');
+    let src='', title=String(key||'未命名');
+    if(typeof val==='string') src=val;
+    else if(Array.isArray(val)) src=String(val[2]||val[0]||'');
+    else if(val&&typeof val==='object'){ src=amPick(val,AM_AUDIO_KEYS); title=String(amPick(val,AM_TITLE_KEYS)||title); }
+    return {id,title,artist:'',album:'',year:'',cover:'',lyrics:'',src,duration:0};
   }
 
   function amParseSongBag(bag, playlistName) {
@@ -6689,6 +6760,7 @@
       btn.classList.toggle('is-active', btn.getAttribute('data-playlist-id') === pl.id);
     });
     renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    amHydrateTracks(amState.tracks).catch(() => {});
   }
 
   function renderAmPlaylistNav() {
@@ -6709,69 +6781,35 @@
   }
 
   function renderAmTracks(filter) {
-    const list = document.getElementById('amTrackList');
-    if (!list) return;
-    const q = String(filter || '').trim().toLowerCase();
-    const rows = amState.tracks.filter((t) => {
-      if (!q) return true;
-      return [t.title, t.artist, t.album].some((x) => String(x || '').toLowerCase().includes(q));
-    });
-    if (!rows.length) {
-      list.innerHTML = '<div class="am-track-empty">没有匹配的曲目</div>';
-      return;
-    }
-    list.innerHTML = rows.map((t, i) => {
-      const active = amState.index >= 0 && amState.tracks[amState.index] && amState.tracks[amState.index].id === t.id;
-      const realIndex = amState.tracks.findIndex((x) => x.id === t.id);
-      const cover = t.cover
-        ? '<img class="am-row-cover" src="' + escapeHtml(t.cover) + '" alt="">'
-        : '<span class="am-row-cover is-empty"><i class="fas fa-music"></i></span>';
-      return (
-        '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
-          '<span class="am-col-idx" role="cell">' + (active && amState.playing ? '<i class="fas fa-volume-up"></i>' : (i + 1)) + '</span>' +
-          '<span class="am-col-title" role="cell">' + cover +
-            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title) + '</span>' +
-            (t.artist ? '<span class="s">' + escapeHtml(t.artist) + '</span>' : '') +
-          '</span></span>' +
-          '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '') + '</span>' +
-          '<span class="am-col-time" role="cell">' + (t.duration ? formatAmTime(t.duration) : '—') + '</span>' +
-        '</div>'
-      );
+    const list=document.getElementById('amTrackList'); if(!list) return;
+    const q=String(filter||'').trim().toLowerCase();
+    const rows=amState.tracks.filter(t=>!q||[t.title,t.artist,t.album,t.year].some(x=>String(x||'').toLowerCase().includes(q)));
+    if(!rows.length){ list.innerHTML='<div class="am-track-empty">没有匹配的曲目</div>'; return; }
+    list.innerHTML=rows.map((t,i)=>{
+      const active=amState.index>=0&&amState.tracks[amState.index]&&amState.tracks[amState.index].id===t.id;
+      const realIndex=amState.tracks.findIndex(x=>x.id===t.id);
+      const cover=t.cover?'<img class="am-row-cover" src="'+escapeHtml(t.cover)+'" alt="">':'<span class="am-row-cover is-empty"><i class="fas fa-music"></i></span>';
+      return '<div class="am-track-row'+(active?' is-active':'')+'" role="row" data-index="'+realIndex+'" tabindex="0">'+
+        '<span class="am-col-idx" role="cell">'+(active&&amState.playing?'<i class="fas fa-volume-up"></i>':(i+1))+'</span>'+
+        '<span class="am-col-title" role="cell">'+cover+'<span class="am-col-title-text"><span class="t">'+escapeHtml(t.title||'未命名')+'</span></span></span>'+
+        '<span class="am-col-artist" role="cell">'+escapeHtml(t.artist||'—')+'</span>'+
+        '<span class="am-col-album" role="cell">'+escapeHtml(t.album||'—')+'</span>'+
+        '<span class="am-col-year" role="cell">'+escapeHtml(t.year||'—')+'</span>'+
+        '<span class="am-col-time" role="cell">'+(t.duration?formatAmTime(t.duration):'—')+'</span></div>';
     }).join('');
-    list.querySelectorAll('.am-track-row').forEach((row) => {
-      row.addEventListener('click', () => {
-        const idx = Number(row.getAttribute('data-index'));
-        if (!Number.isFinite(idx) || idx < 0) return;
-        amPlayAt(idx);
-      });
-      row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          row.click();
-        }
-      });
+    list.querySelectorAll('.am-track-row').forEach(row=>{
+      row.addEventListener('click',()=>{const idx=Number(row.getAttribute('data-index')); if(Number.isFinite(idx)&&idx>=0) amPlayAt(idx);});
+      row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click();}});
     });
   }
 
   function amSyncNowPlaying() {
-    const bar = document.getElementById('amNowPlaying');
-    const title = document.getElementById('amNpTitle');
-    const artist = document.getElementById('amNpArtist');
-    const toggle = document.getElementById('amToggleBtn');
-    const track = amState.index >= 0 ? amState.tracks[amState.index] : null;
-    if (!bar) return;
-    if (!track) {
-      bar.hidden = true;
-      return;
-    }
-    bar.hidden = false;
-    if (title) title.textContent = track.title;
-    if (artist) artist.textContent = track.artist || track.album || '—';
-    amSetCover(document.getElementById('amNpArt'), track.cover);
-    if (toggle) {
-      const icon = toggle.querySelector('i');
-      if (icon) icon.className = amState.playing ? 'fas fa-pause' : 'fas fa-play';
-    }
+    const bar=document.getElementById('amNowPlaying'), title=document.getElementById('amNpTitle'), artist=document.getElementById('amNpArtist'), meta=document.getElementById('amNpMeta'), toggle=document.getElementById('amToggleBtn');
+    const track=amState.index>=0?amState.tracks[amState.index]:null; if(!bar) return;
+    if(!track){bar.hidden=true;return;} bar.hidden=false;
+    if(title) title.textContent=track.title||'未命名'; if(artist) artist.textContent=track.artist||'—'; if(meta) meta.textContent=[track.album,track.year].filter(Boolean).join(' · ')||'—';
+    amSetCover(document.getElementById('amNpArt'),track.cover);
+    if(toggle){const icon=toggle.querySelector('i');if(icon)icon.className=amState.playing?'fas fa-pause':'fas fa-play';}
   }
 
   function amParseLrc(text) {
@@ -6789,35 +6827,10 @@
   }
 
   async function amLoadLyrics(track) {
-    const body = document.getElementById('amLyricsBody');
-    if (!body) return;
-    amState.lyricsCues = [];
-    if (!track || !track.lyrics) {
-      body.innerHTML = '<p class="am-lyrics-empty">这首歌没有歌词链接</p>';
-      return;
-    }
-    if (!/^(https?:\/\/|\/)/i.test(track.lyrics)) {
-      const cues = amParseLrc(track.lyrics);
-      amState.lyricsCues = cues;
-      body.innerHTML = cues.length
-        ? cues.map((c, i) => '<div class="am-lrc-line" data-i="' + i + '">' + escapeHtml(c.text) + '</div>').join('')
-        : '<pre class="am-lyrics-plain">' + escapeHtml(track.lyrics) + '</pre>';
-      return;
-    }
-    body.innerHTML = '<p class="am-lyrics-empty">歌词加载中…</p>';
-    try {
-      const res = await fetch(track.lyrics, { cache: 'no-store' });
-      const text = await res.text();
-      const cues = amParseLrc(text);
-      amState.lyricsCues = cues;
-      if (cues.length) {
-        body.innerHTML = cues.map((c, i) => '<div class="am-lrc-line" data-i="' + i + '">' + escapeHtml(c.text) + '</div>').join('');
-      } else {
-        body.innerHTML = '<pre class="am-lyrics-plain">' + escapeHtml(text) + '</pre>';
-      }
-    } catch (_) {
-      body.innerHTML = '<p class="am-lyrics-empty">歌词加载失败</p>';
-    }
+    const body=document.getElementById('amLyricsBody'); if(!body) return; amState.lyricsCues=[];
+    if(!track || !track.lyrics){body.innerHTML='<p class="am-lyrics-empty">这首歌没有内嵌歌词</p>';return;}
+    const cues=amParseLrc(track.lyrics); amState.lyricsCues=cues;
+    body.innerHTML=cues.length?cues.map((c,i)=>'<div class="am-lrc-line" data-i="'+i+'">'+escapeHtml(c.text)+'</div>').join(''):'<pre class="am-lyrics-plain">'+escapeHtml(track.lyrics)+'</pre>';
   }
 
   function amSyncLyrics(time) {
@@ -6855,7 +6868,7 @@
     const track = amState.tracks[index];
     if (!audio || !track) return;
     amState.index = index;
-    amLoadLyrics(track);
+    amLoadTrackMetadata(track).then(() => { renderAmTracks(document.getElementById('amSearchInput')?.value || ''); amLoadLyrics(track); }).catch(() => amLoadLyrics(track));
     if (!track.src) {
       amState.playing = false;
       amSyncNowPlaying();
@@ -6905,9 +6918,48 @@
     amPlayAt(next);
   }
 
+  function amSetPlayerMode(on) {
+    const player=document.getElementById('amPlayer'); if(!player) return;
+    amState.playerMode=!!on; player.classList.toggle('is-player-mode',amState.playerMode); document.body.classList.toggle('am-player-mode-open',amState.playerMode);
+    if(amState.playerMode){
+      amSetLyricsOpen(true); amEnsureVisualizer();
+      try { if(document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); } catch(_) {}
+      if(amState.index<0 && amState.tracks.length) amPlayAt(0);
+    } else {
+      amSetLyricsOpen(false);
+      try { if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); } catch(_) {}
+    }
+    const btn=document.getElementById('amLyricsBtn'); if(btn){ const span=btn.querySelector('span'); const icon=btn.querySelector('i'); if(span) span.textContent=amState.playerMode?'退出播放器':'进入播放器'; if(icon) icon.className=amState.playerMode?'fas fa-compress':'fas fa-expand'; }
+  }
+
+  function amEnsureVisualizer(){
+    const player=document.getElementById('amPlayer'); const audio=document.getElementById('amAudio'); if(!player||!audio) return;
+    let canvas=player.querySelector('.am-visualizer');
+    if(!canvas){ canvas=document.createElement('canvas'); canvas.className='am-visualizer'; canvas.setAttribute('aria-hidden','true'); player.insertBefore(canvas,player.firstChild); }
+    if(amState.visualizerRaf) return;
+    try{
+      if(!amState.audioContext) amState.audioContext=new (window.AudioContext||window.webkitAudioContext)();
+      if(!amState.analyser){ amState.analyser=amState.audioContext.createAnalyser(); amState.analyser.fftSize=256; amState.analyser.smoothingTimeConstant=.82; }
+      if(!amState.audioSource) amState.audioSource=amState.audioContext.createMediaElementSource(audio);
+      try{ amState.audioSource.connect(amState.analyser); amState.analyser.connect(amState.audioContext.destination); }catch(_){ }
+    }catch(_){ amState.analyser=null; }
+    const ctx=canvas.getContext('2d'); if(!ctx) return;
+    const draw=()=>{
+      amState.visualizerRaf=requestAnimationFrame(draw); if(!amState.playerMode) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+      const dpr=Math.min(2,window.devicePixelRatio||1), w=Math.max(1,Math.floor(canvas.clientWidth*dpr)), h=Math.max(1,Math.floor(canvas.clientHeight*dpr));
+      if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+      ctx.clearRect(0,0,w,h); const n=amState.analyser?amState.analyser.frequencyBinCount:64; const data=amState.analyser?new Uint8Array(n):null; if(data) amState.analyser.getByteFrequencyData(data);
+      const bars=Math.min(96,Math.floor(w/10)); const gap=w/bars;
+      for(let i=0;i<bars;i++){ let v=data?data[Math.floor(i*n/bars)]/255:0; if(!v&&amState.playing) v=.06+.04*Math.sin(performance.now()/180+i*.7); const bh=Math.max(2,v*h*.52); const x=i*gap; const grad=ctx.createLinearGradient(0,h,0,h-bh); grad.addColorStop(0,'rgba(255,255,255,.05)'); grad.addColorStop(1,'rgba(255,255,255,.34)'); ctx.fillStyle=grad; ctx.fillRect(x,h-bh,Math.max(2,gap*.58),bh); }
+    };
+    draw();
+  }
+
   function setupAmPlayerOnce() {
     if (amState.bound) return;
     amState.bound = true;
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && amState.playerMode) amSetPlayerMode(false); });
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && amState.playerMode) { const player=document.getElementById('amPlayer'); if(player) player.classList.remove('is-player-mode'); document.body.classList.remove('am-player-mode-open'); amState.playerMode=false; const btn=document.getElementById('amLyricsBtn'); if(btn){const span=btn.querySelector('span'),icon=btn.querySelector('i'); if(span)span.textContent='进入播放器'; if(icon)icon.className='fas fa-expand';} amSetLyricsOpen(false); } });
     const search = document.getElementById('amSearchInput');
     if (search) search.addEventListener('input', () => renderAmTracks(search.value));
     const playAll = document.getElementById('amPlayAllBtn');
@@ -6920,9 +6972,10 @@
       });
     }
     const lyricsBtn = document.getElementById('amLyricsBtn');
-    if (lyricsBtn) lyricsBtn.addEventListener('click', () => amSetLyricsOpen(!amState.lyricsOpen));
+    if (lyricsBtn) lyricsBtn.addEventListener('click', () => amSetPlayerMode(!amState.playerMode));
     const lyricsClose = document.getElementById('amLyricsClose');
-    if (lyricsClose) lyricsClose.addEventListener('click', () => amSetLyricsOpen(false));
+    if (lyricsClose) lyricsClose.addEventListener('click', () => amSetPlayerMode(false));
+    amEnsureVisualizer();
     const toggle = document.getElementById('amToggleBtn');
     if (toggle) toggle.addEventListener('click', amToggle);
     const prev = document.getElementById('amPrevBtn');
@@ -6954,7 +7007,7 @@
         if (dur) dur.textContent = formatAmTime(audio.duration || 0);
       });
       audio.addEventListener('ended', () => amNext(1));
-      audio.addEventListener('play', () => { amState.playing = true; amSyncNowPlaying(); });
+      audio.addEventListener('play', () => { amState.playing = true; try{amState.audioContext&&amState.audioContext.resume();}catch(_){} amSyncNowPlaying(); });
       audio.addEventListener('pause', () => { amState.playing = false; amSyncNowPlaying(); });
     }
     const seek = document.getElementById('amSeekTrack');
@@ -7113,13 +7166,16 @@
 
     if (scrollContainer) scrollContainer.style.overflow = 'hidden';
 
-    const urls = CRITICAL_IMAGE_URLS.slice();
+    const urls = CRITICAL_IMAGE_URLS.slice(1);
+    const backgroundPromise = loadBootBackgroundCached();
     const healthPromise = resolveApiBase();
     // 字体与图片并行启动；进入站点前两者都要完成
     const fontPromise = waitForFontAwesome(15000);
 
     let totalBytes = 0;
     let loadedBytes = 0;
+    const backgroundResult = await backgroundPromise;
+    if (backgroundResult && backgroundResult.size) { loadedBytes += backgroundResult.size; totalBytes += backgroundResult.size; setBootProgressBytes(loadedBytes, Math.max(totalBytes, 1)); }
     const sizes = new Array(urls.length).fill(0);
 
     let finishedCount = 0;
@@ -7127,28 +7183,29 @@
       const result = await loadImageWithProgress(url);
       sizes[idx] = Math.max(0, result.size || 0);
       finishedCount += 1;
-      loadedBytes = sizes.reduce((a, b) => a + b, 0);
-      totalBytes = sizes.reduce((a, b) => a + b, 0);
+      const otherLoaded = sizes.reduce((a, b) => a + b, 0);
+      loadedBytes = (backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + otherLoaded;
+      totalBytes = loadedBytes;
       if (totalBytes > 0) {
         const known = sizes.filter((s) => s > 0);
         const avg = known.length ? (known.reduce((a, b) => a + b, 0) / known.length) : 0;
         const pending = urls.length - known.length;
         const estTotal = totalBytes + avg * pending;
         // 预留约 8% 给字体加载展示
-        setBootProgressBytes(loadedBytes, Math.max(estTotal / 0.92, loadedBytes, 1));
+        setBootProgressBytes(loadedBytes, Math.max((backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + estTotal / 0.92, loadedBytes, 1));
       } else {
         const unit = 512 * 1024;
-        setBootProgressBytes(finishedCount * unit, urls.length * unit / 0.92);
+        setBootProgressBytes((backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + finishedCount * unit, ((backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + urls.length * unit) / 0.92);
       }
     }));
 
     // 图片完成后再等到 Font Awesome
     await fontPromise;
-    loadedBytes = sizes.reduce((a, b) => a + b, 0);
+    loadedBytes = (backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + sizes.reduce((a, b) => a + b, 0);
     if (loadedBytes > 0) setBootProgressBytes(loadedBytes, loadedBytes);
     else {
       const unit = 512 * 1024;
-      setBootProgressBytes(urls.length * unit, urls.length * unit);
+      setBootProgressBytes((backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + urls.length * unit, (backgroundResult && backgroundResult.size ? backgroundResult.size : 0) + urls.length * unit);
     }
 
     const apiOk = await healthPromise;

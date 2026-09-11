@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260911a">
+  <link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body>
 
@@ -327,7 +327,7 @@
                   <i class="fas fa-random"></i><span>随机播放</span>
                 </button>
                 <button type="button" class="am-btn am-btn-secondary" id="amLyricsBtn">
-                  <i class="fas fa-align-center"></i><span>歌词</span>
+                  <i class="fas fa-expand"></i><span>进入播放器</span>
                 </button>
               </div>
             </div>
@@ -339,7 +339,7 @@
               <span class="am-col-artist" role="columnheader">作者</span>
               <span class="am-col-album" role="columnheader">专辑</span>
               <span class="am-col-year" role="columnheader">年份</span>
-              <span class="am-col-time" role="columnheader"><i class="far fa-clock"></i></span>
+              <span class="am-col-time" role="columnheader">时长</span>
             </div>
             <div class="am-track-body" id="amTrackList" role="rowgroup">
               <div class="am-track-empty">加载曲目中…</div>
@@ -369,9 +369,7 @@
           </div>
           <div class="am-np-seek">
             <span class="am-time" id="amTimeCur">0:00</span>
-            <div class="am-seek-track" id="amSeekTrack">
-              <div class="am-seek-fill" id="amSeekFill"></div>
-            </div>
+            <div class="am-seek-track" id="amSeekTrack"><div class="am-seek-fill" id="amSeekFill"></div></div>
             <span class="am-time" id="amTimeDur">0:00</span>
           </div>
           <div class="am-np-volume">
@@ -446,6 +444,6 @@
   <p>© 2025-2026 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
-<script src="/script.js?v=20260911a"></script>
+<script src="/script.js?v=13"></script>
 </body>
 </html>

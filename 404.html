@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=20260911a">
+  <link rel="stylesheet" href="/style.css?v=13">
 </head>
 <body>
 
@@ -327,7 +327,7 @@
                   <i class="fas fa-random"></i><span>随机播放</span>
                 </button>
                 <button type="button" class="am-btn am-btn-secondary" id="amLyricsBtn">
-                  <i class="fas fa-align-center"></i><span>歌词</span>
+                  <i class="fas fa-expand"></i><span>进入播放器</span>
                 </button>
               </div>
             </div>
@@ -336,8 +336,10 @@
             <div class="am-track-head" role="row">
               <span class="am-col-idx" role="columnheader">#</span>
               <span class="am-col-title" role="columnheader">标题</span>
+              <span class="am-col-artist" role="columnheader">作者</span>
               <span class="am-col-album" role="columnheader">专辑</span>
-              <span class="am-col-time" role="columnheader"><i class="far fa-clock"></i></span>
+              <span class="am-col-year" role="columnheader">年份</span>
+              <span class="am-col-time" role="columnheader">时长</span>
             </div>
             <div class="am-track-body" id="amTrackList" role="rowgroup">
               <div class="am-track-empty">加载曲目中…</div>
@@ -355,21 +357,19 @@
         </aside>
         <div class="am-now-playing" id="amNowPlaying" hidden>
           <div class="am-np-art" id="amNpArt"><i class="fas fa-music"></i></div>
-          <div class="am-np-info">
-            <div class="am-np-title" id="amNpTitle">未在播放</div>
-            <div class="am-np-artist" id="amNpArtist">—</div>
-            <div class="am-np-meta" id="amNpMeta">—</div>
-          </div>
           <div class="am-np-controls">
             <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><i class="fas fa-step-backward"></i></button>
             <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><i class="fas fa-play"></i></button>
             <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><i class="fas fa-step-forward"></i></button>
           </div>
+          <div class="am-np-info">
+            <div class="am-np-title" id="amNpTitle">未在播放</div>
+            <div class="am-np-artist" id="amNpArtist">—</div>
+            <div class="am-np-meta" id="amNpMeta">—</div>
+          </div>
           <div class="am-np-seek">
             <span class="am-time" id="amTimeCur">0:00</span>
-            <div class="am-seek-track" id="amSeekTrack">
-              <div class="am-seek-fill" id="amSeekFill"></div>
-            </div>
+            <div class="am-seek-track" id="amSeekTrack"><div class="am-seek-fill" id="amSeekFill"></div></div>
             <span class="am-time" id="amTimeDur">0:00</span>
           </div>
           <div class="am-np-volume">
@@ -444,6 +444,6 @@
   <p>© 2025-2026 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
-<script src="/script.js?v=20260911a"></script>
+<script src="/script.js?v=13"></script>
 </body>
 </html>
