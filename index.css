@@ -5293,9 +5293,10 @@ html.is-phone .audio-mini-dock {
    （单一权威布局定义：卡片放大 / 留白对称 / 六列对齐 / 底部条 封面→控制→信息→进度→音量）
    ============================================================ */
 .panel-playlist {
-  padding: 1.15rem;
+  padding: max(4.8rem, calc(env(safe-area-inset-top, 0px) + 4rem)) 1rem 1rem;
   box-sizing: border-box;
   overflow: hidden;
+  align-items: stretch;
 }
 .playlist-content {
   height: 100%;

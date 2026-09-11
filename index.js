@@ -6845,12 +6845,22 @@
     }
   }
 
-  function amSetLyricsOpen(on) {
-    amState.lyricsOpen = !!on;
-    const pane = document.getElementById('amLyricsPane');
+  function amSetPlayerMode(on) {
     const player = document.getElementById('amPlayer');
-    if (pane) pane.hidden = !on;
-    if (player) player.classList.toggle('has-lyrics', !!on);
+    if (!player) return;
+    amState.playerMode = !!on;
+    if (on) {
+      // 全屏模式必须有歌词面板，否则右列空、布局塌
+      amState.lyricsOpen = true;
+      const pane = document.getElementById('amLyricsPane');
+      if (pane) pane.hidden = false;
+      player.classList.add('has-lyrics', 'is-player-mode');
+      document.body.classList.add('am-player-mode-open');
+    } else {
+      player.classList.remove('is-player-mode');
+      amSetLyricsOpen(false);
+      document.body.classList.remove('am-player-mode-open');
+    }
   }
 
   function amPlayAt(index) {
@@ -6924,9 +6934,13 @@
       });
     }
     const lyricsBtn = document.getElementById('amLyricsBtn');
-    if (lyricsBtn) lyricsBtn.addEventListener('click', () => amSetLyricsOpen(!amState.lyricsOpen));
+    if (lyricsBtn) lyricsBtn.addEventListener('click', () => amSetPlayerMode(true));
     const lyricsClose = document.getElementById('amLyricsClose');
-    if (lyricsClose) lyricsClose.addEventListener('click', () => amSetLyricsOpen(false));
+    if (lyricsClose) lyricsClose.addEventListener('click', () => {
+      // 全屏时：关闭=退出全屏；资料库时：关闭=收起歌词
+      if (amState.playerMode) amSetPlayerMode(false);
+      else amSetLyricsOpen(false);
+    });
     const toggle = document.getElementById('amToggleBtn');
     if (toggle) toggle.addEventListener('click', amToggle);
     const prev = document.getElementById('amPrevBtn');
@@ -6967,6 +6981,11 @@
         const rect = seek.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         if (audio.duration) audio.currentTime = ratio * audio.duration;
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && amState.playerMode) {
+          amSetPlayerMode(false);
+        }
       });
     }
   }
@@ -7067,28 +7086,39 @@
     try { document.body.style.backgroundImage = 'url("' + objUrl + '")'; } catch (_) {}
   }
 
-  function loadImageWithProgress(url) {
+    function loadImageWithProgress(url) {
+    const isBg = url === BOOT_BACKGROUND_URL;
     return new Promise(async (resolve) => {
-      let size = 0;
+      // ① 走 Cache Storage：命中直接用，未命中 fetch 并写入缓存
       try {
-        const { blob, size: sz } = await fetchBlobWithCache(url);
-        size = sz;
+        const { blob, size } = await fetchBlobWithCache(url);
         const obj = URL.createObjectURL(blob);
+        // ★ 背景图：blob 一到手立即应用，不等解码——
+        //   下次打开页面在门禁阶段就会命中缓存，不会再去图床
+        if (isBg) applyCachedBoolBackground(obj);
         const img = new Image();
-        const isBg = url === BOOT_BACKGROUND_URL;
         img.onload = () => {
-          if (isBg) applyCachedBoolBackground(obj);
-          else { try { URL.revokeObjectURL(obj); } catch (_) {} }
+          // 非背景图：用完就 revoke；背景图保留对象 URL 常驻
+          if (!isBg) { try { URL.revokeObjectURL(obj); } catch (_) {} }
           resolve({ ok: true, url, size });
         };
-        img.onerror = () => { try { URL.revokeObjectURL(obj); } catch (_) {} resolve({ ok: true, url, size }); };
+        img.onerror = () => {
+          // blob 已拿到、解码失败：数据仍有效，按成功算，背景已应用
+          resolve({ ok: true, url, size });
+        };
         img.src = obj;
         return;
-      } catch (_) {}
+      } catch (_) { /* 走网络直连兜底 */ }
+
+      // ② 兜底：CORS 被拦时直接当背景图用（浏览器会自行缓存）
       const img = new Image();
-      img.crossOrigin = 'anonymous';
       img.decoding = 'async';
-      img.onload = () => resolve({ ok: true, url, size: size || 0 });
+      img.onload = () => {
+        if (isBg) {
+          try { document.body.style.backgroundImage = 'url("' + url + '")'; } catch (_) {}
+        }
+        resolve({ ok: true, url, size: 0 });
+      };
       img.onerror = () => resolve({ ok: false, url, size: 0 });
       img.src = url;
     });
