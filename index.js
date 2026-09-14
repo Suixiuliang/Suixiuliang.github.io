@@ -7360,21 +7360,83 @@
     const track = amState.tracks[index];
     if (!audio || !track) return;
     amState.index = index;
-    // 先展示封面 / 拉歌词，音频按需点播流式加载（不预下整库）
     amSyncNowPlaying();
     renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    // 先封面（已在 UI）+ 歌词
     amLoadLyrics(track);
+
     try {
       audio.removeAttribute('crossorigin');
       audio.crossOrigin = null;
     } catch (_) {}
-    // 流式播放：不 preload=auto 整文件，不在 canplaythrough 后才播
     audio.preload = 'metadata';
+
     if (!track.src) {
       amState.playing = false;
       amSyncNowPlaying();
       return;
     }
+
+    // 清理上一轮超时 / 错误监听
+    if (amState._audioLoadTimer) {
+      clearTimeout(amState._audioLoadTimer);
+      amState._audioLoadTimer = null;
+    }
+    if (amState._onAudioError) {
+      try { audio.removeEventListener('error', amState._onAudioError); } catch (_) {}
+      amState._onAudioError = null;
+    }
+
+    const showPlayError = (msg) => {
+      amState.playing = false;
+      amSyncNowPlaying();
+      const artist = document.getElementById('amNpArtist');
+      if (artist) artist.textContent = msg || '播放失败';
+      console.warn('[am] play error:', msg, track.src);
+    };
+
+    // 连接超时（默认 25s 无足够数据）
+    const LOAD_TIMEOUT_MS = 25000;
+    amState._audioLoadTimer = setTimeout(() => {
+      if (amState.index !== index) return;
+      if (audio.readyState >= 2) return; // HAVE_CURRENT_DATA+
+      try { audio.pause(); } catch (_) {}
+      showPlayError('连接超时 ERROR_CONNECTION_TIMED_OUT，请稍后重试');
+    }, LOAD_TIMEOUT_MS);
+
+    const onError = () => {
+      if (amState.index !== index) return;
+      if (amState._audioLoadTimer) {
+        clearTimeout(amState._audioLoadTimer);
+        amState._audioLoadTimer = null;
+      }
+      const err = audio.error;
+      const code = err ? err.code : 0;
+      // MediaError: 1=ABORTED 2=NETWORK 3=DECODE 4=SRC_NOT_SUPPORTED
+      let msg = '播放失败';
+      if (code === 2) msg = '网络错误 / 可能遇到 Error 302 或连接中断';
+      else if (code === 4) msg = '无法加载音源（Error 302 Found 或地址失效）';
+      else if (code === 3) msg = '音频解码失败';
+      else if (code === 1) msg = '加载已中止';
+      // 针对 302：部分网盘重定向会导致 media 直接失败，尝试用 fetch 跟跳转拿最终 URL 再播
+      if (code === 2 || code === 4) {
+        amRecoverAudioViaFetch(track, index).catch(() => showPlayError(msg));
+        return;
+      }
+      showPlayError(msg);
+    };
+    amState._onAudioError = onError;
+    audio.addEventListener('error', onError);
+
+    const clearTimerOnProgress = () => {
+      if (audio.readyState >= 2 && amState._audioLoadTimer) {
+        clearTimeout(amState._audioLoadTimer);
+        amState._audioLoadTimer = null;
+      }
+    };
+    audio.addEventListener('loadeddata', clearTimerOnProgress, { once: true });
+    audio.addEventListener('canplay', clearTimerOnProgress, { once: true });
+
     const cur = audio.getAttribute('data-track-src') || '';
     if (cur !== track.src) {
       audio.setAttribute('data-track-src', track.src);
@@ -7385,11 +7447,71 @@
       amState.playing = true;
       amSyncNowPlaying();
       renderAmTracks(document.getElementById('amSearchInput')?.value || '');
-    }).catch(() => {
-      amState.playing = false;
-      amSyncNowPlaying();
-      renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    }).catch((e) => {
+      // NotAllowedError 等
+      if (e && e.name === 'NotAllowedError') {
+        showPlayError('浏览器拦截了自动播放，请再点一次播放');
+      } else {
+        // 可能是 302/网络，交给 error 或 recover
+        amRecoverAudioViaFetch(track, index).catch(() => showPlayError('播放失败'));
+      }
     });
+  }
+
+  /** 跟跳 302：用 fetch redirect 拿到最终地址再交给 audio（仍不整库预下载） */
+  async function amRecoverAudioViaFetch(track, index) {
+    if (!track || !track.src) throw new Error('no src');
+    if (amState.index !== index) return;
+    const audio = document.getElementById('amAudio');
+    if (!audio) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(track.src, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
+        redirect: 'follow',
+        signal: ctrl.signal,
+        headers: { Range: 'bytes=0-1' }
+      });
+      clearTimeout(timer);
+      // 最终 URL（若被 CORS 挡住 response.url 仍可能可用）
+      const finalUrl = res.url || track.src;
+      if (!res.ok && res.status !== 206) {
+        // 302 跟丢或 403/404
+        if (res.status === 302 || res.status === 301 || res.status === 303 || res.status === 307 || res.status === 308) {
+          throw new Error('Error_302 Found');
+        }
+        throw new Error('HTTP ' + res.status);
+      }
+      if (amState.index !== index) return;
+      audio.setAttribute('data-track-src', track.src);
+      // 用最终 URL 重试；若仍同源策略失败则直接原链
+      audio.src = finalUrl || track.src;
+      audio.load();
+      await audio.play();
+      amState.playing = true;
+      amSyncNowPlaying();
+    } catch (e) {
+      clearTimeout(timer);
+      const name = (e && e.name) || '';
+      const msg = (e && e.message) || '';
+      if (name === 'AbortError') {
+        throw new Error('ERROR_CONNECTION_TIMED_OUT');
+      }
+      if (/302/.test(msg)) throw e;
+      // 最后一搏：原链再设一次
+      audio.src = track.src;
+      audio.load();
+      try {
+        await audio.play();
+        amState.playing = true;
+        amSyncNowPlaying();
+      } catch (_) {
+        throw e;
+      }
+    }
   }
 
 
@@ -7888,7 +8010,8 @@
     const isBg = (typeof BACKGROUND_CANDIDATE_URLS !== 'undefined' && BACKGROUND_CANDIDATE_URLS.includes(url))
       || url === BOOT_BACKGROUND_URL
       || (typeof HUANG_BACKGROUND_ORIGIN !== 'undefined' && url === HUANG_BACKGROUND_ORIGIN);
-    const budget = Math.max(3000, timeoutMs || 15000);
+    // 背景门禁不再死等：短超时
+    const budget = isBg ? Math.min(6000, Math.max(2000, timeoutMs || 6000)) : Math.max(3000, timeoutMs || 12000);
     const id = progressId || url;
 
     return new Promise((resolve) => {
@@ -7900,7 +8023,7 @@
         if (size > 0) bootProgressReport(id, size, size, true);
         else {
           const prev = bootProgressState.items.get(id);
-          const t = (prev && prev.total) || 1;
+          const t = Math.max((prev && prev.total) || 1, 1);
           bootProgressReport(id, t, t, true);
         }
         resolve(result);
@@ -7916,49 +8039,137 @@
         } catch (_) {}
       };
 
-      // 优先 fetch 流式读取 → 真实字节进度；失败再 Image 直连（无字节时分母保持探测值）
-      (async () => {
+      const classifyFetchError = (err, res) => {
+        if (res) {
+          const st = res.status;
+          if (st === 301 || st === 302 || st === 303 || st === 307 || st === 308) {
+            return 'ERROR_302';
+          }
+          if (st === 0) return 'ERROR_CONNECTION_ERROR';
+          if (st >= 500) return 'ERROR_CONNECTION_ERROR';
+        }
+        const name = (err && err.name) || '';
+        const msg = String((err && err.message) || err || '');
+        if (name === 'AbortError' || /timeout|timed out/i.test(msg)) return 'ERROR_CONNECTION_TIMED_OUT';
+        if (/network|failed to fetch|load failed|connection/i.test(msg)) return 'ERROR_CONNECTION_ERROR';
+        if (/302|redirect/i.test(msg)) return 'ERROR_302';
+        return 'ERROR_CONNECTION_ERROR';
+      };
+
+      /** 跟跳 302 后再取图 */
+      async function fetchImageFollowingRedirects(u, ms) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
         try {
-          const { blob, size } = await fetchBlobWithProgress(
-            url,
-            (loaded, total) => bootProgressReport(id, loaded, total || size || 0, false),
-            { timeoutMs: budget, chunks: isBg ? 4 : 3, parallelMin: 128 * 1024 }
-          );
+          const res = await fetch(u, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit',
+            redirect: 'follow',
+            cache: 'no-store',
+            signal: ctrl.signal
+          });
+          clearTimeout(timer);
+          if (!res.ok) {
+            const code = classifyFetchError(null, res);
+            const e = new Error(code);
+            e.code = code;
+            e.status = res.status;
+            throw e;
+          }
+          // 最终 URL（302 后）
+          const finalUrl = res.url || u;
+          const blob = await res.blob();
+          if (!blob || blob.size < 16) {
+            const e = new Error('ERROR_CONNECTION_ERROR');
+            e.code = 'ERROR_CONNECTION_ERROR';
+            throw e;
+          }
+          return { blob, size: blob.size, finalUrl };
+        } catch (err) {
+          clearTimeout(timer);
+          if (err && err.code) throw err;
+          const code = classifyFetchError(err, null);
+          const e = new Error(code);
+          e.code = code;
+          throw e;
+        }
+      }
+
+      (async () => {
+        // 背景：不阻塞门禁逻辑的长流程；CSS 已挂上，这里只做尽量成功
+        if (isBg) {
+          bootProgressReport(id, 0, 1, false);
+          try {
+            const { blob, size, finalUrl } = await fetchImageFollowingRedirects(url, budget);
+            const obj = URL.createObjectURL(blob);
+            applyBg(obj);
+            done({ ok: true, url: finalUrl || url, size });
+          } catch (err1) {
+            // Image 直连兜底（不触发 CORS 控制台也可显示）
+            try {
+              const img = new Image();
+              img.decoding = 'async';
+              const t = setTimeout(() => {
+                img.onload = img.onerror = null;
+                const code = (err1 && err1.code) || 'ERROR_CONNECTION_ERROR';
+                console.warn('[boot] background', code, url);
+                // 不阻塞：仍保留已挂的 CSS url
+                done({ ok: false, url, size: 0, reason: code });
+              }, Math.min(4000, budget));
+              img.onload = () => {
+                clearTimeout(t);
+                applyBg(url);
+                done({ ok: true, url, size: 0, direct: true });
+              };
+              img.onerror = () => {
+                clearTimeout(t);
+                const code = (err1 && err1.code) || 'ERROR_CONNECTION_ERROR';
+                console.warn('[boot] background image error', code, url);
+                done({ ok: false, url, size: 0, reason: code });
+              };
+              img.src = url;
+            } catch (err2) {
+              done({ ok: false, url, size: 0, reason: (err1 && err1.code) || 'ERROR_CONNECTION_ERROR' });
+            }
+          }
+          return;
+        }
+
+        // 其它关键图：fetch 跟跳 + 进度；失败分类 ERROR_302 / ERROR_CONNECTION_*
+        try {
+          const { blob, size, finalUrl } = await fetchImageFollowingRedirects(url, budget);
+          bootProgressReport(id, size, size, false);
           const obj = URL.createObjectURL(blob);
-          if (isBg) applyBg(obj);
           const img = new Image();
           img.onload = () => {
-            if (!isBg) { try { URL.revokeObjectURL(obj); } catch (_) {} }
-            done({ ok: true, url, size });
+            try { URL.revokeObjectURL(obj); } catch (_) {}
+            done({ ok: true, url: finalUrl || url, size });
           };
           img.onerror = () => {
-            if (isBg) {
-              applyBg(url);
-              done({ ok: true, url, size });
-            } else {
-              try { URL.revokeObjectURL(obj); } catch (_) {}
-              done({ ok: false, url, size: 0, reason: 'decode' });
-            }
+            try { URL.revokeObjectURL(obj); } catch (_) {}
+            // blob 损坏再试直连
+            const img2 = new Image();
+            const t2 = setTimeout(() => {
+              img2.onload = img2.onerror = null;
+              done({ ok: false, url, size: 0, reason: 'ERROR_CONNECTION_ERROR' });
+            }, 4000);
+            img2.onload = () => { clearTimeout(t2); done({ ok: true, url, size: 0, direct: true }); };
+            img2.onerror = () => { clearTimeout(t2); done({ ok: false, url, size: 0, reason: 'ERROR_CONNECTION_ERROR' }); };
+            img2.src = url;
           };
           img.src = obj;
-        } catch (_) {
-          // 无 CORS / 网络失败：Image 直连（与背景策略一致，不制造反代 CORS）
+        } catch (err) {
+          const code = (err && err.code) || classifyFetchError(err, null);
+          console.warn('[boot] image', code, url);
+          // 直连兜底
           const img = new Image();
-          img.decoding = 'async';
-          bootProgressReport(id, 0, 0, false);
-          const failTimer = setTimeout(() => {
+          const t = setTimeout(() => {
             img.onload = img.onerror = null;
-            done({ ok: false, url, size: 0, reason: 'timeout' });
-          }, budget);
-          img.onload = () => {
-            clearTimeout(failTimer);
-            if (isBg) applyBg(url);
-            done({ ok: true, url, size: 0, direct: true });
-          };
-          img.onerror = () => {
-            clearTimeout(failTimer);
-            done({ ok: false, url, size: 0, reason: 'img-error' });
-          };
+            done({ ok: false, url, size: 0, reason: code });
+          }, Math.min(5000, budget));
+          img.onload = () => { clearTimeout(t); done({ ok: true, url, size: 0, direct: true }); };
+          img.onerror = () => { clearTimeout(t); done({ ok: false, url, size: 0, reason: code }); };
           img.src = url;
         }
       })();
@@ -8036,43 +8247,26 @@
       (u) => !(BACKGROUND_CANDIDATE_URLS || []).includes(u) && u !== HUANG_BACKGROUND_ORIGIN
     );
 
-    // 立刻踢背景直连（最高优先级），不要等 Worker / 不要分片
-    const bgPromise = (async () => {
-      for (let i = 0; i < bgUrls.length; i++) {
-        const r = await loadImageWithProgress(bgUrls[i], 20000, 'bg-' + i);
-        if (r && r.ok) return true;
-      }
-      return false;
-    })();
+    // 背景：不阻塞门禁。CSS 已挂上，后台尽力加载，失败也不卡死
+    bgUrls.forEach((bgUrl, i) => {
+      loadImageWithProgress(bgUrl, 6000, 'bg-' + i).then((r) => {
+        if (!(r && r.ok)) {
+          console.warn('[boot] background skip', (r && r.reason) || 'ERROR_CONNECTION_ERROR', bgUrl);
+        }
+      }).catch((e) => {
+        console.warn('[boot] background', e);
+      });
+    });
 
-    // 其它关键图并行（与背景同时进行）
-    const othersPromise = Promise.all(
+    // 其它关键图：并行，限时，全部失败也不阻断进入
+    await Promise.all(
       otherUrls.map((url, idx) =>
-        loadImageWithProgress(url, 12000, 'asset-' + idx).catch(() => ({ ok: false, size: 0 }))
+        loadImageWithProgress(url, 10000, 'asset-' + idx).catch((e) => {
+          console.warn('[boot] asset', e);
+          return { ok: false, size: 0, reason: 'ERROR_CONNECTION_ERROR' };
+        })
       )
     );
-
-    const [bgOk] = await Promise.all([bgPromise, othersPromise]);
-
-    if (!bgOk) {
-      // 直连失败时：仅背景可走 Worker 图片反代（仍是同一张 pan 图，不换图床）
-      try {
-        const originBg = HUANG_BACKGROUND_ORIGIN;
-        const viaWorker = API_PROXY_ORIGIN + '/api/proxy/image?u=' + encodeURIComponent(originBg);
-        const r2 = await loadImageWithProgress(viaWorker, 15000, 'bg-proxy');
-        if (r2 && r2.ok) {
-          applyCssBackgroundUrl(viaWorker);
-          bgOk = true;
-        }
-      } catch (_) {}
-    }
-    if (!bgOk) {
-      // 仍只保留深色底，绝不换其它图床的图
-      try {
-        document.body.style.backgroundColor = '#1c1c1e';
-        // 保留可能已设置的 CSS url，不强制清空（浏览器可能仍在加载）
-      } catch (_) {}
-    }
 
     await fontPromise;
     const apiOk = await healthPromise;
