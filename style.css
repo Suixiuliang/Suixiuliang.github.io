@@ -5534,3 +5534,183 @@ html.is-phone .audio-mini-dock {
 
 body.am-player-mode-open .glass-nav { display:none !important; }
 body.am-player-mode-open { overflow:hidden !important; }
+
+
+/* 门禁卡住提示 */
+.boot-stuck-tip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.25);
+}
+.boot-stuck-tip[hidden] { display: none !important; }
+.boot-stuck-text {
+  flex: 1;
+  text-align: left;
+  font-size: 0.88rem;
+  color: rgba(255,255,255,0.82);
+  letter-spacing: -0.01em;
+}
+.boot-stuck-reload {
+  flex-shrink: 0;
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: rgba(0, 113, 227, 0.72);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow:
+    0 4px 14px rgba(0, 113, 227, 0.28),
+    inset 0 1px 1px rgba(255,255,255,0.4);
+}
+.boot-stuck-reload:hover {
+  background: rgba(0, 113, 227, 0.9);
+}
+
+
+/* ===== 歌单播放器：更细线条 + 液态玻璃控件 (v20) ===== */
+.am-player.am-player-glass-v20,
+.am-player {
+  border-width: 0.5px;
+  border-color: rgba(255,255,255,0.22);
+  background: rgba(28, 28, 32, 0.45);
+  box-shadow:
+    0 16px 48px rgba(0,0,0,0.28),
+    inset 0 0.5px 0 rgba(255,255,255,0.28),
+    inset 0 -0.5px 0 rgba(0,0,0,0.2);
+  backdrop-filter: blur(36px) saturate(165%);
+  -webkit-backdrop-filter: blur(36px) saturate(165%);
+}
+.am-sidebar {
+  border-right: 0.5px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+}
+.am-nav-item, .am-playlist-item {
+  border-radius: 12px;
+  border: 0.5px solid transparent;
+  background: transparent;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.am-nav-item:hover, .am-playlist-item:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+.am-nav-item.is-active, .am-playlist-item.is-active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.2);
+  box-shadow: inset 0 0.5px 1px rgba(255,255,255,0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.am-search {
+  height: 36px;
+  border-radius: 12px;
+  border: 0.5px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: inset 0 0.5px 1px rgba(255,255,255,0.28);
+}
+.am-btn {
+  border-radius: 999px;
+  border: 0.5px solid rgba(255,255,255,0.22);
+  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  box-shadow:
+    0 4px 14px rgba(0,0,0,0.12),
+    inset 0 0.5px 1px rgba(255,255,255,0.35);
+}
+.am-btn-primary {
+  background: rgba(250, 45, 72, 0.78) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+}
+.am-btn-secondary {
+  background: rgba(255,255,255,0.1) !important;
+  color: #fff !important;
+}
+.am-btn-secondary:hover {
+  background: rgba(255,255,255,0.16) !important;
+}
+.am-track-head {
+  border-bottom: 0.5px solid rgba(255,255,255,0.1);
+  font-weight: 500;
+}
+.am-track-row {
+  border-radius: 10px;
+  border: 0.5px solid transparent;
+}
+.am-track-row:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.08);
+}
+.am-track-row.is-active {
+  background: rgba(250, 45, 72, 0.12);
+  border-color: rgba(250, 45, 72, 0.22);
+}
+.am-now-playing {
+  border-top: 0.5px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.12);
+}
+.am-ctrl {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  border-radius: 50%;
+  border: 0.5px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 0.5px 1px rgba(255,255,255,0.3);
+}
+.am-ctrl:hover {
+  background: rgba(255,255,255,0.16);
+}
+.am-ctrl-main {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+  background: rgba(255,255,255,0.88) !important;
+  color: #111 !important;
+  border: 0.5px solid rgba(255,255,255,0.5);
+  box-shadow:
+    0 4px 16px rgba(0,0,0,0.18),
+    inset 0 0.5px 1px rgba(255,255,255,0.7);
+}
+.am-seek-track {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  border: 0.5px solid rgba(255,255,255,0.08);
+}
+.am-seek-fill {
+  background: linear-gradient(90deg, rgba(250,45,72,0.85), rgba(255,100,120,0.95));
+}
+.am-np-volume input[type=range] {
+  height: 3px;
+  accent-color: rgba(250,45,72,0.9);
+}
+.am-lyrics-pane {
+  border-left: 0.5px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.14);
+}
+.am-hero-art {
+  border: 0.5px solid rgba(255,255,255,0.16);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.32), inset 0 0.5px 1px rgba(255,255,255,0.2);
+}

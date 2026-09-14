@@ -7,23 +7,14 @@
   // 站点背景：只使用 pan.huang1111 这一张（浏览器 <img>/CSS 直连，不经 Worker）
   // 说明：CSS/Image 显示不需要 CORS；Worker 反代会把一张图拖得很慢，故背景禁用反代。
   const HUANG_BACKGROUND_ORIGIN = 'https://pan.huang1111.cn/f/mLN1S2/Background.png';
-  // 图片：永不反代。音频：走 Worker /api/proxy/audio
+  // 图片与播放器音频均直连，不走反代（避免 CORS 控制台警报）
   const API_PROXY_ORIGIN = (typeof window !== 'undefined' && window.MAXSUI_API_BASE)
     ? String(window.MAXSUI_API_BASE).replace(/\/api\/?$/, '').replace(/\/+$/, '')
     : 'https://maxsui-api.maxsui.workers.dev';
   function huangProxyUrl(kind, absoluteUrl) {
-    const u = String(absoluteUrl || '');
-    if (!u) return '';
-    if (kind === 'audio') {
-      // 仅音频反代（huang1111）
-      if (/huang1111\.cn/i.test(u)) {
-        return API_PROXY_ORIGIN + '/api/proxy/audio?u=' + encodeURIComponent(u);
-      }
-      return u;
-    }
-    // 图片永远直连
-    return u;
+    return String(absoluteUrl || '');
   }
+
 
   const CRITICAL_IMAGE_URLS = [
     // 背景：直连 pan（最快）
@@ -4638,11 +4629,19 @@
 
   async function checkAdminSession() {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials:'include', cache:'no-store' });
-      const data = await res.json().catch(()=>null);
+      const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include', cache: 'no-store' });
+      const data = await res.json().catch(() => null);
       if (res.ok && data?.authenticated) {
         authRole = normalizeAuthRole(data.role || (data.admin ? 'admin' : 'authed_user'));
-        unlockAdminPanel({ scrollToAdmin: false });
+        // 管理员 / 信任用户（authed_user）：会话 Cookie 有效则必须弹出管理标签
+        if (authRole === 'admin' || authRole === 'authed_user') {
+          unlockAdminPanel({ scrollToAdmin: false });
+          try {
+            ensureNavCapsule && ensureNavCapsule();
+            updateCapsuleFromScroll && updateCapsuleFromScroll();
+            updateActiveNavFromScroll && updateActiveNavFromScroll();
+          } catch (_) {}
+        }
         if (authRole !== 'admin') {
           await loadBlogRoute(true);
           filterAndRenderBlogs(blogFilterKeyword || '', blogFilterDate || null, false);
@@ -6672,20 +6671,118 @@
     }
     return out;
   }
-  async function amFetchMetadata(url){
-    try{
-      const res=await fetch(url,{mode:'cors',cache:'force-cache',credentials:'omit',headers:{Range:'bytes=0-524287'}});
-      if(!res.ok)return null;
-      return amParseId3(await res.arrayBuffer());
-    }catch(_){return null;}
+  function amReadU32BE(a, i) {
+    return ((a[i] << 24) | (a[i + 1] << 16) | (a[i + 2] << 8) | a[i + 3]) >>> 0;
+  }
+  function amReadU32LE(a, i) {
+    return (a[i] | (a[i + 1] << 8) | (a[i + 2] << 16) | (a[i + 3] << 24)) >>> 0;
+  }
+  /** FLAC Vorbis Comment + Picture（封面） */
+  function amParseFlac(buf) {
+    const a = new Uint8Array(buf);
+    const out = { artist: '', album: '', year: '', coverBlob: null, lyrics: '', title: '' };
+    if (a.length < 8) return out;
+    if (!(a[0] === 0x66 && a[1] === 0x4c && a[2] === 0x61 && a[3] === 0x43)) return out; // fLaC
+    let pos = 4;
+    let guard = 0;
+    while (pos + 4 <= a.length && guard++ < 64) {
+      const header = a[pos];
+      const isLast = (header & 0x80) !== 0;
+      const type = header & 0x7f;
+      const size = (a[pos + 1] << 16) | (a[pos + 2] << 8) | a[pos + 3];
+      pos += 4;
+      if (pos + size > a.length) break;
+      const block = a.subarray(pos, pos + size);
+      pos += size;
+      if (type === 4) {
+        // VORBIS_COMMENT
+        try {
+          let p = 0;
+          const vendorLen = amReadU32LE(block, p); p += 4 + vendorLen;
+          if (p + 4 > block.length) break;
+          const n = amReadU32LE(block, p); p += 4;
+          for (let i = 0; i < n && p + 4 <= block.length; i++) {
+            const len = amReadU32LE(block, p); p += 4;
+            if (p + len > block.length) break;
+            const raw = amTrimText(amDecodeText(block.subarray(p, p + len), 0));
+            p += len;
+            const eq = raw.indexOf('=');
+            if (eq <= 0) continue;
+            const key = raw.slice(0, eq).toUpperCase();
+            const val = raw.slice(eq + 1).trim();
+            if (!val) continue;
+            if (key === 'ARTIST' || key === 'ALBUMARTIST') {
+              if (!out.artist) out.artist = val;
+            } else if (key === 'ALBUM') out.album = val;
+            else if (key === 'TITLE') out.title = val;
+            else if (key === 'DATE' || key === 'YEAR') out.year = val.slice(0, 4);
+            else if (key === 'LYRICS' || key === 'UNSYNCEDLYRICS') out.lyrics = val;
+          }
+        } catch (_) {}
+      } else if (type === 6) {
+        // PICTURE
+        try {
+          let p = 0;
+          p += 4; // picture type
+          const mimeLen = amReadU32BE(block, p); p += 4;
+          const mime = amTrimText(amDecodeText(block.subarray(p, p + mimeLen), 0)) || 'image/jpeg';
+          p += mimeLen;
+          const descLen = amReadU32BE(block, p); p += 4 + descLen;
+          p += 16; // width height depth colors
+          const dataLen = amReadU32BE(block, p); p += 4;
+          if (p + dataLen <= block.length && dataLen > 0) {
+            out.coverBlob = new Blob([block.subarray(p, p + dataLen)], { type: mime });
+          }
+        } catch (_) {}
+      }
+      if (isLast) break;
+    }
+    return out;
+  }
+  async function amFetchMetadata(url) {
+    // 直连 Range 读文件头；若源站无 CORS 则静默失败（播放仍直连，不弹反代）
+    try {
+      const res = await fetch(url, {
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { Range: 'bytes=0-2097151' } // 2MB：FLAC 封面常在前部
+      });
+      if (!res.ok && res.status !== 206) return null;
+      const buf = await res.arrayBuffer();
+      const a = new Uint8Array(buf);
+      // ID3 前缀（少数 flac/mp3）
+      if (a.length >= 3 && a[0] === 0x49 && a[1] === 0x44 && a[2] === 0x33) {
+        return amParseId3(buf);
+      }
+      // FLAC
+      if (a.length >= 4 && a[0] === 0x66 && a[1] === 0x4c && a[2] === 0x61 && a[3] === 0x43) {
+        return amParseFlac(buf);
+      }
+      // 再试 ID3
+      const id3 = amParseId3(buf);
+      if (id3 && (id3.artist || id3.album || id3.coverBlob)) return id3;
+      return amParseFlac(buf);
+    } catch (_) {
+      return null;
+    }
   }
   async function amLoadTrackMetadata(track){
     if(!track||track.metadataLoaded||track.metadataLoading)return;
     track.metadataLoading=true;
-    const meta=await amFetchMetadata(track.src);
-    if(meta){
-      track.artist=meta.artist||''; track.album=meta.album||''; track.year=meta.year||''; track.lyrics=meta.lyrics||'';
-      if(meta.coverBlob){ if(track.cover&&track.cover.startsWith('blob:')){try{URL.revokeObjectURL(track.cover)}catch(_){}} track.cover=URL.createObjectURL(meta.coverBlob); }
+    const meta = await amFetchMetadata(track.src);
+    if (meta) {
+      if (meta.artist) track.artist = meta.artist;
+      if (meta.album) track.album = meta.album;
+      if (meta.year) track.year = meta.year;
+      if (meta.lyrics) track.lyrics = meta.lyrics;
+      if (meta.title) track.title = meta.title;
+      if (meta.coverBlob) {
+        if (track.cover && track.cover.startsWith('blob:')) {
+          try { URL.revokeObjectURL(track.cover); } catch (_) {}
+        }
+        track.cover = URL.createObjectURL(meta.coverBlob);
+      }
     }
     track.metadataLoaded=true; track.metadataLoading=false;
     renderAmTracks(document.getElementById('amSearchInput')?.value||''); amSyncNowPlaying();
@@ -6947,24 +7044,71 @@
       renderAmTracks(document.getElementById('amSearchInput')?.value || '');
       return;
     }
-    {
-      const playUrl = (typeof huangProxyUrl === 'function')
-        ? huangProxyUrl('audio', track.src)
-        : track.src;
-      if (audio.getAttribute('src') !== playUrl && audio.src !== playUrl) {
-        audio.src = playUrl;
-        audio.load();
+    // 直连，不反代；去掉 crossOrigin，与背景图一样不触发 CORS 警报
+    try {
+      audio.removeAttribute('crossorigin');
+      audio.crossOrigin = null;
+    } catch (_) {}
+    audio.preload = 'auto';
+
+    const startPlay = () => {
+      audio.play().then(() => {
+        amState.playing = true;
+        amSyncNowPlaying();
+        renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+      }).catch(() => {
+        amState.playing = false;
+        amSyncNowPlaying();
+        renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+      });
+    };
+
+    // 等整段可流畅播放（canplaythrough）再 play；已缓冲满则直接播
+    const waitFull = () => {
+      const onReady = () => {
+        audio.removeEventListener('canplaythrough', onReady);
+        audio.removeEventListener('error', onErr);
+        startPlay();
+      };
+      const onErr = () => {
+        audio.removeEventListener('canplaythrough', onReady);
+        audio.removeEventListener('error', onErr);
+        amState.playing = false;
+        amSyncNowPlaying();
+      };
+      // 已有足够数据
+      if (audio.readyState >= 4 /* HAVE_ENOUGH_DATA */) {
+        startPlay();
+        return;
       }
+      audio.addEventListener('canplaythrough', onReady, { once: true });
+      audio.addEventListener('error', onErr, { once: true });
+      // 超时兜底：最长等 90s，仍尽量播放
+      setTimeout(() => {
+        if (amState.index !== index) return;
+        if (audio.readyState >= 3) {
+          audio.removeEventListener('canplaythrough', onReady);
+          startPlay();
+        }
+      }, 90000);
+    };
+
+    if (audio.src !== track.src && !String(audio.src || '').endsWith(String(track.src || '').replace(/^https?:/, ''))) {
+      // 比较不可靠时以 dataset 为准
     }
-    audio.play().then(() => {
-      amState.playing = true;
+    const cur = audio.getAttribute('data-track-src') || '';
+    if (cur !== track.src) {
+      audio.setAttribute('data-track-src', track.src);
+      audio.src = track.src;
+      audio.load();
       amSyncNowPlaying();
       renderAmTracks(document.getElementById('amSearchInput')?.value || '');
-    }).catch(() => {
-      amState.playing = false;
-      amSyncNowPlaying();
-    });
+      waitFull();
+    } else {
+      waitFull();
+    }
   }
+
 
   function amToggle() {
     const audio = document.getElementById('amAudio');
@@ -7442,86 +7586,74 @@
         if (settled) return;
         settled = true;
         const size = (result && result.size) || 0;
-        bootProgressReport(id, size, Math.max(size, 1), true);
+        if (size > 0) bootProgressReport(id, size, size, true);
+        else {
+          const prev = bootProgressState.items.get(id);
+          const t = (prev && prev.total) || 1;
+          bootProgressReport(id, t, t, true);
+        }
         resolve(result);
       };
 
-      // ========== 背景：浏览器原生加载（最快）==========
-      // 不走 fetch/Worker/分片。CSS 与 Image 显示不受 CORS 限制。
-      if (isBg) {
-        bootProgressReport(id, 0, 1, false);
-        const img = new Image();
-        // 尽量并行解码
-        img.decoding = 'async';
-        img.loading = 'eager';
-        let ticks = 0;
-        const pulse = setInterval(() => {
-          ticks += 1;
-          // 无字节信息时用脉冲进度，避免 0% 假死观感（上限 90%）
-          const fake = Math.min(0.9, 0.08 * ticks);
-          bootProgressReport(id, Math.round(fake * 1000), 1000, false);
-        }, 200);
-        const failTimer = setTimeout(() => {
-          clearInterval(pulse);
-          img.onload = img.onerror = null;
-          done({ ok: false, url, size: 0, reason: 'bg-timeout' });
-        }, budget);
-        img.onload = () => {
-          clearInterval(pulse);
-          clearTimeout(failTimer);
-          applyCssBackgroundUrl(url);
-          // 也写一份 object-fit 友好的 inline（与旧逻辑一致）
-          try {
-            document.body.style.backgroundImage = 'url("' + url + '")';
-            document.body.style.backgroundSize = 'cover';
-            document.body.style.backgroundPosition = 'center';
-            document.body.style.backgroundRepeat = 'no-repeat';
-          } catch (_) {}
-          bootProgressReport(id, 1000, 1000, true);
-          done({ ok: true, url, size: 0, fast: true });
-        };
-        img.onerror = () => {
-          clearInterval(pulse);
-          clearTimeout(failTimer);
-          done({ ok: false, url, size: 0, reason: 'bg-error' });
-        };
-        // 直连干净 URL（pan 分享链加 query 可能导致 404）
-        img.src = url;
-        return;
-      }
+      const applyBg = (src) => {
+        try {
+          document.body.style.backgroundImage = 'url("' + src + '")';
+          document.body.style.backgroundSize = 'cover';
+          document.body.style.backgroundPosition = 'center';
+          document.body.style.backgroundRepeat = 'no-repeat';
+          document.body.style.backgroundColor = '#1c1c1e';
+        } catch (_) {}
+      };
 
-      // ========== 其它图片：浏览器直连 Image，不走缓存、不走反代 ==========
-      bootProgressReport(id, 0, 1, false);
-      const img = new Image();
-      img.decoding = 'async';
-      img.loading = 'eager';
-      let ticks = 0;
-      const pulse = setInterval(() => {
-        ticks += 1;
-        const fake = Math.min(0.9, 0.1 * ticks);
-        bootProgressReport(id, Math.round(fake * 1000), 1000, false);
-      }, 180);
-      const failTimer = setTimeout(() => {
-        clearInterval(pulse);
-        img.onload = img.onerror = null;
-        done({ ok: false, url, size: 0, reason: 'timeout' });
-      }, budget);
-      img.onload = () => {
-        clearInterval(pulse);
-        clearTimeout(failTimer);
-        bootProgressReport(id, 1000, 1000, true);
-        done({ ok: true, url, size: 0, direct: true });
-      };
-      img.onerror = () => {
-        clearInterval(pulse);
-        clearTimeout(failTimer);
-        done({ ok: false, url, size: 0, reason: 'img-error' });
-      };
-      img.src = url;
+      // 优先 fetch 流式读取 → 真实字节进度；失败再 Image 直连（无字节时分母保持探测值）
+      (async () => {
+        try {
+          const { blob, size } = await fetchBlobWithProgress(
+            url,
+            (loaded, total) => bootProgressReport(id, loaded, total || size || 0, false),
+            { timeoutMs: budget, chunks: isBg ? 4 : 3, parallelMin: 128 * 1024 }
+          );
+          const obj = URL.createObjectURL(blob);
+          if (isBg) applyBg(obj);
+          const img = new Image();
+          img.onload = () => {
+            if (!isBg) { try { URL.revokeObjectURL(obj); } catch (_) {} }
+            done({ ok: true, url, size });
+          };
+          img.onerror = () => {
+            if (isBg) {
+              applyBg(url);
+              done({ ok: true, url, size });
+            } else {
+              try { URL.revokeObjectURL(obj); } catch (_) {}
+              done({ ok: false, url, size: 0, reason: 'decode' });
+            }
+          };
+          img.src = obj;
+        } catch (_) {
+          // 无 CORS / 网络失败：Image 直连（与背景策略一致，不制造反代 CORS）
+          const img = new Image();
+          img.decoding = 'async';
+          bootProgressReport(id, 0, 0, false);
+          const failTimer = setTimeout(() => {
+            img.onload = img.onerror = null;
+            done({ ok: false, url, size: 0, reason: 'timeout' });
+          }, budget);
+          img.onload = () => {
+            clearTimeout(failTimer);
+            if (isBg) applyBg(url);
+            done({ ok: true, url, size: 0, direct: true });
+          };
+          img.onerror = () => {
+            clearTimeout(failTimer);
+            done({ ok: false, url, size: 0, reason: 'img-error' });
+          };
+          img.src = url;
+        }
+      })();
     });
   }
 
-  /** 等待 Font Awesome 字体就绪（门禁必过项，但缩短超时） */
   async function waitForFontAwesome(timeoutMs) {
     const ms = timeoutMs || 8000;
     const deadline = Date.now() + ms;
@@ -7579,6 +7711,15 @@
     const healthPromise = resolveApiBase();
     const fontPromise = waitForFontAwesome(8000);
 
+    // 等待过久：显示重载提示
+    let stuckTimer = setTimeout(() => {
+      const tip = document.getElementById('bootStuckTip');
+      if (tip) {
+        tip.hidden = false;
+        tip.setAttribute('aria-hidden', 'false');
+      }
+    }, 12000);
+
     const bgUrls = (BACKGROUND_CANDIDATE_URLS || [HUANG_BACKGROUND_ORIGIN]).slice();
     const otherUrls = (CRITICAL_IMAGE_URLS || []).slice().filter(
       (u) => !(BACKGROUND_CANDIDATE_URLS || []).includes(u) && u !== HUANG_BACKGROUND_ORIGIN
@@ -7631,6 +7772,10 @@
     });
     bootProgressTick();
     await new Promise((r) => setTimeout(r, 80));
+
+    try { clearTimeout(stuckTimer); } catch (_) {}
+    const tip = document.getElementById('bootStuckTip');
+    if (tip) tip.hidden = true;
 
     if (loader) {
       loader.classList.add('is-done');

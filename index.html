@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=19">
+  <link rel="stylesheet" href="/style.css?v=20">
 </head>
 <body>
 
@@ -49,6 +49,10 @@
         <div class="boot-progress-bar" id="bootProgressBar"></div>
       </div>
       <div class="boot-progress-label" id="bootProgressLabel">0.00MB/0.00MB</div>
+    </div>
+    <div class="boot-stuck-tip" id="bootStuckTip" hidden aria-hidden="true">
+      <span class="boot-stuck-text">卡住了？重新加载一遍试试......</span>
+      <button type="button" class="boot-stuck-reload" id="bootStuckReload" onclick="location.reload()">刷新</button>
     </div>
   </div>
 </div>
@@ -377,7 +381,7 @@
             <input type="range" id="amVolume" min="0" max="1" step="0.01" value="0.85" aria-label="音量">
           </div>
         </div>
-        <audio id="amAudio" preload="metadata" crossorigin="anonymous"></audio>
+        <audio id="amAudio" preload="auto"></audio>
       </div>
     </div>
   </section>
@@ -444,6 +448,6 @@
   <p>© 2025-2026 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
-<script src="/script.js?v=19"></script>
+<script src="/script.js?v=20"></script>
 </body>
 </html>
