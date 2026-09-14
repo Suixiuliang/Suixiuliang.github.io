@@ -341,6 +341,27 @@ async function handleRequest(request, env) {
         );
     }
 
+    // --------------------------------------------------------
+    // Public media proxy (huang1111 only) — 解决前端 CORS / 防盗链
+    // GET /api/proxy/image?u=<encoded-url>
+    // GET /api/proxy/audio?u=<encoded-url>
+    // HEAD 同样支持；音频会转发 Range，便于拖动进度条
+    // --------------------------------------------------------
+
+    if (
+        (method === "GET" || method === "HEAD") &&
+        path === "/api/proxy/image"
+    ) {
+        return proxyHuang1111Asset(request, env, "image");
+    }
+
+    if (
+        (method === "GET" || method === "HEAD") &&
+        path === "/api/proxy/audio"
+    ) {
+        return proxyHuang1111Asset(request, env, "audio");
+    }
+
     return json({
         success: false,
         error: "Not Found"
@@ -1740,6 +1761,187 @@ async function deleteFile(
 
 
 // ============================================================
+// Huang1111 public media proxy (image / audio)
+// ============================================================
+
+const HUANG1111_HOST_SUFFIX = "huang1111.cn";
+
+function isHuang1111Hostname(hostname, env) {
+    const host = String(hostname || "").toLowerCase().replace(/\.$/, "");
+    if (!host) return false;
+    if (host === HUANG1111_HOST_SUFFIX || host.endsWith("." + HUANG1111_HOST_SUFFIX)) {
+        return true;
+    }
+    // 也允许 env 里配置的 WebDAV 基址主机名（通常同属 huang1111）
+    try {
+        if (env.HUANG1111_BASE_URL) {
+            const baseHost = new URL(env.HUANG1111_BASE_URL).hostname.toLowerCase();
+            if (host === baseHost) return true;
+        }
+    } catch (_) {}
+    return false;
+}
+
+function guessAssetKindFromUrl(destUrl, explicitKind) {
+    if (explicitKind === "image" || explicitKind === "audio") return explicitKind;
+    const path = (destUrl.pathname || "").toLowerCase();
+    if (/\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)(\?|$)/i.test(path)) return "image";
+    if (/\.(mp3|m4a|aac|flac|wav|ogg|opus|webm)(\?|$)/i.test(path)) return "audio";
+    return explicitKind || "image";
+}
+
+/**
+ * 反代 huang1111 上的图片 / 音频，补 CORS，供 GitHub Pages 前端 fetch / <audio crossorigin> 使用。
+ * @param {"image"|"audio"} kind
+ */
+async function proxyHuang1111Asset(request, env, kind) {
+    const url = new URL(request.url);
+    const targetRaw = url.searchParams.get("u") || url.searchParams.get("url") || "";
+
+    if (!targetRaw) {
+        return json({
+            success: false,
+            error: "Missing query parameter u (target URL)"
+        }, 400, request, env);
+    }
+
+    let dest;
+    try {
+        dest = new URL(targetRaw);
+    } catch {
+        return json({
+            success: false,
+            error: "Invalid target URL"
+        }, 400, request, env);
+    }
+
+    if (dest.protocol !== "http:" && dest.protocol !== "https:") {
+        return json({
+            success: false,
+            error: "Only http/https targets are allowed"
+        }, 400, request, env);
+    }
+
+    if (!isHuang1111Hostname(dest.hostname, env)) {
+        return json({
+            success: false,
+            error: "Host not allowed (huang1111 only)"
+        }, 403, request, env);
+    }
+
+    const assetKind = guessAssetKindFromUrl(dest, kind);
+    const upstreamHeaders = buildWebDavAuthHeaders(env);
+
+    // 公共分享链一般不需要鉴权；WebDAV 私有路径会带 Basic。
+    // 不转发浏览器 Cookie，避免误带会话。
+    if (assetKind === "audio") {
+        upstreamHeaders.set("Accept", "audio/*,application/octet-stream,*/*;q=0.8");
+    } else {
+        upstreamHeaders.set("Accept", "image/*,application/octet-stream,*/*;q=0.8");
+    }
+
+    const range = request.headers.get("Range");
+    if (range) {
+        upstreamHeaders.set("Range", range);
+    }
+
+    const ifRange = request.headers.get("If-Range");
+    if (ifRange) {
+        upstreamHeaders.set("If-Range", ifRange);
+    }
+
+    let upstream;
+    try {
+        upstream = await fetch(dest.toString(), {
+            method: request.method === "HEAD" ? "HEAD" : "GET",
+            headers: upstreamHeaders,
+            redirect: "follow",
+            cf: {
+                // 边缘缓存；带 Range 的请求由 CF 按缓存键处理
+                cacheTtl: 86400,
+                cacheEverything: true
+            }
+        });
+    } catch (err) {
+        console.error("huang1111 proxy fetch failed:", err);
+        return json({
+            success: false,
+            error: "Upstream fetch failed"
+        }, 502, request, env);
+    }
+
+    if (!upstream.ok && upstream.status !== 206) {
+        const snippet = await safeText(upstream);
+        console.error(
+            "huang1111 proxy upstream error:",
+            upstream.status,
+            dest.toString(),
+            snippet
+        );
+        return json({
+            success: false,
+            error: "Upstream returned error",
+            status: upstream.status
+        }, upstream.status === 404 ? 404 : 502, request, env);
+    }
+
+    const out = new Headers();
+
+    const passThrough = [
+        "content-type",
+        "content-length",
+        "content-range",
+        "accept-ranges",
+        "etag",
+        "last-modified",
+        "cache-control"
+    ];
+    for (const name of passThrough) {
+        const v = upstream.headers.get(name);
+        if (v) out.set(name, v);
+    }
+
+    if (!out.has("content-type")) {
+        out.set(
+            "content-type",
+            assetKind === "audio" ? "audio/mpeg" : "application/octet-stream"
+        );
+    }
+
+    if (!out.has("cache-control")) {
+        out.set("cache-control", "public, max-age=86400, s-maxage=604800");
+    }
+
+    if (!out.has("accept-ranges")) {
+        out.set("accept-ranges", "bytes");
+    }
+
+    out.set("X-Content-Type-Options", "nosniff");
+    out.set("X-Proxied-Host", dest.hostname);
+    out.set(
+        "Access-Control-Expose-Headers",
+        "Content-Length, Content-Range, Accept-Ranges, Content-Type, ETag, Last-Modified"
+    );
+
+    // 与全站 API 一致：仅放行 FRONTEND_ORIGIN（含 credentials 场景）
+    addCorsHeaders(out, request, env);
+
+    // 无 Origin 或未配置 FRONTEND 时，静态资源仍允许公开读（图片/音频不带 cookie）
+    if (!out.has("Access-Control-Allow-Origin")) {
+        out.set("Access-Control-Allow-Origin", "*");
+    }
+
+    return new Response(
+        request.method === "HEAD" ? null : upstream.body,
+        {
+            status: upstream.status,
+            headers: out
+        }
+    );
+}
+
+
+// ============================================================
 // WebDAV
 // ============================================================
 
@@ -1932,7 +2134,7 @@ function corsPreflight(
 
     headers.set(
         "Access-Control-Allow-Headers",
-        "Content-Type"
+        "Content-Type, Range, If-Range, Authorization"
     );
 
     headers.set(

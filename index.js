@@ -4,20 +4,17 @@
   // ============================================================
   //  图床门禁：关键图片资源（主图床 + 备用图床）
   // ============================================================
-  // huang1111 原图（经 Worker 反代，解决 GitHub Pages CORS）
+  // 站点背景：只使用 pan.huang1111 这一张（浏览器 <img>/CSS 直连，不经 Worker）
+  // 说明：CSS/Image 显示不需要 CORS；Worker 反代会把一张图拖得很慢，故背景禁用反代。
   const HUANG_BACKGROUND_ORIGIN = 'https://pan.huang1111.cn/f/mLN1S2/Background.png';
-  const API_PROXY_ORIGIN = (typeof window !== 'undefined' && window.MAXSUI_API_BASE)
-    ? String(window.MAXSUI_API_BASE).replace(/\/api\/?$/, '').replace(/\/+$/, '')
-    : 'https://maxsui-api.maxsui.workers.dev';
+  // 图片 / 音频一律直连，永不走 Worker 反代
   function huangProxyUrl(kind, absoluteUrl) {
-    const k = (kind === 'audio') ? 'audio' : 'image';
-    return API_PROXY_ORIGIN + '/api/proxy/' + k + '?u=' + encodeURIComponent(absoluteUrl);
+    return String(absoluteUrl || '');
   }
-  const HUANG_BACKGROUND_PROXY = huangProxyUrl('image', HUANG_BACKGROUND_ORIGIN);
 
   const CRITICAL_IMAGE_URLS = [
-    // 站点背景：仅 pan.huang1111（经 Worker 反代，解决 CORS）
-    HUANG_BACKGROUND_PROXY,
+    // 背景：直连 pan（最快）
+    HUANG_BACKGROUND_ORIGIN,
     // 其它关键资源（精灵图等，不是背景）
     'https://free.picui.cn/free/2026/08/11/6a7a7c74e04ca.jpg',
     'https://free.picui.cn/free/2026/08/13/6a7d0bd296999.png',
@@ -25,9 +22,8 @@
     'https://pic.imgdd.cc/i/0345tgWcwr2l5scSYRh7Ch.jpg',
     'https://pic.imgdd.cc/i/0345tgWq0ULTHvT2facl03.png'
   ];
-  // 背景只允许这一张 pan 图：优先 Worker 反代，失败再试同源直连（仍是同一文件）
+  // 背景候选：仅这一张，只直连
   const BACKGROUND_CANDIDATE_URLS = [
-    HUANG_BACKGROUND_PROXY,
     HUANG_BACKGROUND_ORIGIN
   ];
 
@@ -6939,7 +6935,8 @@
       return;
     }
     if (audio.src !== track.src) {
-      audio.src = (typeof huangProxyUrl === 'function' && /huang1111\.cn/i.test(track.src)) ? huangProxyUrl('audio', track.src) : track.src;
+      // 音频不走 Worker 反代，直连源地址
+      audio.src = track.src;
       audio.load();
     }
     audio.play().then(() => {
@@ -7113,16 +7110,8 @@
   //  关键图片持久化缓存：首次下载后写入 Cache Storage，
   //  之后的访问直接从缓存读取，不再发起网络请求
   // ============================================================
-  const ASSET_CACHE_NAME = 'maxsui-boot-assets-v5';
+  // 图片资源：不使用 Cache Storage，每次直接网络加载
   const BOOT_BACKGROUND_URL = BACKGROUND_CANDIDATE_URLS[0];
-  let assetCachePromise = null;
-  function getAssetCache() {
-    if (!('caches' in window)) return Promise.resolve(null);
-    if (!assetCachePromise) {
-      assetCachePromise = caches.open(ASSET_CACHE_NAME).catch(() => null);
-    }
-    return assetCachePromise;
-  }
 
   function fetchWithTimeout(url, options, timeoutMs) {
     const ms = Math.max(800, timeoutMs || 12000);
@@ -7209,7 +7198,7 @@
       const res = await fetchWithTimeout(url, {
         method: 'HEAD',
         mode: 'cors',
-        cache: 'no-cache',
+        cache: 'no-store',
         credentials: 'omit'
       }, budget);
       if (res.ok) {
@@ -7221,7 +7210,7 @@
       const res = await fetchWithTimeout(url, {
         method: 'GET',
         mode: 'cors',
-        cache: 'no-cache',
+        cache: 'no-store',
         credentials: 'omit',
         headers: { Range: 'bytes=0-0' }
       }, budget);
@@ -7284,7 +7273,7 @@
       const res = await fetchWithTimeout(url, {
         method: 'GET',
         mode: 'cors',
-        cache: 'no-cache',
+        cache: 'no-store',
         credentials: 'omit',
         headers: { Range: 'bytes=' + start + '-' + end }
       }, timeoutMs);
@@ -7349,20 +7338,7 @@
     const timeoutMs = (options && options.timeoutMs) || 20000;
     const parallelMin = (options && options.parallelMin) || 256 * 1024;
     const chunks = (options && options.chunks) || 4;
-
-    const cache = await getAssetCache();
-    if (cache) {
-      try {
-        const hit = await cache.match(url);
-        if (hit) {
-          const blob = await hit.blob();
-          if (blob && blob.size > 0) {
-            if (onProgress) onProgress(blob.size, blob.size);
-            return { blob, size: blob.size, fromCache: true };
-          }
-        }
-      } catch (_) {}
-    }
+    // 不做 Cache Storage：每次直连网络
 
     // 先探大小，进度条分母马上有数
     let total = 0;
@@ -7391,7 +7367,7 @@
       const res = await fetchWithTimeout(url, {
         method: 'GET',
         mode: 'cors',
-        cache: 'no-cache',
+        cache: 'no-store',
         credentials: 'omit'
       }, timeoutMs);
       if (!res.ok) throw new Error('fetch failed: ' + res.status + ' ' + url);
@@ -7413,14 +7389,6 @@
     if (!blob || blob.size < 16) throw new Error('empty blob');
     if (onProgress) onProgress(blob.size, Math.max(total, blob.size));
 
-    if (cache) {
-      try {
-        await cache.put(url, new Response(blob, {
-          status: 200,
-          headers: { 'content-type': blob.type || 'application/octet-stream' }
-        }));
-      } catch (_) {}
-    }
     return { blob, size: blob.size, fromCache: false, parallel: usedParallel };
   }
 
@@ -7446,7 +7414,8 @@
 
   function loadImageWithProgress(url, timeoutMs, progressId) {
     const isBg = (typeof BACKGROUND_CANDIDATE_URLS !== 'undefined' && BACKGROUND_CANDIDATE_URLS.includes(url))
-      || url === BOOT_BACKGROUND_URL;
+      || url === BOOT_BACKGROUND_URL
+      || (typeof HUANG_BACKGROUND_ORIGIN !== 'undefined' && url === HUANG_BACKGROUND_ORIGIN);
     const budget = Math.max(3000, timeoutMs || 15000);
     const id = progressId || url;
 
@@ -7456,73 +7425,85 @@
         if (settled) return;
         settled = true;
         const size = (result && result.size) || 0;
-        bootProgressReport(id, size, size, true);
+        bootProgressReport(id, size, Math.max(size, 1), true);
         resolve(result);
       };
 
-      const failTimer = setTimeout(() => {
-        done({ ok: false, url, size: 0, reason: 'timeout' });
-      }, budget + 500);
-
-      (async () => {
-        try {
-          const { blob, size } = await fetchBlobWithProgress(
-            url,
-            (loaded, total) => bootProgressReport(id, loaded, total, false),
-            {
-              timeoutMs: budget,
-              // Worker 较慢：背景图尽量 4 分片并行
-              chunks: isBg ? 4 : 3,
-              parallelMin: 128 * 1024
-            }
-          );
-          const obj = URL.createObjectURL(blob);
-          if (isBg) applyCachedBoolBackground(obj);
-          const img = new Image();
-          img.onload = () => {
-            clearTimeout(failTimer);
-            if (!isBg) {
-              try { URL.revokeObjectURL(obj); } catch (_) {}
-            }
-            done({ ok: true, url, size });
-          };
-          img.onerror = () => {
-            clearTimeout(failTimer);
-            if (isBg) {
-              done({ ok: true, url, size });
-            } else {
-              try { URL.revokeObjectURL(obj); } catch (_) {}
-              done({ ok: false, url, size: 0, reason: 'decode' });
-            }
-          };
-          img.src = obj;
-        } catch (_) {
-          // 兜底：不走 CORS fetch，直接 Image（无字节进度）
+      // ========== 背景：浏览器原生加载（最快）==========
+      // 不走 fetch/Worker/分片。CSS 与 Image 显示不受 CORS 限制。
+      if (isBg) {
+        bootProgressReport(id, 0, 1, false);
+        const img = new Image();
+        // 尽量并行解码
+        img.decoding = 'async';
+        img.loading = 'eager';
+        let ticks = 0;
+        const pulse = setInterval(() => {
+          ticks += 1;
+          // 无字节信息时用脉冲进度，避免 0% 假死观感（上限 90%）
+          const fake = Math.min(0.9, 0.08 * ticks);
+          bootProgressReport(id, Math.round(fake * 1000), 1000, false);
+        }, 200);
+        const failTimer = setTimeout(() => {
+          clearInterval(pulse);
+          img.onload = img.onerror = null;
+          done({ ok: false, url, size: 0, reason: 'bg-timeout' });
+        }, budget);
+        img.onload = () => {
+          clearInterval(pulse);
+          clearTimeout(failTimer);
+          applyCssBackgroundUrl(url);
+          // 也写一份 object-fit 友好的 inline（与旧逻辑一致）
           try {
-            const img = new Image();
-            img.decoding = 'async';
-            const t2 = setTimeout(() => {
-              img.onload = img.onerror = null;
-              done({ ok: false, url, size: 0, reason: 'img-timeout' });
-            }, Math.min(6000, budget));
-            img.onload = () => {
-              clearTimeout(t2);
-              clearTimeout(failTimer);
-              if (isBg) applyCssBackgroundUrl(url);
-              done({ ok: true, url, size: 0 });
-            };
-            img.onerror = () => {
-              clearTimeout(t2);
-              clearTimeout(failTimer);
-              done({ ok: false, url, size: 0, reason: 'img-error' });
-            };
-            img.src = url;
-          } catch (e2) {
-            clearTimeout(failTimer);
-            done({ ok: false, url, size: 0, reason: 'exception' });
-          }
-        }
-      })();
+            document.body.style.backgroundImage = 'url("' + url + '")';
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundRepeat = 'no-repeat';
+          } catch (_) {}
+          bootProgressReport(id, 1000, 1000, true);
+          done({ ok: true, url, size: 0, fast: true });
+        };
+        img.onerror = () => {
+          clearInterval(pulse);
+          clearTimeout(failTimer);
+          done({ ok: false, url, size: 0, reason: 'bg-error' });
+        };
+        // 直连 + 破浏览器 HTTP 缓存
+        const sep = url.indexOf('?') >= 0 ? '&' : '?';
+        img.src = url + sep + '_boot=' + Date.now();
+        return;
+      }
+
+      // ========== 其它图片：浏览器直连 Image，不走缓存、不走反代 ==========
+      bootProgressReport(id, 0, 1, false);
+      const img = new Image();
+      img.decoding = 'async';
+      img.loading = 'eager';
+      let ticks = 0;
+      const pulse = setInterval(() => {
+        ticks += 1;
+        const fake = Math.min(0.9, 0.1 * ticks);
+        bootProgressReport(id, Math.round(fake * 1000), 1000, false);
+      }, 180);
+      const failTimer = setTimeout(() => {
+        clearInterval(pulse);
+        img.onload = img.onerror = null;
+        done({ ok: false, url, size: 0, reason: 'timeout' });
+      }, budget);
+      img.onload = () => {
+        clearInterval(pulse);
+        clearTimeout(failTimer);
+        bootProgressReport(id, 1000, 1000, true);
+        done({ ok: true, url, size: 0, direct: true });
+      };
+      img.onerror = () => {
+        clearInterval(pulse);
+        clearTimeout(failTimer);
+        done({ ok: false, url, size: 0, reason: 'img-error' });
+      };
+      // 加时间戳打破 HTTP 磁盘缓存，强制重新请求
+      const sep = url.indexOf('?') >= 0 ? '&' : '?';
+      img.src = url + sep + '_boot=' + Date.now();
     });
   }
 
@@ -7572,110 +7553,53 @@
     const healthPromise = resolveApiBase();
     const fontPromise = waitForFontAwesome(8000);
 
-    // 全部关键资源并行：背景候选竞速 + 其它图并行拉
-    // 背景：多个候选谁先成功用谁（Worker 慢则其它图床顶上）
-    const bgUrls = (BACKGROUND_CANDIDATE_URLS || []).slice();
+    const bgUrls = (BACKGROUND_CANDIDATE_URLS || [HUANG_BACKGROUND_ORIGIN]).slice();
     const otherUrls = (CRITICAL_IMAGE_URLS || []).slice().filter(
-      (u) => !(BACKGROUND_CANDIDATE_URLS || []).includes(u)
+      (u) => !(BACKGROUND_CANDIDATE_URLS || []).includes(u) && u !== HUANG_BACKGROUND_ORIGIN
     );
 
-    // 预先 HEAD 探大小：只写入对应下载 id 的 total，避免 probe/下载双计
-    bgUrls.forEach((u, idx) => {
-      const id = 'bg-' + idx;
-      bootProgressReport(id, 0, 0, false);
-      probeContentLength(u, 3500).then((n) => {
-        if (n > 0) bootProgressReport(id, 0, n, false);
-      }).catch(() => {});
-    });
-    otherUrls.forEach((u, idx) => {
-      const id = 'asset-' + idx;
-      bootProgressReport(id, 0, 0, false);
-      probeContentLength(u, 3500).then((n) => {
-        if (n > 0) bootProgressReport(id, 0, n, false);
-      }).catch(() => {});
-    });
-
-    let bgOk = false;
-    const bgPromise = new Promise((resolve) => {
-      if (!bgUrls.length) {
-        resolve(false);
-        return;
+    // 立刻踢背景直连（最高优先级），不要等 Worker / 不要分片
+    const bgPromise = (async () => {
+      for (let i = 0; i < bgUrls.length; i++) {
+        const r = await loadImageWithProgress(bgUrls[i], 20000, 'bg-' + i);
+        if (r && r.ok) return true;
       }
-      let pending = bgUrls.length;
-      let finished = false;
-      const finish = (ok) => {
-        if (finished) return;
-        finished = true;
-        resolve(ok);
-      };
-      // 整体背景竞速上限
-      const dog = setTimeout(() => finish(false), 14000);
-      bgUrls.forEach((bgUrl, idx) => {
-        loadImageWithProgress(bgUrl, 12000, 'bg-' + idx).then((r) => {
-          if (r && r.ok) {
-            // 其余背景候选记为完成，避免进度条被失败/慢源拖着
-            bgUrls.forEach((_, j) => {
-              if (j !== idx) {
-                const it = bootProgressState.items.get('bg-' + j);
-                if (it && !it.done) {
-                  bootProgressReport('bg-' + j, it.loaded || 0, Math.max(it.total, it.loaded, 1), true);
-                }
-              }
-            });
-            clearTimeout(dog);
-            finish(true);
-          } else {
-            pending -= 1;
-            if (pending <= 0) {
-              clearTimeout(dog);
-              finish(false);
-            }
-          }
-        }).catch(() => {
-          pending -= 1;
-          if (pending <= 0) {
-            clearTimeout(dog);
-            finish(false);
-          }
-        });
-      });
-    });
+      return false;
+    })();
 
+    // 其它关键图并行（与背景同时进行）
     const othersPromise = Promise.all(
       otherUrls.map((url, idx) =>
         loadImageWithProgress(url, 12000, 'asset-' + idx).catch(() => ({ ok: false, size: 0 }))
       )
     );
 
-    // 背景与其它资源同时进行
-    const [bgResult] = await Promise.all([bgPromise, othersPromise]);
-    bgOk = !!bgResult;
+    const [bgOk] = await Promise.all([bgPromise, othersPromise]);
 
     if (!bgOk) {
+      // 仍只保留深色底，绝不换其它图床的图
       try {
-        document.body.style.backgroundImage = 'linear-gradient(160deg, #1c1c1e 0%, #2c2c2e 45%, #1a1a1c 100%)';
         document.body.style.backgroundColor = '#1c1c1e';
+        document.body.style.backgroundImage = 'none';
       } catch (_) {}
     }
 
-    // 字体与 API 健康检查不阻塞进度条到 100%，但要等完再进站
     await fontPromise;
     const apiOk = await healthPromise;
 
-    // 收尾：进度拉满
     bootProgressState.items.forEach((it, id) => {
       const t = Math.max(it.total, it.loaded, 1);
       bootProgressReport(id, t, t, true);
     });
     bootProgressTick();
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 80));
 
     if (loader) {
       loader.classList.add('is-done');
       loader.setAttribute('aria-busy', 'false');
       setTimeout(() => {
         if (loader.parentNode) loader.parentNode.removeChild(loader);
-      }, 500);
+      }, 400);
     }
     if (scrollContainer) scrollContainer.style.overflow = '';
     try { requestAnimationFrame(() => tryHideMobileBrowserChrome()); } catch (_) {}
