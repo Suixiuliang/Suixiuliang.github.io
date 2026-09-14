@@ -6851,6 +6851,47 @@
     });
   }
 
+  
+  /** 曲目列表封面：仅进入可视区域才加载，避免同时打爆图床 */
+  function amLazyLoadCovers(root) {
+    const scope = root || document;
+    const imgs = scope.querySelectorAll('img.am-row-cover[data-src]');
+    if (!imgs.length) return;
+    const loadOne = (img) => {
+      const src = img.getAttribute('data-src');
+      if (!src || img.getAttribute('src') === src) return;
+      img.setAttribute('src', src);
+      img.removeAttribute('data-src');
+      img.addEventListener('error', () => {
+        img.style.opacity = '0.35';
+      }, { once: true });
+    };
+    if (!('IntersectionObserver' in window)) {
+      // 降级：每次最多加载 8 张
+      let n = 0;
+      imgs.forEach((img) => {
+        if (n < 8) { loadOne(img); n++; }
+      });
+      return;
+    }
+    if (!amState._coverObserver) {
+      amState._coverObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((en) => {
+            if (!en.isIntersecting) return;
+            const img = en.target;
+            loadOne(img);
+            try { amState._coverObserver.unobserve(img); } catch (_) {}
+          });
+        },
+        { root: document.getElementById('amTrackList') || null, rootMargin: '80px 0px', threshold: 0.01 }
+      );
+    }
+    imgs.forEach((img) => {
+      try { amState._coverObserver.observe(img); } catch (_) { loadOne(img); }
+    });
+  }
+
   function renderAmTracks(filter) {
     const list = document.getElementById('amTrackList');
     if (!list) return;
@@ -6867,7 +6908,7 @@
       const active = amState.index >= 0 && amState.tracks[amState.index] && amState.tracks[amState.index].id === t.id;
       const realIndex = amState.tracks.findIndex((x) => x.id === t.id);
       const cover = t.cover
-        ? '<img class="am-row-cover" src="' + escapeHtml(t.cover) + '" alt="">'
+        ? '<img class="am-row-cover" data-src="' + escapeHtml(t.cover) + '" alt="" loading="lazy" decoding="async">'
         : '<span class="am-row-cover is-empty"><i class="fas fa-music"></i></span>';
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
@@ -6886,11 +6927,12 @@
     list.querySelectorAll('.am-track-row').forEach((row) => {
       row.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        const id = row.getAttribute('data-id');
-        const tr = amState.tracks.find((x) => x.id === id);
+        const idx = Number(row.getAttribute('data-index'));
+        const tr = amState.tracks[idx];
         if (tr) amShowCtxMenu(e.clientX, e.clientY, tr);
       });
     });
+    amLazyLoadCovers(list);
 
     list.querySelectorAll('.am-track-row').forEach((row) => {
       row.addEventListener('click', () => {
@@ -6924,6 +6966,13 @@
     if (artist) artist.textContent = track.artist || '—';
     if (meta) meta.textContent = [track.album || '—', track.year || '—'].join(' · ');
     amSetCover(document.getElementById('amNpArt'), track.cover);
+    // 全屏左侧大封面 = 当前曲封面
+    amSetCover(document.getElementById('amHeroArt'), track.cover);
+    const heroTitle = document.getElementById('amHeroTitle');
+    const heroSub = document.getElementById('amHeroSub');
+    if (heroTitle) heroTitle.textContent = track.title || '未命名歌曲';
+    if (heroSub) heroSub.textContent = (track.artist && String(track.artist).trim()) ? track.artist : '—';
+
     if (toggle) {
       const icon = toggle.querySelector('i');
       if (icon) icon.className = amState.playing ? 'fas fa-pause' : 'fas fa-play';
@@ -7058,7 +7107,10 @@
       .forEach((line) => {
         const ne = amParseNeteaseLyricLine(line);
         if (ne) {
-          if (ne.text) cues.push({ t: ne.t, text: ne.text });
+          const nt = String(ne.text || '').trim();
+          if (nt && !/^(作词|作曲|编曲|制作人)\s*[:：]/.test(nt)) {
+            cues.push({ t: ne.t, text: nt });
+          }
           return;
         }
         // 支持一行多时间标签
@@ -7084,7 +7136,17 @@
         if (/^\[[a-zA-Z]+:/i.test(line.trim())) return;
       });
     cues.sort((a, b) => a.t - b.t);
-    return cues;
+    // 过滤作词/作曲/纯元信息行，避免「第一行不是第一句歌词」
+    const isMetaLine = (text) => {
+      const t = String(text || '').trim();
+      if (!t) return true;
+      if (/^(作词|作曲|编曲|制作人|出品|录音|混音|母带)\s*[:：]/.test(t)) return true;
+      if (/^(Artist|AR|AL|TI|By)\s*[:：]/i.test(t)) return true;
+      if (/^\[(ar|ti|al|by|offset|length):/i.test(t)) return true;
+      return false;
+    };
+    const filtered = cues.filter((c) => !isMetaLine(c.text));
+    return filtered.length ? filtered : cues;
   }
 
   async function amLoadLyrics(track) {

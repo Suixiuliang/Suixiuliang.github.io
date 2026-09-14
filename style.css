@@ -5449,7 +5449,7 @@ html.is-phone .audio-mini-dock {
 
 /* 全屏播放器模式：左边封面/歌曲信息，右边歌词，下边统一控制栏 */
 .am-player.is-player-mode {
-  /* 页内全屏：铺满浏览器内容区，不触发系统 Fullscreen（任务栏仍可见） */
+  /* 页内全屏：半透明 + 模糊变暗，透出站点背景图 */
   position: fixed !important;
   inset: 0 !important;
   z-index: 10000;
@@ -5461,9 +5461,11 @@ html.is-phone .audio-mini-dock {
   border-radius: 0;
   grid-template-columns: minmax(280px, 42vw) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) 84px;
-  background: rgba(12, 12, 15, 0.72);
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  background: rgba(8, 8, 12, 0.38) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(40px) saturate(150%) brightness(0.72);
+  -webkit-backdrop-filter: blur(40px) saturate(150%) brightness(0.72);
 }
 .am-player:not(.is-player-mode) {
   /* 退出全屏后强制回到相对定位网格，防止残留 fixed 把布局压成一坨 */
@@ -5483,11 +5485,11 @@ html.is-phone .audio-mini-dock {
 .am-player.is-player-mode .am-hero-meta { max-width:100%; }
 .am-player.is-player-mode .am-hero-title { font-size:clamp(1.7rem,3vw,3rem); }
 .am-player.is-player-mode .am-hero-actions { justify-content:center; }
-.am-player.is-player-mode .am-lyrics-pane { grid-column:2; grid-row:1; border-left:0; border-right:0; background:rgba(0,0,0,.12); }
+.am-player.is-player-mode .am-lyrics-pane { grid-column:2; grid-row:1; border-left:0.5px solid rgba(255,255,255,0.1); border-right:0; background:rgba(0,0,0,0.18); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .am-player.is-player-mode .am-lyrics-head { padding:1.5rem 2rem .5rem; font-size:1.05rem; }
-.am-player.is-player-mode .am-lyrics-body { padding:1rem clamp(2rem,5vw,6rem) 4rem; display:flex; flex-direction:column; justify-content:center; }
+.am-player.is-player-mode .am-lyrics-body { padding:2.5rem clamp(2rem,5vw,6rem) 30vh; display:flex; flex-direction:column; justify-content:flex-start; }
 .am-player.is-player-mode .am-lrc-line { font-size:clamp(1rem,1.35vw,1.35rem); padding:.5rem 0; }
-.am-player.is-player-mode .am-now-playing { grid-row:2; grid-column:1/-1; grid-template-columns:56px auto minmax(220px,340px) minmax(300px,1fr) auto; grid-template-rows:72px; padding:.6rem 1.25rem; background:rgba(0,0,0,.55); }
+.am-player.is-player-mode .am-now-playing { background: rgba(0,0,0,0.32); border-top: 0.5px solid rgba(255,255,255,0.12); backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); }
 .am-player.is-player-mode .am-np-art { width:56px; height:56px; }
 .am-player.is-player-mode .am-visualizer { position:absolute; inset:0; z-index:0; width:100%; height:100%; pointer-events:none; opacity:.3; filter:blur(9px) saturate(130%); mix-blend-mode:screen; }
 .am-player.is-player-mode > *:not(.am-visualizer) { position:relative; z-index:2; }
@@ -5769,3 +5771,67 @@ body.am-player-mode-open { overflow:hidden !important; }
 }
 
 .am-time-dur, #amTimeDur { display: none !important; }
+
+
+/* ===== 全局滚动条：透明轨道 + 半透明滑块（同博客） ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  border: none;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+
+/* 全屏：左侧突出当前封面 */
+.am-player.is-player-mode .am-hero {
+  height: 100%;
+  min-height: 0;
+  padding: clamp(1.5rem, 4vw, 3.5rem);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: transparent;
+}
+.am-player.is-player-mode .am-hero-art {
+  width: min(36vw, 460px);
+  height: min(36vw, 460px);
+  flex: 0 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.06);
+  border: 0.5px solid rgba(255,255,255,0.18);
+  box-shadow: 0 28px 80px rgba(0,0,0,0.45), inset 0 0.5px 1px rgba(255,255,255,0.2);
+}
+.am-player.is-player-mode .am-hero-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.am-player.is-player-mode .am-hero-kicker { display: none; }
+.am-player.is-player-mode .am-hero-actions { display: none; }
+.am-row-cover {
+  background: rgba(255,255,255,0.06);
+}
+.am-row-cover[data-src] {
+  /* 占位，未加载前不请求 */
+  min-width: 40px;
+  min-height: 40px;
+}
