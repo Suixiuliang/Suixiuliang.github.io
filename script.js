@@ -7,9 +7,22 @@
   // 站点背景：只使用 pan.huang1111 这一张（浏览器 <img>/CSS 直连，不经 Worker）
   // 说明：CSS/Image 显示不需要 CORS；Worker 反代会把一张图拖得很慢，故背景禁用反代。
   const HUANG_BACKGROUND_ORIGIN = 'https://pan.huang1111.cn/f/mLN1S2/Background.png';
-  // 图片 / 音频一律直连，永不走 Worker 反代
+  // 图片：永不反代。音频：走 Worker /api/proxy/audio
+  const API_PROXY_ORIGIN = (typeof window !== 'undefined' && window.MAXSUI_API_BASE)
+    ? String(window.MAXSUI_API_BASE).replace(/\/api\/?$/, '').replace(/\/+$/, '')
+    : 'https://maxsui-api.maxsui.workers.dev';
   function huangProxyUrl(kind, absoluteUrl) {
-    return String(absoluteUrl || '');
+    const u = String(absoluteUrl || '');
+    if (!u) return '';
+    if (kind === 'audio') {
+      // 仅音频反代（huang1111）
+      if (/huang1111\.cn/i.test(u)) {
+        return API_PROXY_ORIGIN + '/api/proxy/audio?u=' + encodeURIComponent(u);
+      }
+      return u;
+    }
+    // 图片永远直连
+    return u;
   }
 
   const CRITICAL_IMAGE_URLS = [
@@ -6934,10 +6947,14 @@
       renderAmTracks(document.getElementById('amSearchInput')?.value || '');
       return;
     }
-    if (audio.src !== track.src) {
-      // 音频不走 Worker 反代，直连源地址
-      audio.src = track.src;
-      audio.load();
+    {
+      const playUrl = (typeof huangProxyUrl === 'function')
+        ? huangProxyUrl('audio', track.src)
+        : track.src;
+      if (audio.getAttribute('src') !== playUrl && audio.src !== playUrl) {
+        audio.src = playUrl;
+        audio.load();
+      }
     }
     audio.play().then(() => {
       amState.playing = true;
@@ -7468,9 +7485,8 @@
           clearTimeout(failTimer);
           done({ ok: false, url, size: 0, reason: 'bg-error' });
         };
-        // 直连 + 破浏览器 HTTP 缓存
-        const sep = url.indexOf('?') >= 0 ? '&' : '?';
-        img.src = url + sep + '_boot=' + Date.now();
+        // 直连干净 URL（pan 分享链加 query 可能导致 404）
+        img.src = url;
         return;
       }
 
@@ -7501,9 +7517,7 @@
         clearTimeout(failTimer);
         done({ ok: false, url, size: 0, reason: 'img-error' });
       };
-      // 加时间戳打破 HTTP 磁盘缓存，强制重新请求
-      const sep = url.indexOf('?') >= 0 ? '&' : '?';
-      img.src = url + sep + '_boot=' + Date.now();
+      img.src = url;
     });
   }
 
@@ -7550,6 +7564,18 @@
     bootProgressReset();
     if (scrollContainer) scrollContainer.style.overflow = 'hidden';
 
+    // 立刻挂上背景 CSS（浏览器并行下载，不依赖门禁结束）
+    try {
+      const bg0 = (BACKGROUND_CANDIDATE_URLS && BACKGROUND_CANDIDATE_URLS[0]) || HUANG_BACKGROUND_ORIGIN;
+      if (bg0) {
+        document.body.style.backgroundImage = 'url("' + bg0 + '")';
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        document.body.style.backgroundColor = '#1c1c1e';
+      }
+    } catch (_) {}
+
     const healthPromise = resolveApiBase();
     const fontPromise = waitForFontAwesome(8000);
 
@@ -7577,10 +7603,22 @@
     const [bgOk] = await Promise.all([bgPromise, othersPromise]);
 
     if (!bgOk) {
+      // 直连失败时：仅背景可走 Worker 图片反代（仍是同一张 pan 图，不换图床）
+      try {
+        const originBg = HUANG_BACKGROUND_ORIGIN;
+        const viaWorker = API_PROXY_ORIGIN + '/api/proxy/image?u=' + encodeURIComponent(originBg);
+        const r2 = await loadImageWithProgress(viaWorker, 15000, 'bg-proxy');
+        if (r2 && r2.ok) {
+          applyCssBackgroundUrl(viaWorker);
+          bgOk = true;
+        }
+      } catch (_) {}
+    }
+    if (!bgOk) {
       // 仍只保留深色底，绝不换其它图床的图
       try {
         document.body.style.backgroundColor = '#1c1c1e';
-        document.body.style.backgroundImage = 'none';
+        // 保留可能已设置的 CSS url，不强制清空（浏览器可能仍在加载）
       } catch (_) {}
     }
 
