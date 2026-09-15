@@ -5384,7 +5384,7 @@ html.is-phone .audio-mini-dock {
 .am-track-head,.am-track-row {
   box-sizing:border-box;
   display:grid;
-  grid-template-columns:42px minmax(220px,2.4fr) minmax(120px,1.25fr) minmax(130px,1.35fr) 72px 72px;
+  grid-template-columns: minmax(180px, 2.6fr) minmax(100px, 1.2fr) minmax(100px, 1.2fr) 64px 48px;
   gap:.75rem; align-items:center; width:100%; min-width:0; padding:.55rem .65rem; border-radius:9px;
 }
 .am-track-head { font-size:.75rem; font-weight:600; color:rgba(255,255,255,.48); border-bottom:1px solid rgba(255,255,255,.08); margin-bottom:.25rem; white-space:nowrap; }
@@ -5943,4 +5943,23 @@ body.am-player-mode-open { overflow:hidden !important; }
 .am-row-dl:hover {
   color: #fff;
   background: rgba(255,255,255,0.1);
+}
+
+/* 列表：无封面、无序号列，第一列歌名 */
+.am-col-idx, .am-row-cover { display: none !important; }
+.am-col-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.am-col-title .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.am-playing-ico {
+  color: rgba(255,255,255,0.85);
+  font-size: 0.75rem;
+  flex: 0 0 auto;
 }

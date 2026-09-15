@@ -6934,13 +6934,13 @@
     list.innerHTML = rows.map((t, i) => {
       const active = amState.index >= 0 && amState.tracks[amState.index] && amState.tracks[amState.index].id === t.id;
       const realIndex = amState.tracks.findIndex((x) => x.id === t.id);
-      const cover = '<span class="am-row-cover is-empty" aria-hidden="true"><i class="fas fa-music"></i></span>';
+      // 无封面列：第一列直接是歌名
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
-          '<span class="am-col-idx" role="cell">' + (active && amState.playing ? '<i class="fas fa-volume-up"></i>' : (i + 1)) + '</span>' +
-          '<span class="am-col-title" role="cell">' + cover +
-            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span>' +
-          '</span></span>' +
+          '<span class="am-col-title" role="cell">' +
+            (active && amState.playing ? '<i class="fas fa-volume-up am-playing-ico"></i>' : '') +
+            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span></span>' +
+          '</span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
           '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '—') + '</span>' +
           '<span class="am-col-year" role="cell">' + escapeHtml(t.year || '—') + '</span>' +
@@ -6982,7 +6982,6 @@
         const idx = Number(btn.getAttribute('data-dl-index'));
         const tr = amState.tracks[idx];
         if (!tr) return;
-        // 弹出与右键相同的下载菜单
         const r = btn.getBoundingClientRect();
         amShowCtxMenu(r.left, r.bottom + 4, tr);
       });
