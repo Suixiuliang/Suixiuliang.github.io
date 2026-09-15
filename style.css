@@ -1037,7 +1037,14 @@ body.is-nav-capsule-dragging * {
   flex-shrink: 0;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 900px) {.am-avatar-placeholder {
+  top: .9rem;
+  right: 1rem;
+  width: 72px;
+  height: 72px;
+}
+
+
   .panel-home {
     padding: 0.5rem 1rem 0.5rem;
     overflow-y: hidden;
@@ -5339,6 +5346,21 @@ html.is-phone .audio-mini-dock {
   backdrop-filter: blur(26px) saturate(145%);
   -webkit-backdrop-filter: blur(26px) saturate(145%);
 }
+.am-avatar-placeholder {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.35rem;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 7;
+}
+.am-player.is-player-mode .am-avatar-placeholder {
+  top: 1.5rem;
+  right: 1.75rem;
+}
 .am-player.has-lyrics { grid-template-columns: minmax(185px,220px) minmax(0,1fr) minmax(260px,340px); }
 .am-sidebar {
   grid-column: 1; grid-row: 1;
@@ -5444,6 +5466,43 @@ html.is-phone .audio-mini-dock {
 .am-time { min-width:2.2rem; font-size:.72rem; font-variant-numeric:tabular-nums; color:rgba(255,255,255,.5); }
 .am-seek-track { flex:1; min-width:0; height:4px; border-radius:999px; background:rgba(255,255,255,.15); cursor:pointer; position:relative; overflow:hidden; }
 .am-seek-fill { position:absolute; left:0; top:0; bottom:0; width:0%; background:#fa2d48; border-radius:inherit; }
+.am-seek-track.is-loading {
+  background: rgba(255,255,255,.11);
+  cursor: default;
+}
+.am-seek-track.is-loading .am-seek-fill {
+  width: 100% !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(250,45,72,.10) 0%,
+      rgba(250,45,72,.28) 22%,
+      rgba(255,255,255,.96) 50%,
+      rgba(250,45,72,.28) 78%,
+      rgba(250,45,72,.10) 100%
+    );
+  background-size: 220% 100%;
+  animation: amSeekLoadingPulse 1.25s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes amSeekLoadingPulse {
+  0%, 100% {
+    opacity: .52;
+    background-position: 0% 50%;
+  }
+  50% {
+    opacity: 1;
+    background-position: 100% 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .am-seek-track.is-loading .am-seek-fill {
+    animation: none;
+    opacity: .82;
+    background-position: 50% 50%;
+  }
+}
+
 .am-np-volume { display:flex; align-items:center; gap:.4rem; color:rgba(255,255,255,.65); }
 .am-np-volume input[type=range] { width:88px; accent-color:#fa2d48; }
 
@@ -6045,3 +6104,119 @@ body.am-player-mode-open { overflow:hidden !important; }
 .am-track-head, .am-track-row {
   grid-template-columns: minmax(180px, 2.6fr) minmax(100px, 1.2fr) minmax(100px, 1.2fr) 64px 48px !important;
 }
+
+
+/* ===== v34 player UX ===== */
+#amToggleBtn i { font-size: 1.15em !important; }
+#amPrevBtn i, #amNextBtn i { font-size: 0.85em !important; }
+#amPlayModeBtn.am-ctrl-mode,
+.am-ctrl-mode {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  width: 28px;
+  height: 28px;
+}
+#amPlayModeBtn.am-ctrl-mode:hover {
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 8px;
+}
+#amPlayModeBtn i { font-size: 0.85em !important; }
+
+/* 默认封面：玻璃卡片效果，非粉红渐变 */
+.am-hero-art {
+  background: rgba(255,255,255,0.08) !important;
+  background-image: none !important;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.am-hero-art:not(:has(img[src])) {
+  background: rgba(255,255,255,0.08) !important;
+}
+
+/* 进度条圆点（与音量类似）；音量圆为一半 */
+.am-seek-track {
+  position: relative;
+  cursor: pointer;
+}
+.am-seek-fill {
+  position: relative;
+}
+.am-seek-fill::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.am-seek-track:hover .am-seek-fill::after,
+.am-seek-track.is-active .am-seek-fill::after,
+body.is-slider-dragging .am-seek-fill::after {
+  opacity: 1;
+}
+.am-np-volume input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.18);
+  border-radius: 999px;
+  height: 3px;
+}
+.am-np-volume input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+.am-np-volume input[type=range]::-moz-range-thumb {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+}
+
+/* 拖动滑动条时隐藏点击粒子/焦点圆 */
+body.is-slider-dragging .effect-canvas,
+body.is-slider-dragging .particle,
+body.is-slider-dragging .click-ring,
+body.is-slider-dragging .trail-dot {
+  display: none !important;
+  opacity: 0 !important;
+}
+body.is-slider-dragging { cursor: grabbing !important; }
+
+/* 英雄区 + 操作按钮粘性固定 */
+.am-main-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.am-hero {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: rgba(24,24,28,0.72);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+.am-player.is-player-mode .am-hero {
+  position: relative;
+  background: transparent;
+}
+
+/* 隐藏旧 am 右键菜单 */
+#amCtxMenu, .am-ctx-menu { display: none !important; }
