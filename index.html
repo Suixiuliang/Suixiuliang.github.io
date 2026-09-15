@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=32">
+  <link rel="stylesheet" href="/style.css?v=33">
 </head>
 <body>
 
@@ -334,12 +334,11 @@
           </div>
           <div class="am-track-table" role="table" aria-label="曲目列表">
             <div class="am-track-head" role="row">
-              <span class="am-col-idx" role="columnheader">#</span>
-              <span class="am-col-title" role="columnheader">标题</span>
-              <span class="am-col-artist" role="columnheader">作者</span>
-              <span class="am-col-album" role="columnheader">专辑</span>
-              <span class="am-col-year" role="columnheader">年份</span>
-              <span class="am-col-time" role="columnheader">时长</span>
+              <span class="am-col-title" role="columnheader" data-sort="title" title="按歌名排序">歌名</span>
+              <span class="am-col-artist" role="columnheader" data-sort="artist" title="按艺术家排序">艺术家</span>
+              <span class="am-col-album" role="columnheader" data-sort="album" title="按歌单排序">歌单</span>
+              <span class="am-col-year" role="columnheader" data-sort="year" title="按年份排序">年份</span>
+              <span class="am-col-time" role="columnheader"></span>
             </div>
             <div class="am-track-body" id="amTrackList" role="rowgroup">
               <div class="am-track-empty">加载曲目中…</div>
@@ -360,6 +359,7 @@
           <div class="am-np-controls">
             <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><i class="fas fa-step-backward"></i></button>
             <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><i class="fas fa-play"></i></button>
+            <button type="button" class="am-ctrl" id="amPlayModeBtn" title="顺序播放（点击切换）" aria-label="播放模式"><i class="fas fa-arrows-alt-h"></i></button>
             <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><i class="fas fa-step-forward"></i></button>
           </div>
           <div class="am-np-info">
@@ -444,6 +444,6 @@
   <p>© 2025-2026 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
-<script src="/script.js?v=32"></script>
+<script src="/script.js?v=33"></script>
 </body>
 </html>

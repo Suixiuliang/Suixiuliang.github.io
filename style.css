@@ -6007,3 +6007,41 @@ body.am-player-mode-open { overflow:hidden !important; }
   -webkit-backdrop-filter: blur(48px) saturate(170%) brightness(0.75) !important;
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 -1px 0 rgba(0,0,0,0.2);
 }
+
+/* 播放控制符号缩小到 85% */
+.am-ctrl i,
+.am-ctrl-main i,
+.am-np-controls i,
+#amToggleBtn i,
+#amPrevBtn i,
+#amNextBtn i,
+#amPlayModeBtn i {
+  font-size: 0.85em !important;
+}
+.am-track-head [data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+.am-track-head [data-sort]:hover { color: rgba(255,255,255,0.9); }
+.am-track-head [data-sort].is-sorted { color: #fff; }
+.am-track-head [data-sort].is-sorted::after { content: " ▲"; font-size: 0.65em; opacity: 0.75; }
+.am-track-head [data-sort].is-sorted.is-desc::after { content: " ▼"; }
+.am-col-idx, .am-row-cover { display: none !important; }
+.am-track-head, .am-track-row {
+  grid-template-columns: minmax(180px, 2.6fr) minmax(100px, 1.2fr) minmax(100px, 1.2fr) 64px 48px !important;
+}
+
+/* am-ctrl icons 85 */
+.am-ctrl i, .am-ctrl-main i, .am-np-controls i,
+#amToggleBtn i, #amPrevBtn i, #amNextBtn i, #amPlayModeBtn i {
+  font-size: 0.85em !important;
+}
+.am-track-head [data-sort] { cursor: pointer; user-select: none; }
+.am-track-head [data-sort]:hover { color: rgba(255,255,255,0.9); }
+.am-track-head [data-sort].is-sorted { color: #fff; }
+.am-track-head [data-sort].is-sorted::after { content: " ▲"; font-size: 0.65em; opacity: 0.75; }
+.am-track-head [data-sort].is-sorted.is-desc::after { content: " ▼"; }
+.am-col-idx, .am-row-cover { display: none !important; }
+.am-track-head, .am-track-row {
+  grid-template-columns: minmax(180px, 2.6fr) minmax(100px, 1.2fr) minmax(100px, 1.2fr) 64px 48px !important;
+}
