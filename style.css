@@ -5835,3 +5835,112 @@ body.am-player-mode-open { overflow:hidden !important; }
   min-width: 40px;
   min-height: 40px;
 }
+
+/* 列表无封面请求 */
+.am-row-cover.is-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.35);
+  font-size: 0.85rem;
+}
+
+
+/* ===== 播放器 / 歌单列表：同博客透明轨道 + 半透明滑块 ===== */
+.am-player,
+.am-player *,
+.am-main,
+.am-sidebar,
+.am-playlist-list,
+.am-track-table,
+.am-lyrics-body,
+.am-lyrics-pane,
+#amLyricsBody,
+#amTrackList {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+.am-player::-webkit-scrollbar,
+.am-main::-webkit-scrollbar,
+.am-sidebar::-webkit-scrollbar,
+.am-playlist-list::-webkit-scrollbar,
+.am-track-table::-webkit-scrollbar,
+.am-lyrics-body::-webkit-scrollbar,
+.am-lyrics-pane::-webkit-scrollbar,
+#amLyricsBody::-webkit-scrollbar,
+#amTrackList::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.am-player::-webkit-scrollbar-track,
+.am-main::-webkit-scrollbar-track,
+.am-sidebar::-webkit-scrollbar-track,
+.am-playlist-list::-webkit-scrollbar-track,
+.am-track-table::-webkit-scrollbar-track,
+.am-lyrics-body::-webkit-scrollbar-track,
+.am-lyrics-pane::-webkit-scrollbar-track,
+#amLyricsBody::-webkit-scrollbar-track,
+#amTrackList::-webkit-scrollbar-track {
+  background: transparent;
+}
+.am-player::-webkit-scrollbar-thumb,
+.am-main::-webkit-scrollbar-thumb,
+.am-sidebar::-webkit-scrollbar-thumb,
+.am-playlist-list::-webkit-scrollbar-thumb,
+.am-track-table::-webkit-scrollbar-thumb,
+.am-lyrics-body::-webkit-scrollbar-thumb,
+.am-lyrics-pane::-webkit-scrollbar-thumb,
+#amLyricsBody::-webkit-scrollbar-thumb,
+#amTrackList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  border: none;
+  transition: background 0.25s ease;
+}
+.am-player::-webkit-scrollbar-thumb:hover,
+.am-main::-webkit-scrollbar-thumb:hover,
+.am-sidebar::-webkit-scrollbar-thumb:hover,
+.am-playlist-list::-webkit-scrollbar-thumb:hover,
+.am-track-table::-webkit-scrollbar-thumb:hover,
+.am-lyrics-body::-webkit-scrollbar-thumb:hover,
+.am-lyrics-pane::-webkit-scrollbar-thumb:hover,
+#amLyricsBody::-webkit-scrollbar-thumb:hover,
+#amTrackList::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+.am-player.is-scrolling,
+.am-main.is-scrolling,
+.am-sidebar.is-scrolling,
+.am-playlist-list.is-scrolling,
+.am-lyrics-body.is-scrolling,
+#amLyricsBody.is-scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.32) transparent;
+}
+.am-player.is-scrolling::-webkit-scrollbar-thumb,
+.am-main.is-scrolling::-webkit-scrollbar-thumb,
+.am-sidebar.is-scrolling::-webkit-scrollbar-thumb,
+.am-playlist-list.is-scrolling::-webkit-scrollbar-thumb,
+.am-lyrics-body.is-scrolling::-webkit-scrollbar-thumb,
+#amLyricsBody.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.am-row-dl {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.am-row-dl:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}

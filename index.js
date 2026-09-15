@@ -6526,6 +6526,7 @@
   const amState = {
     playlists: [],
     activePlaylistId: '',
+    view: 'library',
     tracks: [],
     index: -1,
     playing: false,
@@ -6783,14 +6784,8 @@
     track.metadataLoaded = true;
     track.metadataLoading = false;
   }
-  function amLoadTrackDurations(tracks){
-    tracks.forEach(track=>{
-      if(track.duration)return;
-      const a=document.createElement('audio'); a.preload='metadata'; a.src=track.src;
-      const done=()=>{ if(Number.isFinite(a.duration)&&a.duration>0){track.duration=a.duration;renderAmTracks(document.getElementById('amSearchInput')?.value||'');amSyncNowPlaying();} a.removeAttribute('src'); a.load(); };
-      a.addEventListener('loadedmetadata',done,{once:true}); a.addEventListener('error',()=>{a.removeAttribute('src');a.load();},{once:true});
-    });
-  }
+  function amLoadTrackDurations(tracks){ return; /* no prefetch */ }
+  
 
   function formatAmTime(sec) {
     const s = Math.max(0, Math.floor(Number(sec) || 0));
@@ -6816,20 +6811,52 @@
       return;
     }
     amState.activePlaylistId = pl.id;
+    amState.view = 'playlist';
     amState.tracks = pl.songs.slice();
     const title = document.getElementById('amHeroTitle');
     const sub = document.getElementById('amHeroSub');
     if (title) title.textContent = pl.name;
-    if (sub) sub.textContent = pl.songs.length + ' 首曲目';
-    amSetCover(document.getElementById('amHeroArt'), '');
-    renderAmTracks(document.getElementById('amSearchInput')?.value || '');
-    Promise.all(pl.songs.map((track) => amLoadTrackMetadata(track))).then(() => {
-      const firstCover = pl.songs.find((s) => s.cover);
-      amSetCover(document.getElementById('amHeroArt'), firstCover ? firstCover.cover : '');
-    });
-    amLoadTrackDurations(pl.songs);
+    if (sub) sub.textContent = pl.songs.length + ' 首曲目 · 点击歌曲开始播放';
+    // 专辑区：仅随机一张封面（单次请求）；列表不拉封面
+    const withCover = (pl.songs || []).filter((s) => s && s.cover);
+    if (withCover.length) {
+      const pick = withCover[Math.floor(Math.random() * withCover.length)];
+      amSetCover(document.getElementById('amHeroArt'), pick.cover);
+    } else {
+      amSetCover(document.getElementById('amHeroArt'), '');
+    }
     document.querySelectorAll('.am-playlist-item').forEach((btn) => {
       btn.classList.toggle('is-active', btn.getAttribute('data-playlist-id') === pl.id);
+    });
+    document.querySelectorAll('.am-nav-item[data-am-view]').forEach((btn) => {
+      btn.classList.toggle('is-active', false);
+    });
+    renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+  }
+
+  /** 资料库：全部歌曲纯文本列表，进入时不请求 huang1111 */
+  function amShowLibrary() {
+    amState.view = 'library';
+    amState.activePlaylistId = '';
+    const all = [];
+    const seen = new Set();
+    (amState.playlists || []).forEach((pl) => {
+      (pl.songs || []).forEach((s) => {
+        const key = String(s.id || s.src || s.title || '');
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        all.push(s);
+      });
+    });
+    amState.tracks = all;
+    const title = document.getElementById('amHeroTitle');
+    const sub = document.getElementById('amHeroSub');
+    if (title) title.textContent = '资料库';
+    if (sub) sub.textContent = all.length + ' 首曲目 · 点击进入播放器';
+    amSetCover(document.getElementById('amHeroArt'), '');
+    document.querySelectorAll('.am-playlist-item').forEach((btn) => btn.classList.remove('is-active'));
+    document.querySelectorAll('.am-nav-item[data-am-view]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-am-view') === 'library');
     });
     renderAmTracks(document.getElementById('amSearchInput')?.value || '');
   }
@@ -6907,9 +6934,7 @@
     list.innerHTML = rows.map((t, i) => {
       const active = amState.index >= 0 && amState.tracks[amState.index] && amState.tracks[amState.index].id === t.id;
       const realIndex = amState.tracks.findIndex((x) => x.id === t.id);
-      const cover = t.cover
-        ? '<img class="am-row-cover" data-src="' + escapeHtml(t.cover) + '" alt="" loading="lazy" decoding="async">'
-        : '<span class="am-row-cover is-empty"><i class="fas fa-music"></i></span>';
+      const cover = '<span class="am-row-cover is-empty" aria-hidden="true"><i class="fas fa-music"></i></span>';
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
           '<span class="am-col-idx" role="cell">' + (active && amState.playing ? '<i class="fas fa-volume-up"></i>' : (i + 1)) + '</span>' +
@@ -6919,7 +6944,11 @@
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
           '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '—') + '</span>' +
           '<span class="am-col-year" role="cell">' + escapeHtml(t.year || '—') + '</span>' +
-          '<span class="am-col-time" role="cell">' + (t.duration ? formatAmTime(t.duration) : '—') + '</span>' +
+          '<span class="am-col-time" role="cell">' +
+            '<button type="button" class="am-row-dl" data-dl-index="' + realIndex + '" title="下载" aria-label="下载">' +
+              '<i class="fas fa-download"></i>' +
+            '</button>' +
+          '</span>' +
         '</div>'
       );
     }).join('');
@@ -6927,24 +6956,35 @@
     list.querySelectorAll('.am-track-row').forEach((row) => {
       row.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const idx = Number(row.getAttribute('data-index'));
         const tr = amState.tracks[idx];
         if (tr) amShowCtxMenu(e.clientX, e.clientY, tr);
       });
-    });
-    amLazyLoadCovers(list);
-
-    list.querySelectorAll('.am-track-row').forEach((row) => {
-      row.addEventListener('click', () => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.am-row-dl')) return;
         const idx = Number(row.getAttribute('data-index'));
         if (!Number.isFinite(idx) || idx < 0) return;
         amPlayAt(idx);
+        amSetPlayerMode(true);
       });
       row.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           row.click();
         }
+      });
+    });
+    list.querySelectorAll('.am-row-dl').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = Number(btn.getAttribute('data-dl-index'));
+        const tr = amState.tracks[idx];
+        if (!tr) return;
+        // 弹出与右键相同的下载菜单
+        const r = btn.getBoundingClientRect();
+        amShowCtxMenu(r.left, r.bottom + 4, tr);
       });
     });
   }
@@ -7606,18 +7646,46 @@
     amPlayAt(next);
   }
 
+  
+  function amBindGlassScrollbars() {
+    const sels = ['.am-main', '.am-sidebar', '.am-playlist-list', '.am-lyrics-body', '#amLyricsBody', '#amTrackList', '.am-player'];
+    sels.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        if (el.dataset.glassScroll) return;
+        el.dataset.glassScroll = '1';
+        let t = null;
+        el.addEventListener('scroll', () => {
+          el.classList.add('is-scrolling');
+          clearTimeout(t);
+          t = setTimeout(() => el.classList.remove('is-scrolling'), 900);
+        }, { passive: true });
+      });
+    });
+  }
+
   function setupAmPlayerOnce() {
     if (amState.bound) return;
     amState.bound = true;
+    amBindGlassScrollbars();
     const search = document.getElementById('amSearchInput');
     if (search) search.addEventListener('input', () => renderAmTracks(search.value));
+    document.querySelectorAll('.am-nav-item[data-am-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.getAttribute('data-am-view') === 'library') amShowLibrary();
+      });
+    });
     const playAll = document.getElementById('amPlayAllBtn');
-    if (playAll) playAll.addEventListener('click', () => { if (amState.tracks.length) amPlayAt(0); });
+    if (playAll) playAll.addEventListener('click', () => {
+      if (!amState.tracks.length) return;
+      amPlayAt(0);
+      amSetPlayerMode(true);
+    });
     const shuffle = document.getElementById('amShuffleBtn');
     if (shuffle) {
       shuffle.addEventListener('click', () => {
         if (!amState.tracks.length) return;
         amPlayAt(Math.floor(Math.random() * amState.tracks.length));
+        amSetPlayerMode(true);
       });
     }
     const lyricsBtn = document.getElementById('amLyricsBtn');
@@ -7732,8 +7800,10 @@
     const lists = await fetchAmCatalog();
     amState.playlists = lists;
     renderAmPlaylistNav();
-    if (lists.length) amSelectPlaylist(lists[0].id);
-    else {
+    if (lists.length) {
+      // 进入歌品页：默认资料库，不请求 huang1111
+      amShowLibrary();
+    } else {
       const sub = document.getElementById('amHeroSub');
       if (sub) sub.textContent = '未找到 playlist.json，请放到 GitHub 仓库根目录';
       if (listEl) listEl.innerHTML = '<div class="am-track-empty">未找到歌单。把 playlist.json 放到仓库根目录后刷新。</div>';
