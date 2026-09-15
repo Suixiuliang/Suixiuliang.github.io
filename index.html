@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=34">
+  <link rel="stylesheet" href="/style.css?v=35">
 </head>
 <body>
 
@@ -288,6 +288,9 @@
   <!-- ===== 我的歌单 (第4页) — Apple Music 风格 ===== -->
   <section id="playlist" class="panel panel-playlist">
     <div class="panel-content playlist-content">
+      <div class="playlist-avatar-slot" aria-hidden="true">
+        <div class="playlist-avatar-placeholder" id="playlistAvatarPlaceholder"></div>
+      </div>
       <div class="am-player" id="amPlayer">
         <div class="am-sidebar">
           <div class="am-sidebar-brand">
@@ -354,6 +357,9 @@
             <p class="am-lyrics-empty">选择一首有歌词的曲目</p>
           </div>
         </aside>
+        <button type="button" class="am-locate-btn" id="amLocateBtn" title="定位到正在播放" aria-label="定位到正在播放" hidden>
+            <i class="fas fa-crosshairs"></i>
+          </button>
         <div class="am-now-playing" id="amNowPlaying" hidden>
           <div class="am-np-art" id="amNpArt"><i class="fas fa-music"></i></div>
           <div class="am-np-controls">
@@ -444,6 +450,6 @@
   <p>© 2025-2026 MaxSui I Can, because I think I can! <i class="fas fa-heart"></i></p>
 </div>
 
-<script src="/script.js?v=34"></script>
+<script src="/script.js?v=35"></script>
 </body>
 </html>

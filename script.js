@@ -5336,8 +5336,9 @@
     const homePlaceholder = document.getElementById('homeAvatarPlaceholder');
     const blogPlaceholder = document.getElementById('coverAvatarPlaceholder');
     const worksPlaceholder = document.getElementById('worksAvatarPlaceholder');
+    const playlistPlaceholder = document.getElementById('playlistAvatarPlaceholder');
     const contactPlaceholder = document.getElementById('contactAvatarPlaceholder');
-    if (!globalAvatar || !homePlaceholder || !blogPlaceholder || !worksPlaceholder || !contactPlaceholder) return;
+    if (!globalAvatar || !homePlaceholder || !blogPlaceholder || !worksPlaceholder || !playlistPlaceholder || !contactPlaceholder) return;
 
     const phone = document.documentElement.classList.contains('is-phone')
       || (window.matchMedia && window.matchMedia('(max-width: 480px)').matches);
@@ -5356,7 +5357,8 @@
         `translate3d(${r.left}px, ${r.top}px, 0)`;
       return;
     }
-    if (p > 3) p = 3;
+    // home(0) → blog(1) → works(2) → playlist(3) → contact(4)
+    if (p > 4) p = 4;
 
     let targetRect, startRect;
     let localP = 0;
@@ -5368,10 +5370,14 @@
       startRect = blogPlaceholder.getBoundingClientRect();
       targetRect = worksPlaceholder.getBoundingClientRect();
       localP = p - 1;
-    } else {
+    } else if (p <= 3) {
       startRect = worksPlaceholder.getBoundingClientRect();
-      targetRect = contactPlaceholder.getBoundingClientRect();
+      targetRect = playlistPlaceholder.getBoundingClientRect();
       localP = p - 2;
+    } else {
+      startRect = playlistPlaceholder.getBoundingClientRect();
+      targetRect = contactPlaceholder.getBoundingClientRect();
+      localP = p - 3;
     }
 
     const startCX = startRect.left + startRect.width / 2;
@@ -5400,7 +5406,7 @@
 
   // 作品 / 名片：纵向滚动时头像直接跟占位框走（无额外动画）
   (function bindPanelAvatarFollow() {
-    const ids = ['works', 'contact'];
+    const ids = ['works', 'playlist', 'contact'];
     ids.forEach((id) => {
       const panel = document.getElementById(id);
       if (!panel || panel.dataset.avatarFollowBound === '1') return;
@@ -7104,7 +7110,8 @@ function amSetLyricsOpen(on) {
       return;
     }
     list.innerHTML = rows.map((t, i) => {
-      const active = amState.index >= 0 && amState.tracks[amState.index] && amState.tracks[amState.index].id === t.id;
+      const playing = (typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null) || (amState.index >= 0 ? amState.tracks[amState.index] : null);
+      const active = !!(playing && ((playing.id && playing.id === t.id) || (playing.src && playing.src === t.src)));
       const realIndex = amState.tracks.findIndex((x) => x.id === t.id);
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
@@ -7161,12 +7168,14 @@ function amSetLyricsOpen(on) {
   }
 
   function amSyncNowPlaying() {
+    try { amUpdateLocateBtn(); } catch (_) {}
     // 英雄区「播放」在正在播放且显示当前曲时改为暂停
     try {
       const playAllBtn = document.getElementById('amPlayAllBtn');
       if (playAllBtn) {
         const playing = !!amState.playing && !!amGetPlayingTrack();
-        const inCtx = amState.playerMode || (amGetPlayingTrack() && amFindIndexInTracks(amGetPlayingTrack()) >= 0);
+        // 仅当正在播放的歌属于「当前列表」时显示暂停；跨歌单则仍显示播放
+        const inCtx = !!(amGetPlayingTrack() && amFindIndexInTracks(amGetPlayingTrack()) >= 0);
         if (playing && inCtx) {
           playAllBtn.innerHTML = '<i class="fas fa-pause"></i><span>暂停</span>';
           playAllBtn.dataset.mode = 'pause';
@@ -7276,54 +7285,8 @@ function amSetLyricsOpen(on) {
    * 从歌词头提取作词/作曲，合并为作者；没有则 "—"
    */
   function amExtractArtistFromLyrics(rawText) {
-    const lyricists = [];
-    const composers = [];
-    const pushList = (arr, str) => {
-      String(str || '')
-        .split(/[\/／|,，、]/)
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .forEach((name) => {
-          if (!arr.includes(name)) arr.push(name);
-        });
-    };
-    String(rawText || '')
-      .split(/\r?\n/)
-      .forEach((line) => {
-        let plain = '';
-        const ne = amParseNeteaseLyricLine(line);
-        if (ne) plain = ne.text;
-        else {
-          const m = String(line).match(/^\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)$/);
-          plain = m ? m[4] : String(line);
-          // 去掉 [ar:] [ti:] 等
-          const tag = String(line).match(/^\[(ar|artist|by|作者)[:：](.*)\]$/i);
-          if (tag) {
-            pushList(lyricists, tag[2]);
-            return;
-          }
-        }
-        plain = amFixMojibake(plain).trim();
-        const m1 = plain.match(/^作词\s*[:：]\s*(.+)$/);
-        if (m1) {
-          pushList(lyricists, m1[1]);
-          return;
-        }
-        const m2 = plain.match(/^作曲\s*[:：]\s*(.+)$/);
-        if (m2) {
-          pushList(composers, m2[1]);
-          return;
-        }
-        const m3 = plain.match(/^(?:Artist|AR)\s*[:：]\s*(.+)$/i);
-        if (m3) {
-          pushList(lyricists, m3[1]);
-        }
-      });
-    const merged = [];
-    [...lyricists, ...composers].forEach((n) => {
-      if (n && n !== '—' && !merged.includes(n)) merged.push(n);
-    });
-    return merged.length ? merged.join(' / ') : '—';
+    /* v35: 已停用。作者只从 playlist.json 读取，不再解析 LRC 头标签 */
+    return null;
   }
 
   function amParseLrc(text) {
@@ -7390,22 +7353,12 @@ function amSetLyricsOpen(on) {
       return;
     }
 
-    const applyArtist = (raw) => {
-      const fromLrc = amExtractArtistFromLyrics(raw);
-      // 歌词头优先；原先为空或占位则覆盖
-      if (fromLrc && fromLrc !== '—') {
-        track.artist = fromLrc;
-      } else if (!track.artist || !String(track.artist).trim()) {
-        track.artist = '—';
-      }
-      amSyncNowPlaying();
-      renderAmTracks(document.getElementById('amSearchInput')?.value || '');
-    };
-
+    // v35: 作者只认 playlist.json，完全忽略 LRC 头部作词/作曲标签
     const paint = (raw) => {
       const fixed = amFixMojibake(raw);
       amState._lyricsRaw = fixed;
-      applyArtist(fixed);
+      if (!track.artist || !String(track.artist).trim()) track.artist = '—';
+      amSyncNowPlaying();
       const cues = amParseLrc(fixed);
       amState.lyricsCues = cues;
       if (cues.length) {
@@ -7608,6 +7561,56 @@ function amSetLyricsOpen(on) {
     }
   }
 
+  
+  function amSetSeekLoading(on) {
+    const track = document.getElementById('amSeekTrack');
+    const fill = document.getElementById('amSeekFill');
+    if (!track) return;
+    if (on) {
+      track.classList.add('is-loading');
+      if (fill) {
+        fill.style.width = '100%';
+        fill.classList.add('is-loading-pulse');
+      }
+    } else {
+      track.classList.remove('is-loading');
+      if (fill) {
+        fill.classList.remove('is-loading-pulse');
+      }
+    }
+  }
+
+  
+  function amUpdateLocateBtn() {
+    const btn = document.getElementById('amLocateBtn');
+    if (!btn) return;
+    const track = typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null;
+    const inList = !!(track && typeof amFindIndexInTracks === 'function' && amFindIndexInTracks(track) >= 0);
+    const playing = !!amState.playing || (document.getElementById('amAudio') && !document.getElementById('amAudio').paused);
+    btn.hidden = !(inList && (playing || amState.index >= 0));
+    if (!inList) btn.hidden = true;
+  }
+
+  function amLocatePlaying() {
+    const list = document.getElementById('amTrackList');
+    const table = document.querySelector('.am-track-table');
+    if (!list) return;
+    let row = list.querySelector('.am-track-row.is-active');
+    if (!row) {
+      const track = amGetPlayingTrack && amGetPlayingTrack();
+      const idx = track ? amFindIndexInTracks(track) : amState.index;
+      if (idx >= 0) row = list.querySelector('.am-track-row[data-index="' + idx + '"]');
+    }
+    if (!row) return;
+    const scroller = table || list;
+    try {
+      row.scrollIntoView({ block: 'center', behavior: 'smooth', inline: 'nearest' });
+    } catch (_) {
+      const top = row.offsetTop - (scroller.clientHeight / 2) + (row.offsetHeight / 2);
+      scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+  }
+
   function amPlayAt(index) {
     const audio = document.getElementById('amAudio');
     const track = amState.tracks[index];
@@ -7619,6 +7622,14 @@ function amSetLyricsOpen(on) {
       if (p >= 0) amState.shufflePos = p;
     }
     amState.currentTrack = track;
+    amState.audioLoading = true;
+    amSetSeekLoading(true);
+    try {
+      const fill = document.getElementById('amSeekFill');
+      const cur = document.getElementById('amTimeCur');
+      if (fill) fill.style.width = '100%';
+      if (cur) cur.textContent = '0:00';
+    } catch (_) {}
     amSyncNowPlaying();
     amUpdateHeroForContext();
     renderAmTracks(document.getElementById('amSearchInput')?.value || '');
@@ -7881,6 +7892,13 @@ function amSetLyricsOpen(on) {
         if (btn.getAttribute('data-am-view') === 'library') amShowLibrary();
       });
     });
+    
+    const locateBtn = document.getElementById('amLocateBtn');
+    if (locateBtn && !locateBtn.dataset.bound) {
+      locateBtn.dataset.bound = '1';
+      locateBtn.addEventListener('click', (e) => { e.preventDefault(); amLocatePlaying(); });
+    }
+
     const playAll = document.getElementById('amPlayAllBtn');
     if (playAll) playAll.addEventListener('click', () => {
       if (playAll.dataset.mode === 'pause') {
@@ -7936,12 +7954,37 @@ function amSetLyricsOpen(on) {
       vol.addEventListener('input', () => { audio.volume = Number(vol.value) || 0; });
     }
     if (audio) {
+      audio.addEventListener('loadstart', () => {
+        amState.audioLoading = true;
+        amSetSeekLoading(true);
+      });
+      audio.addEventListener('waiting', () => {
+        amState.audioLoading = true;
+        amSetSeekLoading(true);
+      });
+      audio.addEventListener('stalled', () => {
+        amState.audioLoading = true;
+        amSetSeekLoading(true);
+      });
+      const clearLoading = () => {
+        amState.audioLoading = false;
+        amSetSeekLoading(false);
+      };
+      audio.addEventListener('canplay', clearLoading);
+      audio.addEventListener('playing', clearLoading);
+      audio.addEventListener('canplaythrough', clearLoading);
+
       audio.addEventListener('timeupdate', () => {
         const fill = document.getElementById('amSeekFill');
         const cur = document.getElementById('amTimeCur');
         const dur = document.getElementById('amTimeDur');
         const d = audio.duration || 0;
         const t = audio.currentTime || 0;
+        if (amState.audioLoading) {
+          // 加载中保持脉冲，不显示上一曲进度
+          if (fill) fill.style.width = '100%';
+          return;
+        }
         if (fill && d && isFinite(d) && d > 0) fill.style.width = ((t / d) * 100) + '%';
         else if (fill && !d) fill.style.width = '0%';
         if (cur) cur.textContent = formatAmTime(t);
@@ -8827,7 +8870,7 @@ function amSetLyricsOpen(on) {
     return false;
   }
 
-  function shouldSkipClickEffects_orig_placeholder(target) {
+  function shouldSkipClickEffects(target) {
     if (!target) return false;
     if (isTextEditingTarget(target)) return true;
     try {
