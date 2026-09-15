@@ -6405,3 +6405,93 @@ body.is-slider-dragging { cursor: grabbing !important; }
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+
+/* ===== v35 fix batch: cursor / cover / seek thumb / volume / locate / avatar ===== */
+
+/* 1 鼠标定位圆始终最顶层 */
+.custom-cursor {
+  z-index: 2147483646 !important;
+  opacity: 1 !important;
+  display: block !important;
+  pointer-events: none !important;
+}
+.custom-cursor.is-down {
+  transform: scale(0.85);
+}
+
+/* 2 恢复英雄区封面尺寸 */
+.am-hero-art {
+  width: 170px !important;
+  height: 170px !important;
+  flex-basis: 170px !important;
+  flex: 0 0 170px !important;
+}
+.am-hero {
+  gap: 1.35rem !important;
+  padding: 0.5rem 1.35rem 1.2rem !important;
+}
+.am-hero-title {
+  font-size: 1.85rem !important;
+}
+
+/* 3 进度条圆点最上层、不被裁切 */
+.am-np-seek,
+.am-seek-track {
+  overflow: visible !important;
+}
+.am-seek-fill {
+  overflow: visible !important;
+  z-index: 1;
+}
+.am-seek-fill::after {
+  z-index: 5 !important;
+  opacity: 1 !important;
+  background: #fa2d48 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.4) !important;
+}
+
+/* 4 音量条左侧主题色由 JS gradient 绘制；兜底 */
+.am-np-volume input[type=range] {
+  background: linear-gradient(to right, #fa2d48 0%, #fa2d48 85%, rgba(255,255,255,0.18) 85%, rgba(255,255,255,0.18) 100%) !important;
+}
+
+/* 5 全屏隐藏定位按钮 */
+.am-player.is-player-mode .am-locate-btn {
+  display: none !important;
+}
+
+/* 6 定位按钮上移，避免被播放条挡住 */
+.am-locate-btn {
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 12 !important;
+  right: 1.25rem !important;
+}
+@media (max-width: 720px) {
+  .am-locate-btn {
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* 8 精灵图/粒子压过全屏播放器 */
+.effect-canvas,
+.particle {
+  z-index: 2147483000 !important;
+}
+
+/* 9 头像占位在歌单卡片右上角 */
+.am-player {
+  position: relative !important;
+}
+.playlist-avatar-slot {
+  position: absolute !important;
+  top: 0.85rem !important;
+  right: 0.95rem !important;
+  left: auto !important;
+  z-index: 6 !important;
+  pointer-events: none !important;
+}
+.panel-playlist > .playlist-avatar-slot {
+  display: none;
+}

@@ -146,7 +146,7 @@
     canvas.style.top = posY + 'px';
     canvas.style.position = 'fixed';
     canvas.style.pointerEvents = 'none';
-    canvas.style.zIndex = '9999';
+    canvas.style.zIndex = '2147483000';
     canvas.style.imageSmoothingEnabled = 'true';
     document.body.appendChild(canvas);
 
@@ -295,7 +295,7 @@
       el.style.cssText = `
         position: fixed;
         pointer-events: none;
-        z-index: 10000;
+        z-index: 2147483000;
         border-radius: 2px;
         width: ${size}px;
         height: ${size}px;
@@ -7144,7 +7144,7 @@ function amSetLyricsOpen(on) {
         const idx = Number(row.getAttribute('data-index'));
         if (!Number.isFinite(idx) || idx < 0) return;
         amPlayAt(idx);
-        amSetPlayerMode(true);
+        // 不默认进入全屏播放器
       });
       row.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -7951,7 +7951,17 @@ function amSetLyricsOpen(on) {
     const audio = document.getElementById('amAudio');
     if (vol && audio) {
       audio.volume = Number(vol.value) || 0.85;
-      vol.addEventListener('input', () => { audio.volume = Number(vol.value) || 0; });
+      const paintVol = () => {
+        const v = Math.max(0, Math.min(1, Number(vol.value) || 0));
+        const pct = (v * 100).toFixed(2);
+        vol.style.background =
+          'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
+      };
+      paintVol();
+      vol.addEventListener('input', () => {
+        audio.volume = Number(vol.value) || 0;
+        paintVol();
+      });
     }
     if (audio) {
       audio.addEventListener('loadstart', () => {
@@ -8856,6 +8866,7 @@ function amSetLyricsOpen(on) {
     customCursor = document.createElement('div');
     customCursor.className = 'custom-cursor';
     customCursor.setAttribute('aria-hidden', 'true');
+    customCursor.style.zIndex = '2147483646';
     document.body.appendChild(customCursor);
   }
 
