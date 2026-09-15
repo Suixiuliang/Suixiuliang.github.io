@@ -5963,3 +5963,47 @@ body.am-player-mode-open { overflow:hidden !important; }
   font-size: 0.75rem;
   flex: 0 0 auto;
 }
+
+.am-track-head [data-sort] {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.am-track-head [data-sort]:hover {
+  color: rgba(255,255,255,0.85);
+}
+.am-track-head [data-sort].is-sorted {
+  color: #fff;
+}
+.am-track-head [data-sort].is-sorted::after {
+  content: " ▲";
+  font-size: 0.65em;
+  opacity: 0.7;
+}
+.am-track-head [data-sort].is-sorted.is-desc::after {
+  content: " ▼";
+}
+
+
+/* ===== liquid-glass inspired (CSS fallback; full @samasante/liquid-glass needs React) ===== */
+:root {
+  --lg-blur: 28px;
+  --lg-sat: 160%;
+  --lg-tint: rgba(255, 255, 255, 0.08);
+  --lg-rim: rgba(255, 255, 255, 0.35);
+}
+.nav-capsule,
+.am-player,
+.am-now-playing,
+.am-ctx-menu,
+.panel-content > .card,
+.blog-card {
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) !important;
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) !important;
+}
+.am-player.is-player-mode {
+  background: rgba(8, 8, 12, 0.32) !important;
+  backdrop-filter: blur(48px) saturate(170%) brightness(0.75) !important;
+  -webkit-backdrop-filter: blur(48px) saturate(170%) brightness(0.75) !important;
+  box-shadow: inset 0 1px 0 var(--lg-rim), inset 0 -1px 0 rgba(0,0,0,0.2);
+}

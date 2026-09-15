@@ -1,0 +1,13 @@
+{
+  "name": "suixiuliang-github-io",
+  "private": true,
+  "description": "MaxSui site. Liquid glass: full refraction needs React; CSS glass is active on static pages.",
+  "dependencies": {
+    "@samasante/liquid-glass": "^0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "scripts": {
+    "note": "echo Static site uses CSS glass. For real @samasante/liquid-glass, mount React islands or migrate to a React build."
+  }
+}

@@ -6527,6 +6527,8 @@
     playlists: [],
     activePlaylistId: '',
     view: 'library',
+    sortKey: 'title',
+    sortDir: 'asc',
     tracks: [],
     index: -1,
     playing: false,
@@ -6813,6 +6815,7 @@
     amState.activePlaylistId = pl.id;
     amState.view = 'playlist';
     amState.tracks = pl.songs.slice();
+    amApplySortToTracks();
     const title = document.getElementById('amHeroTitle');
     const sub = document.getElementById('amHeroSub');
     if (title) title.textContent = pl.name;
@@ -6849,6 +6852,7 @@
       });
     });
     amState.tracks = all;
+    amApplySortToTracks();
     const title = document.getElementById('amHeroTitle');
     const sub = document.getElementById('amHeroSub');
     if (title) title.textContent = '资料库';
@@ -6919,6 +6923,51 @@
     });
   }
 
+  function amCompareTracks(a, b, key, dir) {
+    const mul = dir === 'desc' ? -1 : 1;
+    const va = String((a && a[key]) || '').toLowerCase();
+    const vb = String((b && b[key]) || '').toLowerCase();
+    if (va < vb) return -1 * mul;
+    if (va > vb) return 1 * mul;
+    return 0;
+  }
+
+  function amApplySortToTracks() {
+    const key = amState.sortKey || 'title';
+    const dir = amState.sortDir || 'asc';
+    const map = { title: 'title', artist: 'artist', album: 'album', playlist: 'album', year: 'year' };
+    const field = map[key] || 'title';
+    amState.tracks = (amState.tracks || []).slice().sort((a, b) => amCompareTracks(a, b, field, dir));
+  }
+
+  function amSetSort(key) {
+    if (!key) return;
+    if (amState.sortKey === key) {
+      amState.sortDir = amState.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      amState.sortKey = key;
+      amState.sortDir = 'asc';
+    }
+    const curId = amState.index >= 0 && amState.tracks[amState.index] ? amState.tracks[amState.index].id : null;
+    amApplySortToTracks();
+    if (curId) {
+      const ni = amState.tracks.findIndex((t) => t.id === curId);
+      if (ni >= 0) amState.index = ni;
+    }
+    renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    amUpdateSortHeaders();
+  }
+
+  function amUpdateSortHeaders() {
+    document.querySelectorAll('.am-track-head [data-sort]').forEach((el) => {
+      const k = el.getAttribute('data-sort');
+      el.classList.toggle('is-sorted', k === amState.sortKey);
+      el.classList.toggle('is-asc', k === amState.sortKey && amState.sortDir === 'asc');
+      el.classList.toggle('is-desc', k === amState.sortKey && amState.sortDir === 'desc');
+      el.setAttribute('aria-sort', k === amState.sortKey ? (amState.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
   function renderAmTracks(filter) {
     const list = document.getElementById('amTrackList');
     if (!list) return;
@@ -6934,7 +6983,6 @@
     list.innerHTML = rows.map((t, i) => {
       const active = amState.index >= 0 && amState.tracks[amState.index] && amState.tracks[amState.index].id === t.id;
       const realIndex = amState.tracks.findIndex((x) => x.id === t.id);
-      // 无封面列：第一列直接是歌名
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
           '<span class="am-col-title" role="cell">' +
@@ -6986,6 +7034,7 @@
         amShowCtxMenu(r.left, r.bottom + 4, tr);
       });
     });
+    amUpdateSortHeaders();
   }
 
   function amSyncNowPlaying() {
@@ -7429,6 +7478,17 @@
       if (pane) pane.hidden = false;
       player.classList.add('has-lyrics', 'is-player-mode');
       document.body.classList.add('am-player-mode-open');
+      // 无论从哪进入：封面 / 信息 / 歌词一律当前播放曲
+      const track = amState.index >= 0 ? amState.tracks[amState.index] : null;
+      if (track) {
+        amSyncNowPlaying();
+        amLoadLyrics(track);
+        amSetCover(document.getElementById('amHeroArt'), track.cover || '');
+        const heroTitle = document.getElementById('amHeroTitle');
+        const heroSub = document.getElementById('amHeroSub');
+        if (heroTitle) heroTitle.textContent = track.title || '未命名歌曲';
+        if (heroSub) heroSub.textContent = (track.artist && String(track.artist).trim()) ? track.artist : '—';
+      }
     } else {
       // 退出时完整还原资料库网格，避免残留 fixed/has-lyrics 导致「缩成一坨」
       player.classList.remove('is-player-mode');
@@ -7666,6 +7726,25 @@
     if (amState.bound) return;
     amState.bound = true;
     amBindGlassScrollbars();
+    document.querySelectorAll('.am-track-head [data-sort]').forEach((el) => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', () => amSetSort(el.getAttribute('data-sort')));
+    });
+    // 播放器内随处右键 → 当前曲下载
+    const playerRoot = document.getElementById('amPlayer');
+    if (playerRoot && !playerRoot.dataset.ctxGlobal) {
+      playerRoot.dataset.ctxGlobal = '1';
+      playerRoot.addEventListener('contextmenu', (e) => {
+        if (!amState.playerMode && !e.target.closest('.am-track-row')) return;
+        const tr = amState.index >= 0 ? amState.tracks[amState.index] : null;
+        if (!tr) return;
+        // 行上已有自己的菜单
+        if (e.target.closest('.am-track-row') && !amState.playerMode) return;
+        e.preventDefault();
+        amShowCtxMenu(e.clientX, e.clientY, tr);
+      });
+    }
+
     const search = document.getElementById('amSearchInput');
     if (search) search.addEventListener('input', () => renderAmTracks(search.value));
     document.querySelectorAll('.am-nav-item[data-am-view]').forEach((btn) => {
