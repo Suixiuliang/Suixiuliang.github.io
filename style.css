@@ -6495,3 +6495,108 @@ body.is-slider-dragging { cursor: grabbing !important; }
 .panel-playlist > .playlist-avatar-slot {
   display: none;
 }
+
+
+/* ===== v36: 全屏封面约 3/5 横向；定位按钮严格条件由 JS 控制 ===== */
+.am-player.is-player-mode {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) !important;
+}
+.am-player.is-player-mode .am-sidebar {
+  display: none !important;
+}
+.am-player.is-player-mode .am-main {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+.am-player.is-player-mode .am-lyrics-pane,
+.am-player.is-player-mode.has-lyrics .am-lyrics-pane {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+}
+.am-player.is-player-mode .am-hero {
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: clamp(1.2rem, 3vw, 2.5rem) !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  background: transparent !important;
+}
+/* 封面：水平约 3/5 视区（两侧约 1/5 留白感） */
+.am-player.is-player-mode .am-hero-art {
+  width: min(60vw, 560px) !important;
+  height: min(60vw, 560px) !important;
+  max-width: 90% !important;
+  max-height: min(70vh, 560px) !important;
+  flex: 0 0 auto !important;
+  border-radius: 22px !important;
+}
+/* 列表态封面保持正常 170px */
+.am-player:not(.is-player-mode) .am-hero-art {
+  width: 170px !important;
+  height: 170px !important;
+  flex: 0 0 170px !important;
+}
+.am-locate-btn[hidden],
+.am-locate-btn[aria-hidden="true"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+
+/* ===== v37: 统一进度/音量圆点；可拖动；歌词可点 ===== */
+.am-seek-track {
+  height: 4px !important;
+  cursor: pointer !important;
+  touch-action: none !important;
+  overflow: visible !important;
+}
+.am-seek-fill {
+  overflow: visible !important;
+  pointer-events: none !important;
+}
+.am-seek-fill::after {
+  width: 12px !important;
+  height: 12px !important;
+  margin-top: -6px !important;
+  right: -6px !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  background: #fa2d48 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.35) !important;
+  z-index: 6 !important;
+}
+.am-np-volume input[type=range] {
+  height: 4px !important;
+  cursor: pointer !important;
+}
+.am-np-volume input[type=range]::-webkit-slider-thumb {
+  width: 12px !important;
+  height: 12px !important;
+  margin-top: -4px !important;
+  border-radius: 50% !important;
+  background: #fa2d48 !important;
+  border: 2px solid #fff !important;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.35) !important;
+  cursor: pointer !important;
+}
+.am-np-volume input[type=range]::-moz-range-thumb {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 50% !important;
+  background: #fa2d48 !important;
+  border: 2px solid #fff !important;
+  cursor: pointer !important;
+}
+.am-lrc-line {
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.am-lrc-line:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+}

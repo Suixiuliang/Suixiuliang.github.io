@@ -6954,6 +6954,7 @@ function amSetLyricsOpen(on) {
     }
     amUpdateHeroForContext();
     renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    try { amUpdateLocateBtn(); } catch (_) {}
     /* cover handled by amUpdateHeroForContext */
     document.querySelectorAll('.am-playlist-item').forEach((btn) => {
       btn.classList.toggle('is-active', btn.getAttribute('data-playlist-id') === pl.id);
@@ -6984,6 +6985,7 @@ function amSetLyricsOpen(on) {
     amState.index = playing ? amFindIndexInTracks(playing) : -1;
     amUpdateHeroForContext();
     renderAmTracks(document.getElementById('amSearchInput')?.value || '');
+    try { amUpdateLocateBtn(); } catch (_) {}
     const title = document.getElementById('amHeroTitle');
     const sub = document.getElementById('amHeroSub');
     /* hero/cover by amUpdateHeroForContext */
@@ -7153,6 +7155,8 @@ function amSetLyricsOpen(on) {
         }
       });
     });
+    try { amUpdateLocateBtn(); } catch (_) {}
+
     list.querySelectorAll('.am-row-dl').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -7382,6 +7386,24 @@ function amSetLyricsOpen(on) {
         const audio = document.getElementById('amAudio');
         amSyncLyrics(audio ? audio.currentTime || 0 : 0, { forceScroll: true });
       } catch (_) {}
+      // 点击歌词行跳转到对应时间
+      body.querySelectorAll('.am-lrc-line').forEach((line) => {
+        line.style.cursor = 'pointer';
+        line.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const t = Number(line.getAttribute('data-t'));
+          const a = document.getElementById('amAudio');
+          if (!a || !Number.isFinite(t)) return;
+          try {
+            a.currentTime = Math.max(0, t);
+            if (a.paused && amState.playing) {
+              a.play().catch(() => {});
+            }
+            amSyncLyrics(t, { forceScroll: true });
+          } catch (_) {}
+        });
+      });
     };
 
     if (!/^(https?:\/\/|\/)/i.test(track.lyrics)) {
@@ -7581,17 +7603,25 @@ function amSetLyricsOpen(on) {
   }
 
   
-  function amUpdateLocateBtn() {
+    function amUpdateLocateBtn() {
     const btn = document.getElementById('amLocateBtn');
     if (!btn) return;
     const track = typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null;
-    const inList = !!(track && typeof amFindIndexInTracks === 'function' && amFindIndexInTracks(track) >= 0);
-    const playing = !!amState.playing || (document.getElementById('amAudio') && !document.getElementById('amAudio').paused);
-    btn.hidden = !(inList && (playing || amState.index >= 0));
-    if (!inList) btn.hidden = true;
+    const idx = (track && typeof amFindIndexInTracks === 'function') ? amFindIndexInTracks(track) : -1;
+    const inList = idx >= 0;
+    const audio = document.getElementById('amAudio');
+    const playing = !!(amState.playing || (audio && !audio.paused && !audio.ended));
+    // 仅当「正在播放」且「当前浏览列表里确实有这首」时显示
+    const show = inList && playing;
+    btn.hidden = !show;
+    btn.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (!show) {
+      btn.style.display = 'none';
+    } else {
+      btn.style.display = '';
+    }
   }
-
-  function amLocatePlaying() {
+function amLocatePlaying() {
     const list = document.getElementById('amTrackList');
     const table = document.querySelector('.am-track-table');
     if (!list) return;
@@ -7919,7 +7949,6 @@ function amSetLyricsOpen(on) {
         amRebuildShuffleOrder(amTrackKey(amState.tracks[idx]));
       }
       amPlayAt(idx);
-      amSetPlayerMode(true);
     });
     const shuffle = document.getElementById('amShuffleBtn');
     if (shuffle) {
@@ -7929,8 +7958,6 @@ function amSetLyricsOpen(on) {
         amRebuildShuffleOrder('');
         amSyncPlayModeUi();
         amPlayAt(amState.shuffleOrder[0] || 0);
-
-        amSetPlayerMode(true);
       });
     }
     const lyricsBtn = document.getElementById('amLyricsBtn');
@@ -8040,10 +8067,54 @@ function amSetLyricsOpen(on) {
     }
     const seek = document.getElementById('amSeekTrack');
     if (seek && audio) {
-      seek.addEventListener('click', (e) => {
+      const seekFillEl = document.getElementById('amSeekFill');
+      let amSeeking = false;
+      const amSeekFromClientX = (clientX) => {
         const rect = seek.getBoundingClientRect();
-        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        if (audio.duration) audio.currentTime = ratio * audio.duration;
+        const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+        if (audio.duration && isFinite(audio.duration)) {
+          audio.currentTime = ratio * audio.duration;
+        }
+        if (seekFillEl) seekFillEl.style.width = (ratio * 100) + '%';
+        const cur = document.getElementById('amTimeCur');
+        if (cur && audio.duration) {
+          const t = ratio * audio.duration;
+          const m = Math.floor(t / 60);
+          const s = Math.floor(t % 60);
+          cur.textContent = m + ':' + String(s).padStart(2, '0');
+        }
+      };
+      const amSeekEnd = (e) => {
+        if (!amSeeking) return;
+        amSeeking = false;
+        seek.classList.remove('is-active');
+        document.body.classList.remove('is-slider-dragging');
+        window.__suppressClickEffects = false;
+        try {
+          if (e && e.pointerId != null) seek.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+      };
+      seek.addEventListener('pointerdown', (e) => {
+        if (e.button != null && e.button !== 0) return;
+        e.preventDefault();
+        amSeeking = true;
+        seek.classList.add('is-active');
+        document.body.classList.add('is-slider-dragging');
+        window.__suppressClickEffects = true;
+        try { seek.setPointerCapture(e.pointerId); } catch (_) {}
+        amSeekFromClientX(e.clientX);
+      });
+      seek.addEventListener('pointermove', (e) => {
+        if (!amSeeking) return;
+        amSeekFromClientX(e.clientX);
+      });
+      seek.addEventListener('pointerup', amSeekEnd);
+      seek.addEventListener('pointercancel', amSeekEnd);
+      seek.addEventListener('lostpointercapture', () => {
+        amSeeking = false;
+        seek.classList.remove('is-active');
+        document.body.classList.remove('is-slider-dragging');
+        window.__suppressClickEffects = false;
       });
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && amState.playerMode) {
