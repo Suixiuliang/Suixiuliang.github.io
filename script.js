@@ -7194,10 +7194,7 @@ function amSetLyricsOpen(on) {
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
           '<span class="am-col-title" role="cell">' +
             (active && amState.playing ? '<i class="fas fa-volume-up am-playing-ico"></i>' : '') +
-            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span>' +
-            ((/\.flac(\?|$)/i.test(String(t.src || t.audio || t.url || ''))) ? '<span class="am-tag-lossless">无损</span>' : '') +
-            '</span>' +
-          '</span>' +
+            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span></span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
           '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '—') + '</span>' +
           '<span class="am-col-year" role="cell">' + escapeHtml(t.year || '—') + '</span>' +

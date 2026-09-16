@@ -6762,3 +6762,62 @@ body.is-slider-dragging { cursor: grabbing !important; }
 .am-np-volume input[type=range] {
   background: rgba(255,255,255,0.18) !important;
 }
+
+
+/* ===== v40: 圆点放大、去无损、叉号固定右上角 ===== */
+
+/* 1 进度圆 5px * 1.5 ≈ 7.5px */
+.am-seek-fill::after {
+  width: 7.5px !important;
+  height: 7.5px !important;
+  margin-top: -3.75px !important;
+  right: -3.75px !important;
+  border-width: 1.5px !important;
+}
+
+/* 2 去掉无损标签样式（即使残留也不显示） */
+.am-tag-lossless { display: none !important; }
+
+/* 3 关闭叉：绝对定位在播放器卡片右上角，不占文档流、不顶播放条 */
+.am-player {
+  position: relative !important;
+}
+button.am-player-close,
+#amPlayerCloseBtn.am-player-close,
+.am-player-close {
+  position: absolute !important;
+  top: 10px !important;
+  right: 12px !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 50 !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 !important;
+  flex: none !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  border-radius: 50% !important;
+  border: 0.5px solid rgba(255,255,255,0.28) !important;
+  background: rgba(20,20,24,0.55) !important;
+  color: #fff !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25) !important;
+}
+.am-player.is-player-mode button.am-player-close,
+.am-player.is-player-mode #amPlayerCloseBtn {
+  display: inline-flex !important;
+}
+.am-player.is-player-mode .am-lyrics-close {
+  display: none !important;
+}
+/* 防止关闭钮进入底部 grid 行 */
+.am-now-playing .am-player-close,
+.am-np-seek .am-player-close {
+  display: none !important;
+}
