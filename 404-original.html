@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>MaxSui的主页</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- 站点图标：头像裁成圆形 -->
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="shortcut icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- KaTeX：数学公式渲染 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+  <!-- highlight.js：Visual Studio 主题语法高亮 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="/style.css?v=52">
+</head>
+<body>
+
+<!-- 资源加载门禁：图片未就绪 / API 不可达 不可进入主内容 -->
+<div class="boot-loader" id="bootLoader" aria-live="polite" aria-busy="true">
+    <div class="boot-oobe-bg" id="bootOobeBg" aria-hidden="true">
+    <div class="circles">
+      <div class="circle1"></div>
+      <div class="circle2"></div>
+      <div class="circle3"></div>
+    </div>
+  </div>
+  <!-- API 不可达时从顶部落下的液态玻璃灵动岛 -->
+  <div class="boot-api-island" id="bootApiIsland" role="alert" aria-hidden="true">
+    <div class="boot-api-island-pill">
+      <span class="boot-api-island-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
+      <span class="boot-api-island-text">您所在的国家/地区暂时不支持连接到后台接口</span>
+    </div>
+  </div>
+    <div class="boot-loader-card" id="bootLoaderCard">
+    <div class="boot-loader-topline">
+      <h2 id="bootLoaderTitle">正在准备桌面</h2>
+      <span class="apple-spinner is-sm" id="bootLoaderSpinner" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
+    </div>
+    <div class="boot-progress-row">
+      <div class="boot-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bootProgressTrack">
+        <div class="boot-progress-bar" id="bootProgressBar"></div>
+      </div>
+      <div class="boot-progress-label" id="bootProgressLabel">0.00MB/0.00MB</div>
+    </div>
+  </div>
+</div>
+
+<!-- 全局悬浮头像 -->
+<div id="globalAvatar" class="global-avatar"></div>
+
+<!-- 导航栏 -->
+<nav class="glass-nav" id="mainNav">
+  <div class="logo" id="siteLogo" role="button" tabindex="0" title="连续点击 7 次可开关拖尾"><i class="fas fa-terminal"></i><span>MaxSui</span></div>
+  <div class="nav-links">
+    <a href="#home" class="nav-btn active" data-section="home" draggable="false"><i class="fas fa-home"></i><span>主页</span></a>
+    <a href="#blog" class="nav-btn" data-section="blog" draggable="false"><i class="fas fa-feather-alt"></i><span>博客</span></a>
+    <a href="#works" class="nav-btn" data-section="works" draggable="false"><i class="fas fa-laptop-code"></i><span>我的作品</span></a>
+    <a href="#playlist" class="nav-btn" data-section="playlist" draggable="false"><i class="fas fa-music"></i><span>我的歌单</span></a>
+    <a href="#contact" class="nav-btn" data-section="contact" draggable="false"><i class="fas fa-envelope"></i><span>联系我</span></a>
+  </div>
+  <!-- 博客模式下展开的头部工具栏：列表=搜索+日历；阅读=标题+元信息 -->
+  <div class="blog-toolbar" id="blogToolbar">
+    <div class="blog-toolbar-list" id="blogToolbarList">
+      <div class="blog-search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="blogSearchInput" placeholder="搜索文章...">
+      </div>
+      <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
+    </div>
+    <div class="blog-toolbar-reading" id="blogToolbarReading" hidden>
+      <button type="button" class="blog-nav-back-btn" id="blogArticleBack" title="返回列表" aria-label="返回列表">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <div class="blog-reading-main">
+        <div class="blog-reading-title-wrap" id="blogReadingTitleWrap">
+          <div class="blog-reading-title-track" id="blogReadingTitleTrack">
+            <span class="blog-reading-title" id="blogReadingTitle">文章标题</span>
+          </div>
+        </div>
+        <div class="blog-reading-meta" id="blogReadingMeta"></div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- 日历弹出面板 -->
+<div class="calendar-modal" id="calendarModal">
+  <div class="calendar-modal-content glass-card">
+    <div class="calendar-header">
+      <h3><i class="fas fa-calendar-alt"></i> 选择日期查找文章</h3>
+      <button class="close-calendar" id="closeCalendarBtn"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="calendar-body">
+      <!-- Apple 风格液态玻璃自定义日历容器 -->
+      <div id="appleCalendar" class="apple-calendar"></div>
+      <div class="calendar-actions">
+        <button id="searchByDateBtn" class="nav-btn apple-primary-btn">确定查找</button>
+        <button id="clearDateBtn" class="nav-btn apple-secondary-btn">显示全部</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 站内文章阅读（整合到 index，不跳转外链） -->
+<div class="article-reader-modal" id="articleReaderModal" role="dialog" aria-modal="true" aria-labelledby="articleReaderTitle">
+  <div class="article-reader-sheet glass-card">
+    <div class="article-reader-head">
+      <div>
+        <h2 id="articleReaderTitle">文章标题</h2>
+        <div class="article-reader-meta" id="articleReaderMeta"></div>
+      </div>
+      <button type="button" class="article-reader-close" id="articleReaderClose" title="关闭" aria-label="关闭">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="article-reader-body" id="articleReaderBody"></div>
+  </div>
+</div>
+
+<!-- 管理员登录弹窗（与日历同风格） -->
+<div class="calendar-modal" id="adminLoginModal">
+  <div class="calendar-modal-content glass-card admin-login-content">
+    <div class="calendar-header">
+      <h3><i class="fas fa-shield-alt"></i> 安全登录</h3>
+      <button class="close-calendar" id="closeAdminLoginBtn" type="button"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="calendar-body">
+      <form id="adminLoginForm" class="admin-login-form" autocomplete="off">
+        <div id="adminLoginFields">
+          <label class="admin-field">
+            <span>用户名</span>
+            <input type="text" id="adminUsername" name="username" required placeholder="请输入用户名" autocomplete="username">
+          </label>
+          <label class="admin-field">
+            <span>密码</span>
+            <input type="password" id="adminPassword" name="password" required placeholder="请输入密码" autocomplete="current-password">
+          </label>
+        </div>
+        <div id="authedRegisterFields" hidden>
+          <label class="admin-field">
+            <span>用户名</span>
+            <input type="text" id="authedRegisterUsername" placeholder="设置 Authed User 用户名" autocomplete="username">
+          </label>
+          <label class="admin-field">
+            <span>密码</span>
+            <input type="password" id="authedRegisterPassword" placeholder="至少 8 位密码" autocomplete="new-password">
+          </label>
+          <label class="admin-field">
+            <span>确认密码</span>
+            <input type="password" id="authedRegisterConfirm" placeholder="再次输入密码" autocomplete="new-password">
+          </label>
+        </div>
+        <p class="admin-login-hint" id="adminLoginHint" hidden></p>
+        <p class="admin-login-error" id="adminLoginError" hidden>密码错误</p>
+        <div class="calendar-actions">
+          <button type="submit" class="nav-btn apple-primary-btn" id="adminLoginSubmit">登录</button>
+          <button type="button" class="nav-btn apple-secondary-btn" id="adminLoginCancel">取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 水平滚动容器 -->
+<div class="horizontal-scroll-container" id="scrollContainer">
+
+  <!-- ===== 主页 (第1页) — Hero 布局 ===== -->
+  <section id="home" class="panel panel-home">
+    <div class="panel-content home-content">
+      <div class="home-stack">
+        <!-- 上 1/3：留白 -->
+        <div class="home-zone home-zone-top" aria-hidden="true"></div>
+
+        <!-- 中 1/3：简介 + 头像 -->
+        <div class="home-zone home-zone-mid">
+          <div class="home-layout">
+            <div class="home-text" id="profileContainer">
+              <div class="loading-placeholder"><span class="apple-spinner is-sm" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span>加载中...</span></div>
+            </div>
+            <div class="home-avatar-side" id="avatarContainer"></div>
+          </div>
+        </div>
+
+        <!-- 下 1/3：状态时间线（禁止整页纵向滚动，时间线仅横向） -->
+        <div class="home-zone home-zone-bot">
+          <div class="status-timeline-section" id="statusTimelineSection" aria-label="本人精神状态Belike">
+            <div class="status-timeline-header">
+              <span class="status-timeline-title">本人精神状态Belike:</span>
+              <span class="status-timeline-hint"> (◍•ᴗ•◍)❤ </span>
+            </div>
+            <div class="status-timeline" id="statusTimeline" tabindex="0">
+              <div class="status-timeline-track" id="statusTimelineTrack">
+                <div class="status-timeline-loading">加载状态历史…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 博客面板 (第2页) ===== -->
+  <section id="blog" class="panel panel-blog" data-blog-panel>
+    <div class="panel-content panel-blog-content">
+      <div class="blog-cover" id="blogCover">
+        <div class="cover-inner">
+          <div class="cover-avatar-placeholder" id="coverAvatarPlaceholder"></div>
+          <h1 class="slogan" id="sloganText">I Can,<br>Because I Think I Can</h1>
+          <p class="slogan-sub">— MaxSui · 技术随笔 —</p>
+          <div class="scroll-down-hint">
+            <span>下滑查看所有博客</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- 三阶段视差：主题栏 + 文章框 组合 -->
+      <div class="blog-stage-duo" id="blogStageDuo">
+        <aside class="blog-theme-rail" id="blogThemeRail" aria-label="博客主题">
+          <div class="theme-rail-inner">
+            <div class="theme-rail-title"><i class="fas fa-tags"></i><span>主题</span></div>
+            <nav class="theme-rail-list" id="themeRailList">
+              <button type="button" class="theme-chip active" data-category="">全部</button>
+            </nav>
+          </div>
+        </aside>
+        <div class="blog-white-box" id="blogWhiteBox">
+          <div class="white-box-inner">
+            <div class="white-box-header">
+              <h2><i class="fas fa-feather-alt"></i> MaxSui 个人博客</h2>
+              <div class="blog-header-tools">
+                <div class="blog-sort-wrap" id="blogSortWrap">
+                  <button type="button" class="blog-sort-btn" id="blogSortBtn" aria-haspopup="menu" aria-expanded="false" title="排序方式">
+                    <i class="fas fa-sort-amount-down"></i>
+                    <span class="blog-sort-label-text" id="blogSortLabel">发布时间</span>
+                  </button>
+                  <button type="button" class="blog-sort-dir-btn" id="blogSortDirBtn" title="切换升序/降序" aria-label="切换升序/降序">
+                    <i class="fas fa-arrow-down"></i>
+                  </button>
+                  <div class="blog-sort-menu" id="blogSortMenu" role="menu" hidden>
+                    <div class="blog-sort-menu-label">排序字段</div>
+                    <button type="button" class="blog-sort-item is-active" data-sort="date" role="menuitem"><i class="fas fa-calendar-alt"></i> 发布时间</button>
+                    <button type="button" class="blog-sort-item" data-sort="title" role="menuitem"><i class="fas fa-font"></i> 名称</button>
+                    <button type="button" class="blog-sort-item" data-sort="category" role="menuitem"><i class="fas fa-tags"></i> 分类</button>
+                    <button type="button" class="blog-sort-item" data-sort="readTime" role="menuitem"><i class="fas fa-clock"></i> 阅读时长</button>
+                  </div>
+                </div>
+                <div class="sub-count" id="postCount">加载文章...</div>
+              </div>
+            </div>
+            <div class="blog-list" id="blogList">
+              <div class="loading-placeholder"><span class="apple-spinner is-sm" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span>加载中...</span></div>
+            </div>
+            <div class="blog-pagination" id="blogPagination" aria-label="文章分页"></div>
+            <!-- 框内阅读：向左扩展后在此展示正文 -->
+            <div class="blog-article-view" id="blogArticleView" hidden>
+              <h2 class="blog-article-title" id="blogArticleTitle" hidden>文章标题</h2>
+              <div class="blog-article-meta" id="blogArticleMeta" hidden></div>
+              <div class="blog-article-body" id="blogArticleBody"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 作品 (第3页) ===== -->
+  <section id="works" class="panel">
+    <div class="panel-content">
+      <div class="works-header-area">
+        <div class="works-avatar-placeholder" id="worksAvatarPlaceholder"></div>
+        <div class="section-title-wrap">
+          <div class="section-title"><i class="fas fa-flask"></i><span>我的作品</span></div>
+        </div>
+      </div>
+      <div class="works-grid" id="worksGrid"><div class="loading-placeholder"><span class="apple-spinner is-sm" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span>加载作品...</span></div></div>
+    </div>
+  </section>
+
+  <!-- ===== 我的歌单 (第4页) — Apple Music 风格 ===== -->
+  <section id="playlist" class="panel panel-playlist">
+    <div class="panel-content playlist-content">
+      <div class="am-player" id="amPlayer">
+        <button type="button" class="am-player-close" id="amPlayerCloseBtn" title="关闭播放器" aria-label="关闭播放器" hidden>
+          <i class="fas fa-times"></i>
+        </button>
+        <div class="playlist-avatar-slot" aria-hidden="true">
+          <div class="playlist-avatar-placeholder" id="playlistAvatarPlaceholder"></div>
+        </div>
+        <div class="am-sidebar">
+          <div class="am-sidebar-brand">
+            <i class="fas fa-music"></i>
+            <span>我的歌单</span>
+          </div>
+          <nav class="am-sidebar-nav" aria-label="歌单分类">
+            <button type="button" class="am-nav-item is-active" data-am-view="library">
+              <i class="fas fa-layer-group"></i><span>资料库</span>
+            </button>
+          </nav>
+          <div class="am-playlist-list" id="amPlaylistList">
+            <div class="am-playlist-list-label">播放列表</div>
+            <div class="am-playlist-loading">加载歌单…</div>
+          </div>
+        </div>
+        <div class="am-main">
+          <header class="am-main-header">
+            <div class="am-search">
+              <i class="fas fa-search"></i>
+              <input type="search" id="amSearchInput" placeholder="搜索歌曲…" autocomplete="off">
+            </div>
+          </header>
+          <div class="am-hero" id="amHero">
+            <div class="am-hero-art" id="amHeroArt" aria-hidden="true">
+              <i class="fas fa-music"></i>
+            </div>
+            <div class="am-hero-meta">
+              <p class="am-hero-kicker">播放列表</p>
+              <h1 class="am-hero-title" id="amHeroTitle">我的歌单</h1>
+              <p class="am-hero-sub" id="amHeroSub">从仓库根目录 playlist.json 加载</p>
+              <div class="am-hero-actions">
+                <button type="button" class="am-btn am-btn-primary" id="amPlayAllBtn">
+                  <i class="fas fa-play"></i><span>播放</span>
+                </button>
+                <button type="button" class="am-btn am-btn-secondary" id="amShuffleBtn">
+                  <i class="fas fa-random"></i><span>随机播放</span>
+                </button>
+                <button type="button" class="am-btn am-btn-secondary" id="amLyricsBtn">
+                  <i class="fas fa-expand"></i><span>进入播放器</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="am-track-table" role="table" aria-label="曲目列表">
+            <div class="am-track-head" role="row">
+              <span class="am-col-title" role="columnheader" data-sort="title" title="按歌名排序">歌名</span>
+              <span class="am-col-artist" role="columnheader" data-sort="artist" title="按艺术家排序">艺术家</span>
+              <span class="am-col-album" role="columnheader" data-sort="album" title="按歌单排序">歌单</span>
+              <span class="am-col-year" role="columnheader" data-sort="year" title="按年份排序">年份</span>
+              <span class="am-col-time" role="columnheader"></span>
+            </div>
+            <div class="am-track-body" id="amTrackList" role="rowgroup">
+              <div class="am-track-empty">加载曲目中…</div>
+            </div>
+          </div>
+        </div>
+        <aside class="am-lyrics-pane" id="amLyricsPane" hidden>
+          <div class="am-lyrics-head">
+            <span class="am-lyrics-head-label" hidden>歌词</span>
+            <button type="button" class="am-lyrics-close" id="amLyricsClose" aria-label="关闭歌词"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="am-lyrics-body" id="amLyricsBody">
+            <p class="am-lyrics-empty">选择一首有歌词的曲目</p>
+          </div>
+        </aside>
+        <button type="button" class="am-locate-btn" id="amLocateBtn" title="定位到正在播放" aria-label="定位到正在播放" hidden>
+            <i class="fas fa-crosshairs"></i>
+          </button>
+        <div class="am-now-playing" id="amNowPlaying" hidden>
+          <div class="am-np-art" id="amNpArt"><i class="fas fa-music"></i></div>
+          <div class="am-np-controls">
+            <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><i class="fas fa-step-backward"></i></button>
+            <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><i class="fas fa-play"></i></button>
+            <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><i class="fas fa-step-forward"></i></button>
+            <button type="button" class="am-ctrl am-ctrl-mode" id="amPlayModeBtn" title="歌单内随机（点击切换）" aria-label="播放模式" data-mode="shuffle"><i class="fas fa-random"></i></button>
+          </div>
+          <div class="am-np-info">
+            <div class="am-np-title" id="amNpTitle">未在播放</div>
+            <div class="am-np-artist" id="amNpArtist">—</div>
+            <div class="am-np-meta" id="amNpMeta">—</div>
+          </div>
+          <div class="am-np-seek">
+            <span class="am-time am-time-cur" id="amTimeCur">0:00</span>
+            <div class="am-seek-track" id="amSeekTrack"><div class="am-seek-fill" id="amSeekFill"></div></div>
+            <span class="am-time am-time-dur" id="amTimeDur">0:00</span>
+          </div>
+          <div class="am-np-volume">
+            <i class="fas fa-volume-up"></i>
+            <input type="range" id="amVolume" min="0" max="1" step="0.01" value="0.85" aria-label="音量">
+          </div>
+          <div class="am-np-actions">
+            <button type="button" class="am-np-action-btn" id="amPipLyricsBtn" title="画中画歌词" aria-label="画中画歌词">
+              <i class="fas fa-window-restore"></i>
+            </button>
+            <button type="button" class="am-np-action-btn" id="amEnterPlayerBtn" title="网页全屏播放器" aria-label="网页全屏播放器">
+              <i class="fas fa-expand"></i>
+            </button>
+          </div>
+        </div>
+        <audio id="amAudio" preload="metadata" crossorigin="anonymous"></audio>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 联系我 (第5页) ===== -->
+  <section id="contact" class="panel">
+    <div class="panel-content">
+      <div class="section-title"><i class="fas fa-address-card"></i><span>联系我</span></div>
+      
+      <div class="win7-contact-container">
+        <!-- 亚力克玻璃名片 -->
+        <div class="glass-card win7-business-card">
+          <div class="win7-card-info">
+            <div class="win7-card-header">
+              <h3>MaxSui</h3>
+              <p class="win7-subtitle">学生 / 开发者 / MC玩家</p>
+            </div>
+            
+            <div class="win7-info-list">
+              <div class="win7-info-item">
+                <i class="fas fa-user"></i>
+                <span class="label">姓名：</span>
+                <span class="value">MaxSui</span>
+              </div>
+              <div class="win7-info-item">
+                <i class="fas fa-envelope"></i>
+                <span class="label">邮箱：</span>
+                <span class="value">max.sui@outlook.com</span>
+              </div>
+              <div class="win7-info-item">
+                <i class="fab fa-weixin"></i>
+                <span class="label">微信：</span>
+                <span class="value">MaxSui_Official_09</span>
+              </div>
+              <div class="win7-info-item">
+                <i class="fab fa-qq"></i>
+                <span class="label">QQ：</span>
+                <span class="value">目前没有注册的打算</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="win7-card-avatar-side">
+            <div class="contact-avatar-placeholder" id="contactAvatarPlaceholder"></div>
+          </div>
+        </div>
+
+        <!-- 社交媒体导航 -->
+        <div class="social-circles-bar">
+          <a href="https://x.com/Max_Sui_X" target="_blank" class="social-circle-btn" title="X (Twitter)"><i class="fab fa-x-twitter"></i></a>
+          <a href="https://www.youtube.com/@Crazy-MaxSui" target="_blank" class="social-circle-btn" title="Youtube"><i class="fab fa-youtube"></i></a>
+          <a href="https://www.facebook.com/profile.php?id=100095629053259" target="_blank" class="social-circle-btn" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+          <a href="https://www.instagram.com/maxsui2009/" target="_blank" class="social-circle-btn" title="Instagram"><i class="fab fa-instagram"></i></a>
+          <a href="https://space.bilibili.com/3546560839288857?" target="_blank" class="social-circle-btn" title="Bilibili"><i class="fab fa-bilibili"></i></a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<div class="footer">
+  <p>© 2025-2026 MaxSui I Can, because I think I can!&nbsp;&nbsp;&nbsp;2w52a</p>
+</div>
+
+<script src="/script.js?v=52"></script>
+</body>
+</html>
