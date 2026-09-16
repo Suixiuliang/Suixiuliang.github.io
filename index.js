@@ -3684,6 +3684,20 @@
   }
 
   function openAdminLoginModal() {
+    // 登录窗打开：头像飞回首页占位
+    try {
+      const globalAvatar = document.getElementById('globalAvatar');
+      const homePh = document.getElementById('homeAvatarPlaceholder');
+      if (globalAvatar && homePh) {
+        const r = homePh.getBoundingClientRect();
+        globalAvatar.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1), width 0.55s ease, height 0.55s ease, opacity 0.3s ease';
+        globalAvatar.style.opacity = '1';
+        globalAvatar.style.width = r.width + 'px';
+        globalAvatar.style.height = r.height + 'px';
+        globalAvatar.style.transform = `translate3d(${r.left}px, ${r.top}px, 0)`;
+        window.__avatarPinnedHome = true;
+      }
+    } catch (_) {}
     const modal = document.getElementById('adminLoginModal');
     const err = document.getElementById('adminLoginError');
     const user = document.getElementById('adminUsername');
@@ -3708,6 +3722,19 @@
   function closeAdminLoginModal() {
     const modal = document.getElementById('adminLoginModal');
     if (modal) modal.classList.remove('active');
+    // 退出登录窗：头像飞回当前屏应在位置
+    try {
+      window.__avatarPinnedHome = false;
+      const globalAvatar = document.getElementById('globalAvatar');
+      if (globalAvatar) {
+        globalAvatar.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1), width 0.55s ease, height 0.55s ease, opacity 0.3s ease';
+      }
+      if (typeof scheduleGlobalAvatarPosition === 'function') scheduleGlobalAvatarPosition();
+      setTimeout(() => {
+        if (globalAvatar) globalAvatar.style.transition = 'none';
+        if (typeof scheduleGlobalAvatarPosition === 'function') scheduleGlobalAvatarPosition();
+      }, 600);
+    } catch (_) {}
   }
 
   function bindNavLinkClick(link) {
@@ -5333,6 +5360,18 @@
       centerAvatarForOffline();
       return;
     }
+    // 登录窗打开时保持钉在首页
+    if (window.__avatarPinnedHome) {
+      const homePh = document.getElementById('homeAvatarPlaceholder');
+      if (globalAvatar && homePh) {
+        const r = homePh.getBoundingClientRect();
+        globalAvatar.style.width = r.width + 'px';
+        globalAvatar.style.height = r.height + 'px';
+        globalAvatar.style.transform = `translate3d(${r.left}px, ${r.top}px, 0)`;
+        globalAvatar.style.opacity = '1';
+      }
+      return;
+    }
     const homePlaceholder = document.getElementById('homeAvatarPlaceholder');
     const blogPlaceholder = document.getElementById('coverAvatarPlaceholder');
     const worksPlaceholder = document.getElementById('worksAvatarPlaceholder');
@@ -6530,6 +6569,7 @@
 
   // ---------- 我的歌单：GitHub 根目录 playlist.json ----------
   const amState = {
+    autoNext: true,
     playlists: [],
     activePlaylistId: '',
     view: 'library',
@@ -7056,10 +7096,18 @@ function amSetLyricsOpen(on) {
 
   function amCompareTracks(a, b, key, dir) {
     const mul = dir === 'desc' ? -1 : 1;
-    const va = String((a && a[key]) || '').toLowerCase();
-    const vb = String((b && b[key]) || '').toLowerCase();
-    if (va < vb) return -1 * mul;
-    if (va > vb) return 1 * mul;
+    const va = String((a && a[key]) || '');
+    const vb = String((b && b[key]) || '');
+    // 中文按拼音（首字）排序；英文/数字走自然比较
+    try {
+      const c = va.localeCompare(vb, 'zh-CN', { numeric: true, sensitivity: 'base' });
+      if (c !== 0) return c * mul;
+    } catch (_) {
+      const la = va.toLowerCase();
+      const lb = vb.toLowerCase();
+      if (la < lb) return -1 * mul;
+      if (la > lb) return 1 * mul;
+    }
     return 0;
   }
 
@@ -7119,7 +7167,9 @@ function amSetLyricsOpen(on) {
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
           '<span class="am-col-title" role="cell">' +
             (active && amState.playing ? '<i class="fas fa-volume-up am-playing-ico"></i>' : '') +
-            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span></span>' +
+            '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span>' +
+            ((/\.flac(\?|$)/i.test(String(t.src || t.audio || t.url || ''))) ? '<span class="am-tag-lossless">[无损]</span>' : '') +
+            '</span>' +
           '</span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
           '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '—') + '</span>' +
@@ -7591,7 +7641,10 @@ function amSetLyricsOpen(on) {
     if (on) {
       track.classList.add('is-loading');
       if (fill) {
-        fill.style.width = '100%';
+        // 脉冲条铺满轨道，但不改写用户拖动中的进度；结束后由 timeupdate 恢复
+        if (!window.__amSeeking) {
+          fill.style.width = '100%';
+        }
         fill.classList.add('is-loading-pulse');
       }
     } else {
@@ -7603,7 +7656,7 @@ function amSetLyricsOpen(on) {
   }
 
   
-    function amUpdateLocateBtn() {
+      function amUpdateLocateBtn() {
     const btn = document.getElementById('amLocateBtn');
     if (!btn) return;
     const track = typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null;
@@ -7611,17 +7664,35 @@ function amSetLyricsOpen(on) {
     const inList = idx >= 0;
     const audio = document.getElementById('amAudio');
     const playing = !!(amState.playing || (audio && !audio.paused && !audio.ended));
-    // 仅当「正在播放」且「当前浏览列表里确实有这首」时显示
-    const show = inList && playing;
+    let visible = false;
+    if (inList) {
+      const list = document.getElementById('amTrackList');
+      const scroller = document.querySelector('.am-track-table') || list;
+      const row = list && list.querySelector('.am-track-row[data-index="' + idx + '"]');
+      if (row && scroller) {
+        const rr = row.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        // 整行都在可视区域内才算「看得到」
+        visible = rr.top >= sr.top - 2 && rr.bottom <= sr.bottom + 2;
+      }
+    }
+    const show = inList && playing && !visible;
     btn.hidden = !show;
     btn.setAttribute('aria-hidden', show ? 'false' : 'true');
-    if (!show) {
-      btn.style.display = 'none';
-    } else {
-      btn.style.display = '';
-    }
+    btn.style.display = show ? '' : 'none';
   }
-function amLocatePlaying() {
+
+
+  (function bindAmLocateOnScroll() {
+    const table = document.querySelector('.am-track-table');
+    if (!table || table.dataset.locateScrollBound === '1') return;
+    table.dataset.locateScrollBound = '1';
+    table.addEventListener('scroll', () => {
+      try { amUpdateLocateBtn(); } catch (_) {}
+    }, { passive: true });
+  })();
+
+  function amLocatePlaying() {
     const list = document.getElementById('amTrackList');
     const table = document.querySelector('.am-track-table');
     if (!list) return;
@@ -7655,10 +7726,9 @@ function amLocatePlaying() {
     amState.audioLoading = true;
     amSetSeekLoading(true);
     try {
-      const fill = document.getElementById('amSeekFill');
       const cur = document.getElementById('amTimeCur');
-      if (fill) fill.style.width = '100%';
       if (cur) cur.textContent = '0:00';
+      // 进度由脉冲 CSS 表现，避免先跳满再跳回
     } catch (_) {}
     amSyncNowPlaying();
     amUpdateHeroForContext();
@@ -7837,6 +7907,55 @@ function amLocatePlaying() {
     }
   }
 
+  
+  (function amGlobalMediaKeys() {
+    if (window.__amMediaKeysBound) return;
+    window.__amMediaKeysBound = true;
+    document.addEventListener('keydown', (e) => {
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(t.tagName))) return;
+      const audio = document.getElementById('amAudio');
+      if (!audio) return;
+      // Ctrl + ← / → 上一首 / 下一首
+      if (e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        if (typeof amNext === 'function') amNext(e.key === 'ArrowLeft' ? -1 : 1);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        if (typeof amToggle === 'function') amToggle();
+        else if (audio.paused) audio.play().catch(() => {});
+        else audio.pause();
+        return;
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const vol = document.getElementById('amVolume');
+        let v = Number(audio.volume) || 0;
+        v = e.key === 'ArrowUp' ? Math.min(1, v + 0.05) : Math.max(0, v - 0.05);
+        audio.volume = v;
+        if (vol) {
+          vol.value = String(v);
+          try {
+            const pct = (v * 100).toFixed(2);
+            vol.style.background =
+              'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
+          } catch (_) {}
+        }
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (!audio.duration || !isFinite(audio.duration)) return;
+        const delta = e.key === 'ArrowLeft' ? -5 : 5;
+        audio.currentTime = Math.max(0, Math.min(audio.duration, (audio.currentTime || 0) + delta));
+        return;
+      }
+    }, true);
+  })();
+
   function amNext(delta) {
     const mode = amState.playMode || 'shuffle';
     const d = (typeof delta === 'number' ? delta : 1);
@@ -7896,12 +8015,12 @@ function amLocatePlaying() {
     if (amAudio && !amAudio.dataset.amEnded) {
       amAudio.dataset.amEnded = '1';
       amAudio.addEventListener('ended', () => {
-        if ((amState.playMode || 'order') === 'loop') {
-          try { amAudio.currentTime = 0; amAudio.play(); } catch (_) {}
-        } else {
+        if ((amState.playMode || 'shuffle') === 'loop') {
+          try { audio.currentTime = 0; audio.play().catch(function(){}); } catch (_) {}
+        } else if (amState.autoNext !== false) {
           amNext(1);
         }
-      });
+      })
     }
 
     document.querySelectorAll('.am-track-head [data-sort]').forEach((el) => {
@@ -8017,9 +8136,13 @@ function amLocatePlaying() {
         const dur = document.getElementById('amTimeDur');
         const d = audio.duration || 0;
         const t = audio.currentTime || 0;
+        if (window.__amSeeking) return;
         if (amState.audioLoading) {
-          // 加载中保持脉冲，不显示上一曲进度
-          if (fill) fill.style.width = '100%';
+          // 加载中：中间亮两边暗脉冲，不跳到上一曲进度
+          if (fill && !fill.classList.contains('is-loading-pulse')) {
+            fill.style.width = '100%';
+            fill.classList.add('is-loading-pulse');
+          }
           return;
         }
         if (fill && d && isFinite(d) && d > 0) fill.style.width = ((t / d) * 100) + '%';
@@ -8087,6 +8210,7 @@ function amLocatePlaying() {
       const amSeekEnd = (e) => {
         if (!amSeeking) return;
         amSeeking = false;
+        window.__amSeeking = false;
         seek.classList.remove('is-active');
         document.body.classList.remove('is-slider-dragging');
         window.__suppressClickEffects = false;
@@ -8098,6 +8222,7 @@ function amLocatePlaying() {
         if (e.button != null && e.button !== 0) return;
         e.preventDefault();
         amSeeking = true;
+        window.__amSeeking = true;
         seek.classList.add('is-active');
         document.body.classList.add('is-slider-dragging');
         window.__suppressClickEffects = true;
@@ -8112,6 +8237,7 @@ function amLocatePlaying() {
       seek.addEventListener('pointercancel', amSeekEnd);
       seek.addEventListener('lostpointercapture', () => {
         amSeeking = false;
+        window.__amSeeking = false;
         seek.classList.remove('is-active');
         document.body.classList.remove('is-slider-dragging');
         window.__suppressClickEffects = false;
@@ -8967,7 +9093,13 @@ function amLocatePlaying() {
   window.__maxsuiMoveCustomCursor = function(x,y){ try { moveCustomCursor(x,y); } catch(_){} };
   function moveCustomCursor(x, y) {
     if (!customCursor) return;
-    customCursor.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    const down = customCursor.classList.contains('is-down');
+    const scale = down ? 0.85 : 1;
+    // 必须把位移和缩放写在同一条 transform，避免 CSS 覆盖导致圆点消失
+    customCursor.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+    if (!customCursor.classList.contains('is-visible')) {
+      customCursor.classList.add('is-visible');
+    }
   }
 
   function setCursorVisible(v) {
@@ -8979,6 +9111,9 @@ function amLocatePlaying() {
     if (!customCursor) return;
     customCursor.classList.toggle('is-down', !!v);
     customCursor.classList.toggle('is-right', !!isRight);
+    try {
+      if (typeof lastPointerX === 'number') moveCustomCursor(lastPointerX, lastPointerY);
+    } catch (_) {}
   }
 
   function setCursorTextMode(v) {

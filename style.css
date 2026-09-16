@@ -6417,7 +6417,7 @@ body.is-slider-dragging { cursor: grabbing !important; }
   pointer-events: none !important;
 }
 .custom-cursor.is-down {
-  transform: scale(0.85);
+  
 }
 
 /* 2 恢复英雄区封面尺寸 */
@@ -6599,4 +6599,105 @@ body.is-slider-dragging { cursor: grabbing !important; }
   color: #fff !important;
   background: rgba(255,255,255,0.06);
   border-radius: 8px;
+}
+
+
+/* ===== v38: 13 fixes batch ===== */
+
+/* 2 鼠标圆：禁止 is-down 覆盖 transform 把位移清掉 */
+.custom-cursor {
+  opacity: 0;
+  z-index: 2147483646 !important;
+  pointer-events: none !important;
+}
+.custom-cursor.is-visible {
+  opacity: 1 !important;
+}
+.custom-cursor.is-down {
+  /* 缩放由 JS 写入 transform；此处禁止再写 transform */
+  width: 14px !important;
+  height: 14px !important;
+  margin: -7px 0 0 -7px !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* 3 全屏：封面窄、歌词宽（对调） */
+.am-player.is-player-mode {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) !important;
+}
+.am-player.is-player-mode .am-hero-art {
+  width: min(38vw, 420px) !important;
+  height: min(38vw, 420px) !important;
+  max-height: min(58vh, 420px) !important;
+}
+
+/* 5 脉冲：固定中间亮、两边暗（不横向扫） */
+.am-seek-fill.is-loading-pulse {
+  width: 100% !important;
+  background: linear-gradient(
+    90deg,
+    rgba(250, 45, 72, 0.12) 0%,
+    rgba(250, 45, 72, 0.22) 22%,
+    rgba(250, 45, 72, 0.95) 50%,
+    rgba(250, 45, 72, 0.22) 78%,
+    rgba(250, 45, 72, 0.12) 100%
+  ) !important;
+  background-size: 100% 100% !important;
+  background-position: center !important;
+  animation: amSeekPulseMid 1.15s ease-in-out infinite !important;
+  filter: none !important;
+}
+.am-seek-fill.is-loading-pulse::after {
+  display: none !important;
+}
+@keyframes amSeekPulseMid {
+  0%, 100% { opacity: 0.55; filter: brightness(0.85); }
+  50% { opacity: 1; filter: brightness(1.15); }
+}
+
+/* 6 无损标签 */
+.am-tag-lossless {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0.05em 0.35em;
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fa2d48;
+  border: 1px solid rgba(250, 45, 72, 0.45);
+  border-radius: 4px;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+
+/* 10 歌词标题隐藏 */
+.am-lyrics-head-label { display: none !important; }
+.am-lyrics-head span:first-child:not(.am-lyrics-head-label) {
+  /* if still old markup */
+}
+
+/* 13 进度圆与音量圆同为 10px */
+.am-seek-fill::after {
+  width: 10px !important;
+  height: 10px !important;
+  margin-top: -5px !important;
+  right: -5px !important;
+  border-width: 2px !important;
+}
+.am-np-volume input[type=range]::-webkit-slider-thumb {
+  width: 10px !important;
+  height: 10px !important;
+  margin-top: -3px !important;
+  border-width: 2px !important;
+}
+.am-np-volume input[type=range]::-moz-range-thumb {
+  width: 10px !important;
+  height: 10px !important;
+  border-width: 2px !important;
+}
+
+/* 覆盖早期 .custom-cursor.is-down { } — 不能用 transform */
+.custom-cursor.is-down {
+  width: 14px !important;
+  height: 14px !important;
 }
