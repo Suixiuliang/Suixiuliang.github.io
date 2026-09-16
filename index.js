@@ -6723,14 +6723,14 @@
     if (!btn) return;
     const mode = amState.playMode || 'shuffle';
     const map = {
-      order: { icon: 'play-forward-outline', title: '顺序播放（点击切换）' },
-      shuffle: { icon: 'shuffle-outline', title: '歌单内随机（点击切换）' },
-      loop: { icon: 'repeat-outline', title: '单曲循环（点击切换）' }
+      order: { icon: 'fa-angle-double-right', title: '顺序播放（点击切换）' },
+      shuffle: { icon: 'fa-random', title: '歌单内随机（点击切换）' },
+      loop: { icon: 'fa-sync-alt', title: '单曲循环（点击切换）' }
     };
     const mm = map[mode] || map.shuffle;
     btn.title = mm.title;
     btn.setAttribute('aria-label', mm.title);
-    btn.innerHTML = '<i class="fas fa-circle"></i>';
+    btn.innerHTML = '<i class="fas ' + mm.icon + '"></i>';
     btn.dataset.mode = mode;
     btn.classList.add('am-ctrl-mode');
   }
@@ -7473,6 +7473,7 @@ function amSetLyricsOpen(on) {
         const audio = document.getElementById('amAudio');
         amSyncLyrics(audio ? audio.currentTime || 0 : 0, { forceScroll: true });
       } catch (_) {}
+      try { amSyncPipContent({ forceLyrics: true, trackChanged: true }); } catch (_) {}
       // 点击歌词行跳转到对应时间
       body.querySelectorAll('.am-lrc-line').forEach((line) => {
         line.style.cursor = 'pointer';
@@ -7661,10 +7662,28 @@ function amSetLyricsOpen(on) {
     if (m) { m.hidden = true; try { m.remove(); } catch(_){} }
   }
 
+  
+  function amSyncEnterPlayerBtn() {
+    const btn = document.getElementById('amEnterPlayerBtn');
+    if (!btn) return;
+    if (amState.playerMode) {
+      btn.title = '退出全屏播放器';
+      btn.setAttribute('aria-label', '退出全屏播放器');
+      btn.innerHTML = '<i class="fas fa-compress"></i>';
+      btn.classList.add('is-exit');
+    } else {
+      btn.title = '网页全屏播放器';
+      btn.setAttribute('aria-label', '网页全屏播放器');
+      btn.innerHTML = '<i class="fas fa-expand"></i>';
+      btn.classList.remove('is-exit');
+    }
+  }
+
   function amSetPlayerMode(on) {
     const player = document.getElementById('amPlayer');
     if (!player) return;
     amState.playerMode = !!on;
+    try { amSyncEnterPlayerBtn(); } catch (_) {}
     const pClose = document.getElementById('amPlayerCloseBtn');
     if (pClose) pClose.hidden = !on;
     if (on) {
@@ -7781,6 +7800,7 @@ function amSetLyricsOpen(on) {
       if (p >= 0) amState.shufflePos = p;
     }
     amState.currentTrack = track;
+    try { amSyncPipContent({ forceLyrics: true, trackChanged: true }); } catch (_) {}
     amState.audioLoading = true;
     amSetSeekLoading(true);
     try {
@@ -8017,6 +8037,7 @@ function amSetLyricsOpen(on) {
   
   
   
+  
   function amPipControlHtml() {
     return (
       '<div class="am-pip-controls">' +
@@ -8029,8 +8050,21 @@ function amSetLyricsOpen(on) {
     );
   }
 
+  function amGetPipRoots() {
+    var roots = [];
+    var float = document.getElementById('amPipFloat');
+    if (float && !float.hidden) roots.push(float);
+    try {
+      if (window.__amPipWin && !window.__amPipWin.closed && window.__amPipWin.document) {
+        roots.push(window.__amPipWin.document.body);
+      }
+    } catch (_) {}
+    return roots;
+  }
+
   function amBindPipControls(root) {
-    if (!root) return;
+    if (!root || root.dataset.pipBound === '1') return;
+    root.dataset.pipBound = '1';
     root.querySelectorAll('[data-act]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -8064,10 +8098,10 @@ function amSetLyricsOpen(on) {
     return (track && track.cover) || '';
   }
 
-  function amBuildPipShell(title, htmlLyrics, cover) {
+  function amBuildPipShell(cover) {
     var bg;
     if (cover) {
-      var safe = String(cover).replace(/"/g, '%22');
+      var safe = String(cover).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
       bg = '<div class="am-pip-bg" style="background-image:url(&quot;' + safe + '&quot;)"></div>';
     } else {
       bg = '<div class="am-pip-bg am-pip-bg-empty"></div>';
@@ -8085,47 +8119,127 @@ function amSetLyricsOpen(on) {
     );
   }
 
-  async function amOpenPipLyrics() {
-    var bodySrc = document.getElementById('amLyricsBody');
+  var __amPipFaHref = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css';
+
+  function amPipEnsureFa(doc) {
+    if (!doc || !doc.head) return;
+    if (doc.getElementById('amPipFa')) return;
+    var link = doc.createElement('link');
+    link.id = 'amPipFa';
+    link.rel = 'stylesheet';
+    link.href = __amPipFaHref;
+    doc.head.appendChild(link);
+  }
+
+  function amPipApplyStyle(doc) {
+    if (!doc || !doc.head) return;
+    if (doc.getElementById('amPipStyle')) return;
+    var style = doc.createElement('style');
+    style.id = 'amPipStyle';
+    style.textContent =
+      'html,body{margin:0;height:100%;overflow:hidden;font:13px/1.5 system-ui,sans-serif;color:#fff;background:#111;}' +
+      '.am-pip-square{position:relative;width:100%;height:100%;}' +
+      '.am-pip-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(28px) brightness(0.45) saturate(1.2);transform:scale(1.12);}' +
+      '.am-pip-bg-empty{background:#1a1a1e;filter:none;transform:none;}' +
+      '.am-pip-fg{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;background:rgba(0,0,0,.28);}' +
+      '.am-pip-float-head{display:flex;align-items:center;gap:8px;padding:10px 12px;user-select:none;}' +
+      '.am-pip-float-title{flex:1;font-size:13px;opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+      '.am-pip-float-close{border:0;background:transparent;color:#fff;cursor:pointer;padding:4px;display:inline-flex;}' +
+      '.am-pip-float-body{flex:1;overflow:auto;padding:8px 12px;}' +
+      '.am-lrc-line{padding:3px 4px;border-radius:6px;opacity:.75;}' +
+      '.am-lrc-line.is-active{color:#fa2d48;font-weight:600;opacity:1;}' +
+      '.am-pip-controls{display:flex;justify-content:center;gap:10px;padding:10px 12px 14px;}' +
+      '.am-pip-controls button{width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}' +
+      '.am-pip-controls button i{font-size:14px;line-height:1;pointer-events:none;}';
+    doc.head.appendChild(style);
+  }
+
+  /** 切歌 / 进度：同步 PiP 封面、标题、歌词、控件图标、滚动 */
+  function amSyncPipContent(opts) {
+    opts = opts || {};
+    var roots = amGetPipRoots();
+    if (!roots.length) return;
     var track = typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null;
     var title = (track && track.title) || '歌词';
+    var cover = (track && track.cover) || '';
+    var bodySrc = document.getElementById('amLyricsBody');
     var htmlLyrics = bodySrc ? bodySrc.innerHTML : '<p class="am-lyrics-empty">暂无歌词</p>';
+    var audio = document.getElementById('amAudio');
+    var t = audio ? (audio.currentTime || 0) : 0;
+
+    roots.forEach(function (root) {
+      try {
+        var titleEl = root.querySelector('.am-pip-float-title');
+        if (titleEl) titleEl.textContent = title;
+        var bg = root.querySelector('.am-pip-bg');
+        if (bg) {
+          if (cover) {
+            bg.classList.remove('am-pip-bg-empty');
+            bg.style.backgroundImage = 'url("' + String(cover).replace(/"/g, '\\"') + '")';
+          } else {
+            bg.classList.add('am-pip-bg-empty');
+            bg.style.backgroundImage = '';
+          }
+        }
+        var body = root.querySelector('.am-pip-float-body');
+        if (body && (opts.forceLyrics || opts.trackChanged)) {
+          body.innerHTML = htmlLyrics;
+        }
+        amRefreshPipToggleIcon(root);
+        // 同步激活行并滚动
+        if (body) {
+          var lines = body.querySelectorAll('.am-lrc-line');
+          if (lines.length) {
+            var active = 0;
+            for (var i = 0; i < lines.length; i++) {
+              var lt = Number(lines[i].getAttribute('data-t'));
+              if (Number.isFinite(lt) && lt <= t + 0.05) active = i;
+              else if (Number.isFinite(lt) && lt > t + 0.05) break;
+            }
+            for (var j = 0; j < lines.length; j++) {
+              lines[j].classList.toggle('is-active', j === active);
+            }
+            var al = lines[active];
+            if (al && al.scrollIntoView) {
+              try {
+                al.scrollIntoView({ block: 'center', behavior: opts.smooth ? 'smooth' : 'auto' });
+              } catch (_) {
+                body.scrollTop = Math.max(0, al.offsetTop - body.clientHeight / 2);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[am] pip sync', err);
+      }
+    });
+  }
+
+  async function amOpenPipLyrics() {
+    var track = typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null;
+    var title = (track && track.title) || '歌词';
     var cover = amPipCoverUrl();
-    var shell = amBuildPipShell(title, htmlLyrics, cover);
+    var bodySrc = document.getElementById('amLyricsBody');
+    var htmlLyrics = bodySrc ? bodySrc.innerHTML : '<p class="am-lyrics-empty">暂无歌词</p>';
+    var shell = amBuildPipShell(cover);
 
     try {
       if (window.documentPictureInPicture && window.documentPictureInPicture.requestWindow) {
         var pipWin = await window.documentPictureInPicture.requestWindow({ width: 360, height: 360 });
         var doc = pipWin.document;
-        var style = doc.createElement('style');
-        style.textContent =
-          'html,body{margin:0;height:100%;overflow:hidden;font:13px/1.5 system-ui,sans-serif;color:#fff;}' +
-          '.am-pip-square{position:relative;width:100%;height:100%;}' +
-          '.am-pip-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(28px) brightness(0.45) saturate(1.2);transform:scale(1.12);}' +
-          '.am-pip-bg-empty{background:#1a1a1e;filter:none;transform:none;}' +
-          '.am-pip-fg{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;background:rgba(0,0,0,.25);}' +
-          '.am-pip-float-head{display:flex;align-items:center;gap:8px;padding:10px 12px;user-select:none;}' +
-          '.am-pip-float-title{flex:1;font-size:13px;opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
-          '.am-pip-float-close{border:0;background:transparent;color:#fff;cursor:pointer;padding:4px;display:inline-flex;}' +
-          '.am-pip-float-body{flex:1;overflow:auto;padding:8px 12px;}' +
-          '.am-lrc-line{padding:3px 4px;border-radius:6px;} .am-lrc-line.is-active{color:#fa2d48;font-weight:600;}' +
-          '.am-pip-controls{display:flex;justify-content:center;gap:10px;padding:10px 12px 14px;}' +
-          '.am-pip-controls button{width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.14);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}' +
-          'i{font-size:14px;pointer-events:none;}';
-        doc.head.appendChild(style);
-        var s = doc.createElement('script');
-        s.type = 'module';
-        s.src = 'https://cdn.jsdelivr.net/npm/ionicons@7.4.0/dist/ionicons/ionicons.esm.js';
-        doc.head.appendChild(s);
+        amPipEnsureFa(doc);
+        amPipApplyStyle(doc);
         doc.body.innerHTML = shell;
         doc.body.querySelector('.am-pip-float-title').textContent = title;
         doc.body.querySelector('.am-pip-float-body').innerHTML = htmlLyrics;
         doc.body.querySelector('.am-pip-float-close').addEventListener('click', function () {
           try { pipWin.close(); } catch (_) {}
         });
+        doc.body.dataset.pipBound = '';
         amBindPipControls(doc.body);
         amRefreshPipToggleIcon(doc.body);
         window.__amPipWin = pipWin;
+        amSyncPipContent({ forceLyrics: true, trackChanged: true });
         return;
       }
     } catch (err) {
@@ -8140,6 +8254,7 @@ function amSetLyricsOpen(on) {
       document.body.appendChild(float);
     }
     float.innerHTML = shell;
+    float.dataset.pipBound = '';
     float.querySelector('.am-pip-float-title').textContent = title;
     float.querySelector('.am-pip-float-body').innerHTML = htmlLyrics;
     float.querySelector('.am-pip-float-close').addEventListener('click', function () {
@@ -8168,6 +8283,7 @@ function amSetLyricsOpen(on) {
     });
     head.addEventListener('pointerup', function () { drag = false; });
     float.hidden = false;
+    amSyncPipContent({ forceLyrics: true, trackChanged: true });
   }
 
 function amNext(delta) {
@@ -8301,7 +8417,9 @@ function amNext(delta) {
     if (enterPlayerBtn && !enterPlayerBtn.dataset.bound) {
       enterPlayerBtn.dataset.bound = '1';
       enterPlayerBtn.addEventListener('click', () => {
-        if (typeof amSetPlayerMode === 'function') amSetPlayerMode(true);
+        if (typeof amSetPlayerMode !== 'function') return;
+        amSetPlayerMode(!amState.playerMode);
+        amSyncEnterPlayerBtn();
       });
     }
     const pipBtn = document.getElementById('amPipLyricsBtn');
@@ -8391,6 +8509,7 @@ function amNext(delta) {
         const dur = document.getElementById('amTimeDur');
         const d = audio.duration || 0;
         const t = audio.currentTime || 0;
+        try { amSyncPipContent({ smooth: false }); } catch (_) {}
         if (window.__amSeeking) return;
         if (amState.audioLoading) {
           // 加载中：脉冲样式，但不把「真实进度宽度」写成业务进度（结束时 clearLoading 会对齐）

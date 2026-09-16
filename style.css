@@ -7232,3 +7232,22 @@ body.is-slider-dragging .custom-cursor {
     display: none !important;
   }
 }
+
+
+/* ===== v50: mode icons + pip FA + enter/exit ===== */
+#amPlayModeBtn i,
+.am-ctrl-mode i {
+  font-size: 0.9rem !important;
+  display: inline-block !important;
+  line-height: 1 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.am-np-action-btn.is-exit {
+  background: rgba(250, 45, 72, 0.35) !important;
+}
+.am-pip-controls button i {
+  font-size: 14px !important;
+  line-height: 1 !important;
+  display: inline-block !important;
+}
