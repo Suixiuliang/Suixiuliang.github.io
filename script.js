@@ -462,7 +462,7 @@
         island = document.createElement('div');
         island.className = 'nav-api-island';
         island.innerHTML =
-          `<span class="nav-api-island-icon" aria-hidden="true"><ion-icon name="globe-outline"></ion-icon></span>` +
+          `<span class="nav-api-island-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>` +
           `<span class="nav-api-island-text">您所在的国家/地区暂时不支持连接到后台接口</span>`;
         nav.appendChild(island);
       }
@@ -698,9 +698,9 @@
 
     let html = `
       <div class="apple-cal-header">
-        <button class="apple-cal-nav" id="calPrevBtn" type="button"><ion-icon name="chevron-back-outline"></ion-icon></button>
+        <button class="apple-cal-nav" id="calPrevBtn" type="button"><i class="fas fa-chevron-left"></i></button>
         <span>${year}年 ${monthNames[month]}</span>
-        <button class="apple-cal-nav" id="calNextBtn" type="button"><ion-icon name="chevron-forward-outline"></ion-icon></button>
+        <button class="apple-cal-nav" id="calNextBtn" type="button"><i class="fas fa-chevron-right"></i></button>
       </div>
       <div class="apple-cal-weekdays">
         <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
@@ -829,7 +829,7 @@
     blogCurrentPage = page;
 
     const buttons = [];
-    buttons.push(`<button type="button" class="blog-page-btn" data-page="prev" ${page <= 1 ? 'disabled' : ''} title="上一页"><ion-icon name="chevron-back-outline"></ion-icon></button>`);
+    buttons.push(`<button type="button" class="blog-page-btn" data-page="prev" ${page <= 1 ? 'disabled' : ''} title="上一页"><i class="fas fa-chevron-left"></i></button>`);
 
     const pushPage = (n) => {
       buttons.push(`<button type="button" class="blog-page-btn${n === page ? ' is-active' : ''}" data-page="${n}" ${n === page ? 'aria-current="page"' : ''}>${n}</button>`);
@@ -847,7 +847,7 @@
       pushPage(totalPages);
     }
 
-    buttons.push(`<button type="button" class="blog-page-btn" data-page="next" ${page >= totalPages ? 'disabled' : ''} title="下一页"><ion-icon name="chevron-forward-outline"></ion-icon></button>`);
+    buttons.push(`<button type="button" class="blog-page-btn" data-page="next" ${page >= totalPages ? 'disabled' : ''} title="下一页"><i class="fas fa-chevron-right"></i></button>`);
     buttons.push(`<div class="blog-page-info">第 ${page} / ${totalPages} 页 · 共 ${total} 篇</div>`);
     pager.innerHTML = buttons.join('');
 
@@ -899,12 +899,12 @@
           <h3>${escapeHtml(post.title || '无标题')}</h3>
           <p>${escapeHtml(post.summary || '')}</p>
           <div class="blog-meta">
-            <span><ion-icon name="calendar-outline"></ion-icon> ${escapeHtml(displayDate)} <small style="opacity:.7">UTC+8</small></span>
-            <span><ion-icon name="time-outline"></ion-icon> ${escapeHtml(post.readTime || '3 min')}</span>
+            <span><i class="fas fa-calendar-alt"></i> ${escapeHtml(displayDate)} <small style="opacity:.7">UTC+8</small></span>
+            <span><i class="fas fa-clock"></i> ${escapeHtml(post.readTime || '3 min')}</span>
           </div>
           <div class="blog-card-actions">
-            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以看"><ion-icon name="lock-closed-outline"></ion-icon><span class="blog-hidden-badge-text blog-hidden-badge-desktop">同志，这个你可以看</span><span class="blog-hidden-badge-text blog-hidden-badge-mobile">已授权</span></span>' : ''}
-            <span class="read-more" aria-hidden="true">阅读 <ion-icon name="arrow-forward-outline"></ion-icon></span>
+            ${post.status === 'hidden' ? '<span class="blog-hidden-badge" title="同志，这个你可以看"><i class="fas fa-lock"></i><span class="blog-hidden-badge-text blog-hidden-badge-desktop">同志，这个你可以看</span><span class="blog-hidden-badge-text blog-hidden-badge-mobile">已授权</span></span>' : ''}
+            <span class="read-more" aria-hidden="true">阅读 <i class="fas fa-arrow-right"></i></span>
           </div>
         </a>
       `;
@@ -983,7 +983,7 @@
       dirBtn.title = blogSortDir === 'asc' ? '当前升序，点击切换为降序' : '当前降序，点击切换为升序';
     }
     if (dirIcon) {
-      dirIcon.className = blogSortDir === 'asc' ? 'ion-icon-placeholder' : 'ion-icon-placeholder';
+      dirIcon.className = blogSortDir === 'asc' ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
     }
     document.querySelectorAll('#blogSortMenu .blog-sort-item').forEach((btn) => {
       btn.classList.toggle('is-active', btn.getAttribute('data-sort') === blogSortKey);
@@ -1593,12 +1593,12 @@
         btn.title = '退出全屏';
         btn.setAttribute('aria-label', '缩小');
         btn.classList.add('is-fs-active');
-        if (icon) icon.className = 'ion-icon-placeholder';
+        if (icon) icon.className = 'fas fa-compress';
       } else {
         btn.title = '全屏放大';
         btn.setAttribute('aria-label', '全屏');
         btn.classList.remove('is-fs-active');
-        if (icon) icon.className = 'ion-icon-placeholder';
+        if (icon) icon.className = 'fas fa-expand';
       }
     });
   }
@@ -1691,7 +1691,7 @@
     const icon = miniDockEl.querySelector('i');
     if (!icon) return;
     const playing = !dockedAudioEl.paused && !dockedAudioEl.ended;
-    icon.className = playing ? 'ion-icon-placeholder' : 'ion-icon-placeholder';
+    icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
     miniDockEl.classList.toggle('is-playing', playing);
     miniDockEl.classList.toggle('is-loading', !!(dockedAudioEl && dockedAudioEl.readyState < 2 && !dockedAudioEl.error));
   }
@@ -1702,7 +1702,7 @@
     el.type = 'button';
     el.className = 'audio-mini-dock';
     el.setAttribute('aria-label', '播放/暂停');
-    el.innerHTML = '<ion-icon name="pause-outline"></ion-icon><span class="audio-mini-dock-ring" aria-hidden="true"></span>';
+    el.innerHTML = '<i class="fas fa-pause"></i><span class="audio-mini-dock-ring" aria-hidden="true"></span>';
     el.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1948,11 +1948,11 @@
     const tools = document.createElement('div');
     tools.className = 'md-lyrics-tools';
     tools.innerHTML =
-      `<button type="button" class="md-lyrics-tool-btn" data-tool="fs" title="全屏放大" aria-label="全屏"><ion-icon name="expand-outline"></ion-icon></button>` +
-      `<button type="button" class="md-lyrics-tool-btn" data-tool="vol" title="音量" aria-label="音量"><ion-icon name="volume-high-outline"></ion-icon>` +
+      `<button type="button" class="md-lyrics-tool-btn" data-tool="fs" title="全屏放大" aria-label="全屏"><i class="fas fa-expand"></i></button>` +
+      `<button type="button" class="md-lyrics-tool-btn" data-tool="vol" title="音量" aria-label="音量"><i class="fas fa-volume-up"></i>` +
         `<div class="md-volume-popover" hidden><div class="md-volume-track"><div class="md-volume-fill"></div></div></div>` +
       `</button>` +
-      `<button type="button" class="md-lyrics-tool-btn is-on" data-tool="sync" title="歌词同步滚动" aria-label="同步滚动"><ion-icon name="menu-outline"></ion-icon></button>`;
+      `<button type="button" class="md-lyrics-tool-btn is-on" data-tool="sync" title="歌词同步滚动" aria-label="同步滚动"><i class="fas fa-align-left"></i></button>`;
     song.appendChild(tools);
 
     const volBtn = tools.querySelector('[data-tool="vol"]');
@@ -2030,7 +2030,7 @@
     player.innerHTML =
       `<div class="gap-load-ring" aria-hidden="true"></div>` +
       `<div class="gap-main">` +
-        `<button type="button" class="gap-play" aria-label="播放/暂停"><ion-icon name="play-outline"></ion-icon>` +
+        `<button type="button" class="gap-play" aria-label="播放/暂停"><i class="fas fa-play"></i>` +
           appleSpinnerHtml('is-sm') +
         `</button>` +
         `<span class="gap-time gap-cur">0:00</span>` +
@@ -2264,7 +2264,7 @@
 
     const syncPlayUi = () => {
       const playing = !audio.paused && !audio.ended;
-      playIcon.className = playing ? 'ion-icon-placeholder' : 'ion-icon-placeholder';
+      playIcon.className = playing ? 'fas fa-pause' : 'fas fa-play';
       player.classList.toggle('is-playing', playing);
       syncLoadingUi();
     };
@@ -2738,7 +2738,7 @@
             `<div class="md-code-titlebar-right">` +
               `<span class="md-code-lang">${esc(langLabel)}</span>` +
               `<button type="button" class="md-code-copy" title="复制代码" aria-label="复制代码">` +
-                `<ion-icon name="copy-outline"></ion-icon><span>复制</span>` +
+                `<i class="fas fa-copy"></i><span>复制</span>` +
               `</button>` +
             `</div>` +
           `</div>` +
@@ -2763,7 +2763,7 @@
             `<div class="md-code-titlebar-right">` +
               `<span class="md-code-lang">${esc(langLabel)}</span>` +
               `<button type="button" class="md-code-copy" title="复制代码" aria-label="复制代码">` +
-                `<ion-icon name="copy-outline"></ion-icon><span>复制</span>` +
+                `<i class="fas fa-copy"></i><span>复制</span>` +
               `</button>` +
             `</div>` +
           `</div>` +
@@ -3053,11 +3053,11 @@
         const icon = btn.querySelector('i');
         const ok = async () => {
           if (label) label.textContent = '已复制';
-          if (icon) icon.className = 'ion-icon-placeholder';
+          if (icon) icon.className = 'fas fa-check';
           btn.classList.add('is-copied');
           setTimeout(() => {
             if (label) label.textContent = '复制';
-            if (icon) icon.className = 'ion-icon-placeholder';
+            if (icon) icon.className = 'fas fa-copy';
             btn.classList.remove('is-copied');
           }, 1600);
         };
@@ -3567,9 +3567,9 @@
     const loadingTitle = (local && local.title) || '加载中…';
     titleEl.textContent = loadingTitle;
     const loadingMeta = local
-      ? `<span><ion-icon name="calendar-outline"></ion-icon> ${escapeHtml(local.date || '')} UTC+8</span>` +
-        (local.category ? `<span><ion-icon name="pricetag-outline"></ion-icon> ${escapeHtml(local.category)}</span>` : '') +
-        `<span><ion-icon name="time-outline"></ion-icon> ${escapeHtml(local.readTime || '')}</span>`
+      ? `<span><i class="fas fa-calendar-alt"></i> ${escapeHtml(local.date || '')} UTC+8</span>` +
+        (local.category ? `<span><i class="fas fa-tag"></i> ${escapeHtml(local.category)}</span>` : '') +
+        `<span><i class="fas fa-clock"></i> ${escapeHtml(local.readTime || '')}</span>`
       : '';
     if (metaEl) metaEl.innerHTML = loadingMeta;
     setReadingToolbarMeta(loadingTitle, loadingMeta);
@@ -3605,12 +3605,12 @@
     const rawDate = article.published_at || article.created_at || article.date || (local && local.rawDate) || '';
     const displayDate = formatDateUTC8(rawDate) || (local && local.date) || '';
     const finalMeta =
-      `<span><ion-icon name="calendar-outline"></ion-icon> ${escapeHtml(displayDate)} UTC+8</span>` +
+      `<span><i class="fas fa-calendar-alt"></i> ${escapeHtml(displayDate)} UTC+8</span>` +
       (article.category || (local && local.category)
-        ? `<span><ion-icon name="pricetag-outline"></ion-icon> ${escapeHtml(article.category || local.category)}</span>`
+        ? `<span><i class="fas fa-tag"></i> ${escapeHtml(article.category || local.category)}</span>`
         : '') +
       (article.reading_time || (local && local.readTime)
-        ? `<span><ion-icon name="time-outline"></ion-icon> ${escapeHtml(article.reading_time ? article.reading_time + ' min' : local.readTime)}</span>`
+        ? `<span><i class="fas fa-clock"></i> ${escapeHtml(article.reading_time ? article.reading_time + ' min' : local.readTime)}</span>`
         : '');
     if (metaEl) metaEl.innerHTML = finalMeta;
     setReadingToolbarMeta(finalTitle, finalMeta);
@@ -3814,18 +3814,18 @@
     const stType = profileData.statusType || 'online';
     return `
       <div class="panel-content">
-        <div class="section-title"><ion-icon name="shield-outline"></ion-icon><span>管理员</span></div>
+        <div class="section-title"><i class="fas fa-shield-alt"></i><span>管理员</span></div>
         <div class="admin-panel-wrap">
           <div class="admin-tabs" role="tablist">
-            <button type="button" class="admin-tab-btn active" data-tab="status"><ion-icon name="ellipse-outline"></ion-icon> 状态</button>
-            <button type="button" class="admin-tab-btn" data-tab="status-retention"><ion-icon name="time-outline"></ion-icon> 历史</button>
-            <button type="button" class="admin-tab-btn" data-tab="articles"><ion-icon name="newspaper-outline"></ion-icon> 文章</button>
-            <button type="button" class="admin-tab-btn" data-tab="editor"><ion-icon name="create-outline"></ion-icon> 写文章</button>
-            <button type="button" class="admin-tab-btn" data-tab="session"><ion-icon name="log-out-outline"></ion-icon> 会话</button>
+            <button type="button" class="admin-tab-btn active" data-tab="status"><i class="fas fa-circle"></i> 状态</button>
+            <button type="button" class="admin-tab-btn" data-tab="status-retention"><i class="fas fa-clock"></i> 历史</button>
+            <button type="button" class="admin-tab-btn" data-tab="articles"><i class="fas fa-newspaper"></i> 文章</button>
+            <button type="button" class="admin-tab-btn" data-tab="editor"><i class="fas fa-pen"></i> 写文章</button>
+            <button type="button" class="admin-tab-btn" data-tab="session"><i class="fas fa-sign-out-alt"></i> 会话</button>
           </div>
           <div class="admin-tab-panel active" data-panel="status">
             <div class="glass-card admin-card">
-              <h3><ion-icon name="person-outline"></ion-icon> 主页状态（QQ 风格）</h3>
+              <h3><i class="fas fa-user"></i> 主页状态（QQ 风格）</h3>
               <div class="admin-form-grid">
                 <div class="admin-form-row">
                   <label>状态文案</label>
@@ -3842,7 +3842,7 @@
                     <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                       <span class="apple-select-dot home-status-dot ${escapeHtml(stType)}"></span>
                       <span class="apple-select-label">加载中…</span>
-                      <ion-icon name="chevron-down-outline"></ion-icon>
+                      <i class="fas fa-chevron-down"></i>
                     </button>
                     <div class="apple-select-menu" role="listbox">
                       <button type="button" class="apple-select-option" data-value="online" data-label="在线" data-default-text="在线"><span class="home-status-dot online"></span><span>在线</span></button>
@@ -3872,7 +3872,7 @@
           </div>
           <div class="admin-tab-panel" data-panel="status-retention">
             <div class="glass-card admin-card">
-              <h3><ion-icon name="server-outline"></ion-icon> 状态历史保存时间</h3>
+              <h3><i class="fas fa-database"></i> 状态历史保存时间</h3>
               <div class="admin-form-grid">
                 <div class="admin-form-row">
                   <label>保存周期</label>
@@ -3880,7 +3880,7 @@
                     <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                       <span class="apple-select-dot home-status-dot custom"></span>
                       <span class="apple-select-label">1年</span>
-                      <ion-icon name="chevron-down-outline"></ion-icon>
+                      <i class="fas fa-chevron-down"></i>
                     </button>
                     <div class="apple-select-menu" role="listbox">
                       <button type="button" class="apple-select-option" data-value="1w" data-label="1周"><span class="home-status-dot away"></span><span>1周</span></button>
@@ -3899,9 +3899,9 @@
             </div>
             <div class="glass-card admin-card" style="margin-top:1rem">
               <div class="admin-toolbar">
-                <h3 style="margin:0"><ion-icon name="list-outline"></ion-icon> 全部状态历史</h3>
+                <h3 style="margin:0"><i class="fas fa-list"></i> 全部状态历史</h3>
                 <div class="admin-articles-toolbar">
-                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshStatusHistoryBtn"><ion-icon name="sync-outline"></ion-icon> 刷新</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshStatusHistoryBtn"><i class="fas fa-sync"></i> 刷新</button>
                 </div>
               </div>
               <p class="admin-field-hint" style="margin:0.5rem 0 0.75rem">可删除任意历史条目。当前进行中的状态（无结束时间）删除后不会改 site_profile，请用「状态」页修改当前状态。</p>
@@ -3912,10 +3912,10 @@
           <div class="admin-tab-panel" data-panel="articles">
             <div class="glass-card admin-card">
               <div class="admin-toolbar">
-                <h3 style="margin:0"><ion-icon name="list-outline"></ion-icon> 文章管理</h3>
+                <h3 style="margin:0"><i class="fas fa-list"></i> 文章管理</h3>
                 <div class="admin-articles-toolbar">
                   <input type="search" id="adminArticlesSearch" placeholder="搜索标题 / slug / 分类…" autocomplete="off">
-                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshArticlesBtn"><ion-icon name="sync-outline"></ion-icon> 刷新</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshArticlesBtn"><i class="fas fa-sync"></i> 刷新</button>
                 </div>
               </div>
               <div id="adminArticlesList"><p class="admin-msg">加载中…</p></div>
@@ -3924,7 +3924,7 @@
           </div>
           <div class="admin-tab-panel" data-panel="editor">
             <div class="glass-card admin-card">
-              <h3><ion-icon name="color-wand-outline"></ion-icon> <span id="adminEditorTitle">新建文章</span></h3>
+              <h3><i class="fas fa-pen-nib"></i> <span id="adminEditorTitle">新建文章</span></h3>
               <input type="hidden" id="adminEditArticleId" value="">
               <div class="admin-form-grid">
                 <div class="admin-form-row">
@@ -3949,7 +3949,7 @@
                     <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                       <span class="apple-select-dot home-status-dot custom"></span>
                       <span class="apple-select-label">Markdown</span>
-                      <ion-icon name="chevron-down-outline"></ion-icon>
+                      <i class="fas fa-chevron-down"></i>
                     </button>
                     <div class="apple-select-menu" role="listbox">
                       <button type="button" class="apple-select-option" data-value="markdown" data-label="Markdown"><span class="home-status-dot online"></span><span>Markdown</span></button>
@@ -3977,7 +3977,7 @@
                     <button type="button" class="apple-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                       <span class="apple-select-dot home-status-dot online"></span>
                       <span class="apple-select-label">发布</span>
-                      <ion-icon name="chevron-down-outline"></ion-icon>
+                      <i class="fas fa-chevron-down"></i>
                     </button>
                     <div class="apple-select-menu" role="listbox">
                       <button type="button" class="apple-select-option" data-value="published" data-label="发布"><span class="home-status-dot online"></span><span>发布</span></button>
@@ -3998,18 +3998,18 @@
           </div>
           <div class="admin-tab-panel" data-panel="session">
             <div class="glass-card admin-card">
-              <h3><ion-icon name="shield-outline"></ion-icon> 会话</h3>
+              <h3><i class="fas fa-shield-alt"></i> 会话</h3>
               <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">已通过 API Session Cookie 登录。退出后需重新验证。</p>
               <div class="admin-guest-code-card" id="adminGuestCodeCard">
-                <div><strong><ion-icon name="ticket-outline"></ion-icon> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
+                <div><strong><i class="fas fa-ticket-alt"></i> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
                 <code id="adminGuestCode">加载中…</code>
                 <div class="admin-guest-code-actions">
-                  <button type="button" class="nav-btn apple-secondary-btn" id="adminCopyGuestCodeBtn" title="复制邀请码"><ion-icon name="copy-outline"></ion-icon> 复制</button>
-                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn" title="手动刷新邀请码"><ion-icon name="sync-outline"></ion-icon> 刷新</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminCopyGuestCodeBtn" title="复制邀请码"><i class="fas fa-copy"></i> 复制</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn" title="手动刷新邀请码"><i class="fas fa-sync"></i> 刷新</button>
                 </div>
               </div>
               <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
-                <ion-icon name="log-out-outline"></ion-icon> 退出登录
+                <i class="fas fa-sign-out-alt"></i> 退出登录
               </button>
             </div>
           </div>
@@ -4251,7 +4251,7 @@
     const btn = document.getElementById('adminCopyGuestCodeBtn');
     if (btn) {
       const prev = btn.innerHTML;
-      btn.innerHTML = ok ? '<ion-icon name="checkmark-outline"></ion-icon> 已复制' : '<ion-icon name="close-outline"></ion-icon> 失败';
+      btn.innerHTML = ok ? '<i class="fas fa-check"></i> 已复制' : '<i class="fas fa-times"></i> 失败';
       setTimeout(() => { btn.innerHTML = prev; }, 1400);
     }
   }
@@ -4592,23 +4592,23 @@
         <div class="section-title"><i class="fas ${info.icon}"></i><span>${info.label}</span></div>
         <div class="admin-panel-wrap">
           <div class="admin-tabs" role="tablist">
-            <button type="button" class="admin-tab-btn active" data-tab="session"><ion-icon name="log-out-outline"></ion-icon> 会话</button>
+            <button type="button" class="admin-tab-btn active" data-tab="session"><i class="fas fa-sign-out-alt"></i> 会话</button>
           </div>
           <div class="admin-tab-panel active" data-panel="session">
             <div class="glass-card admin-card">
-              <h3><ion-icon name="shield-outline"></ion-icon> 会话</h3>
+              <h3><i class="fas fa-shield-alt"></i> 会话</h3>
               <p style="opacity:0.75;font-size:0.92rem;margin-bottom:1rem;">当前身份：${escapeHtml(info.label)}。已通过 API Session Cookie 登录，退出后需重新验证。</p>
               ${showInvite ? `
               <div class="admin-guest-code-card" id="adminGuestCodeCard">
-                <div><strong><ion-icon name="ticket-outline"></ion-icon> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
+                <div><strong><i class="fas fa-ticket-alt"></i> Guest 邀请码</strong><p id="adminGuestCodeMeta">每 10 分钟自动更新</p></div>
                 <code id="adminGuestCode">加载中…</code>
                 <div class="admin-guest-code-actions">
-                  <button type="button" class="nav-btn apple-secondary-btn" id="adminCopyGuestCodeBtn" title="复制邀请码"><ion-icon name="copy-outline"></ion-icon> 复制</button>
-                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn" title="手动刷新邀请码"><ion-icon name="sync-outline"></ion-icon> 刷新</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminCopyGuestCodeBtn" title="复制邀请码"><i class="fas fa-copy"></i> 复制</button>
+                  <button type="button" class="nav-btn apple-secondary-btn" id="adminRefreshGuestCodeBtn" title="手动刷新邀请码"><i class="fas fa-sync"></i> 刷新</button>
                 </div>
               </div>` : ''}
               <button type="button" class="nav-btn apple-secondary-btn" id="adminLogoutBtn">
-                <ion-icon name="log-out-outline"></ion-icon> 退出登录
+                <i class="fas fa-sign-out-alt"></i> 退出登录
               </button>
             </div>
           </div>
@@ -4788,7 +4788,7 @@
           <div class="admin-shh-meta">${start} → ${end}</div>
           ${summary ? `<div class="admin-shh-summary">${summary}</div>` : ''}
           <div class="admin-shh-actions">
-            <button type="button" class="nav-btn apple-secondary-btn admin-shh-del" data-id="${id}" title="删除此条"><ion-icon name="trash-outline"></ion-icon> 删除</button>
+            <button type="button" class="nav-btn apple-secondary-btn admin-shh-del" data-id="${id}" title="删除此条"><i class="fas fa-trash"></i> 删除</button>
           </div>
         </div>`;
       }).join('') + '</div>';
@@ -6366,8 +6366,8 @@
       avatarContainer.innerHTML =
         `<div class="avatar-circle-placeholder" id="homeAvatarPlaceholder"></div>` +
         `<div class="home-actions home-actions-under-avatar">` +
-          `<a href="#works" class="nav-btn apple-primary-btn" style="text-decoration:none;"><ion-icon name="code-slash-outline"></ion-icon> 作品</a>` +
-          `<a href="#contact" class="nav-btn apple-secondary-btn" style="text-decoration:none;"><ion-icon name="paper-plane-outline"></ion-icon> 联系</a>` +
+          `<a href="#works" class="nav-btn apple-primary-btn" style="text-decoration:none;"><i class="fas fa-code"></i> 作品</a>` +
+          `<a href="#contact" class="nav-btn apple-secondary-btn" style="text-decoration:none;"><i class="fas fa-paper-plane"></i> 联系</a>` +
         `</div>`;
     }
 
@@ -6431,7 +6431,7 @@
               <a href="${item.legacyLink}" target="_blank" class="work-legacy-link">${item.legacyText}</a>
             ` : '<div></div>'}
             <a href="${item.github}" target="_blank" class="work-circle-btn" title="前往 GitHub 项目">
-              <ion-icon name="arrow-forward-outline"></ion-icon>
+              <i class="fas fa-arrow-right"></i>
             </a>
           </div>
         </div>
@@ -6730,7 +6730,7 @@
     const mm = map[mode] || map.shuffle;
     btn.title = mm.title;
     btn.setAttribute('aria-label', mm.title);
-    btn.innerHTML = '<ion-icon name="' + mm.icon + '"></ion-icon>';
+    btn.innerHTML = '<i class="fas fa-circle"></i>';
     btn.dataset.mode = mode;
     btn.classList.add('am-ctrl-mode');
   }
@@ -6998,7 +6998,7 @@ function amSetLyricsOpen(on) {
     if (url) {
       el.innerHTML = '<img src="' + escapeHtml(url) + '" alt="">';
     } else {
-      el.innerHTML = '<ion-icon name="musical-notes-outline"></ion-icon>';
+      el.innerHTML = '<i class="fas fa-music"></i>';
     }
   }
 
@@ -7074,7 +7074,7 @@ function amSetLyricsOpen(on) {
     }
     box.innerHTML = '<div class="am-playlist-list-label">播放列表</div>' + amState.playlists.map((p) => (
       '<button type="button" class="am-playlist-item' + (p.id === amState.activePlaylistId ? ' is-active' : '') + '" data-playlist-id="' + escapeHtml(p.id) + '">' +
-        '<ion-icon name="list-outline"></ion-icon><span>' + escapeHtml(p.name) + '</span>' +
+        '<i class="fas fa-list"></i><span>' + escapeHtml(p.name) + '</span>' +
       '</button>'
     )).join('');
     box.querySelectorAll('.am-playlist-item').forEach((btn) => {
@@ -7205,7 +7205,7 @@ function amSetLyricsOpen(on) {
       return (
         '<div class="am-track-row' + (active ? ' is-active' : '') + '" role="row" data-index="' + realIndex + '" tabindex="0">' +
           '<span class="am-col-title" role="cell">' +
-            (active && amState.playing ? '<ion-icon name="volume-high-outline"></ion-icon>' : '') +
+            (active && amState.playing ? '<i class="fas fa-volume-up"></i>' : '') +
             '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span></span>' +
           '</span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
@@ -7213,7 +7213,7 @@ function amSetLyricsOpen(on) {
           '<span class="am-col-year" role="cell">' + escapeHtml(t.year || '—') + '</span>' +
           '<span class="am-col-time" role="cell">' +
             '<button type="button" class="am-row-dl" data-dl-index="' + realIndex + '" title="下载" aria-label="下载">' +
-              '<ion-icon name="download-outline"></ion-icon>' +
+              '<i class="fas fa-download"></i>' +
             '</button>' +
           '</span>' +
         '</div>'
@@ -7268,10 +7268,10 @@ function amSetLyricsOpen(on) {
         // 仅当正在播放的歌属于「当前列表」时显示暂停；跨歌单则仍显示播放
         const inCtx = !!(amGetPlayingTrack() && amFindIndexInTracks(amGetPlayingTrack()) >= 0);
         if (playing && inCtx) {
-          playAllBtn.innerHTML = '<ion-icon name="pause-outline"></ion-icon><span>暂停</span>';
+          playAllBtn.innerHTML = '<i class="fas fa-pause"></i><span>暂停</span>';
           playAllBtn.dataset.mode = 'pause';
         } else {
-          playAllBtn.innerHTML = '<ion-icon name="play-outline"></ion-icon><span>播放</span>';
+          playAllBtn.innerHTML = '<i class="fas fa-play"></i><span>播放</span>';
           playAllBtn.dataset.mode = 'play';
         }
       }
@@ -7302,7 +7302,7 @@ function amSetLyricsOpen(on) {
 
     if (toggle) {
       const icon = toggle.querySelector('i');
-      if (icon) icon.className = amState.playing ? 'ion-icon-placeholder' : 'ion-icon-placeholder';
+      if (icon) icon.className = amState.playing ? 'fas fa-pause' : 'fas fa-play';
     }
   }
 
@@ -8020,11 +8020,11 @@ function amSetLyricsOpen(on) {
   function amPipControlHtml() {
     return (
       '<div class="am-pip-controls">' +
-        '<button type="button" data-act="prev" title="上一首"><ion-icon name="play-skip-back-outline"></ion-icon></button>' +
-        '<button type="button" data-act="back10" title="后退10秒"><ion-icon name="play-back-outline"></ion-icon></button>' +
-        '<button type="button" data-act="toggle" title="播放/暂停"><ion-icon name="play-outline"></ion-icon></button>' +
-        '<button type="button" data-act="fwd10" title="前进10秒"><ion-icon name="play-forward-outline"></ion-icon></button>' +
-        '<button type="button" data-act="next" title="下一首"><ion-icon name="play-skip-forward-outline"></ion-icon></button>' +
+        '<button type="button" data-act="prev" title="上一首"><i class="fas fa-step-backward"></i></button>' +
+        '<button type="button" data-act="back10" title="后退10秒"><i class="fas fa-backward"></i></button>' +
+        '<button type="button" data-act="toggle" title="播放/暂停"><i class="fas fa-play"></i></button>' +
+        '<button type="button" data-act="fwd10" title="前进10秒"><i class="fas fa-forward"></i></button>' +
+        '<button type="button" data-act="next" title="下一首"><i class="fas fa-step-forward"></i></button>' +
       '</div>'
     );
   }
@@ -8055,8 +8055,8 @@ function amSetLyricsOpen(on) {
     if (!btn) return;
     var paused = !audio || audio.paused;
     btn.innerHTML = paused
-      ? '<ion-icon name="play-outline"></ion-icon>'
-      : '<ion-icon name="pause-outline"></ion-icon>';
+      ? '<i class="fas fa-play"></i>'
+      : '<i class="fas fa-pause"></i>';
   }
 
   function amPipCoverUrl() {
@@ -8077,7 +8077,7 @@ function amSetLyricsOpen(on) {
         bg +
         '<div class="am-pip-fg">' +
           '<div class="am-pip-float-head"><span class="am-pip-float-title"></span>' +
-          '<button type="button" class="am-pip-float-close" aria-label="关闭"><ion-icon name="close-outline"></ion-icon></button></div>' +
+          '<button type="button" class="am-pip-float-close" aria-label="关闭"><i class="fas fa-times"></i></button></div>' +
           '<div class="am-pip-float-body"></div>' +
           amPipControlHtml() +
         '</div>' +
@@ -8111,7 +8111,7 @@ function amSetLyricsOpen(on) {
           '.am-lrc-line{padding:3px 4px;border-radius:6px;} .am-lrc-line.is-active{color:#fa2d48;font-weight:600;}' +
           '.am-pip-controls{display:flex;justify-content:center;gap:10px;padding:10px 12px 14px;}' +
           '.am-pip-controls button{width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.14);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}' +
-          'ion-icon{font-size:18px;pointer-events:none;}';
+          'i{font-size:14px;pointer-events:none;}';
         doc.head.appendChild(style);
         var s = doc.createElement('script');
         s.type = 'module';
@@ -9348,13 +9348,16 @@ function amNext(delta) {
   window.addEventListener('orientationchange', applyPhoneChrome, { passive: true });
 
   let customCursor = null;
-  if (!coarsePointer) {
+  (function ensureCustomCursor() {
+    // 桌面端始终创建；仅明确触控且无 hover 时跳过
+    const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    if (touchOnly) return;
     customCursor = document.createElement('div');
-    customCursor.className = 'custom-cursor';
+    customCursor.className = 'custom-cursor is-visible';
     customCursor.setAttribute('aria-hidden', 'true');
-    customCursor.style.zIndex = '2147483646';
+    customCursor.style.cssText = 'position:fixed;top:0;left:0;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:rgba(255,255,255,.94);border:1.5px solid rgba(0,0,0,.16);pointer-events:none;z-index:2147483646;opacity:1;visibility:visible;display:block;transform:translate3d(-100px,-100px,0);';
     document.body.appendChild(customCursor);
-  }
+  })();
 
   function isTextEditingTarget(el) {
     if (!el || el === document || el === window) return false;
@@ -9402,6 +9405,24 @@ function amNext(delta) {
     if (amIsClickableTarget(target)) customCursor.classList.add('is-interactive');
     else customCursor.classList.remove('is-interactive');
   }
+
+  (function amCursorPointerUpClear() {
+    if (window.__amCursorPtrBound) return;
+    window.__amCursorPtrBound = true;
+    const clear = () => {
+      try {
+        document.body.classList.remove('is-slider-dragging');
+        window.__amSeeking = false;
+        if (customCursor) {
+          customCursor.classList.remove('is-hidden-for-drag');
+          customCursor.classList.add('is-visible');
+        }
+        window.__suppressClickEffects = false;
+      } catch (_) {}
+    };
+    window.addEventListener('pointerup', clear, true);
+    window.addEventListener('pointercancel', clear, true);
+  })();
 
   function moveCustomCursor(x, y) {
     if (!customCursor) return;
