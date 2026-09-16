@@ -3695,11 +3695,18 @@
         const homeR = homePanel.getBoundingClientRect();
         const phR = homePh.getBoundingClientRect();
         const relX = phR.left - homeR.left;
-        const relY = phR.top - homeR.top;
-        const x = scR.left + relX;
-        const y = scR.top + relY;
         const w = phR.width;
         const h = phR.height;
+        // 水平：仍用首页相对一页的 x；垂直：头像中心线对齐登录框中心线
+        const x = scR.left + relX;
+        let y = scR.top + (phR.top - homeR.top);
+        const loginBox = document.querySelector('#adminLoginModal .calendar-modal-content, #adminLoginModal .admin-login-content, #adminLoginModal .glass-card');
+        if (loginBox) {
+          const mr = loginBox.getBoundingClientRect();
+          if (mr.height > 0) {
+            y = mr.top + mr.height / 2 - h / 2;
+          }
+        }
         globalAvatar.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1), width 0.55s ease, height 0.55s ease, opacity 0.3s ease';
         globalAvatar.style.opacity = '1';
         globalAvatar.style.width = w + 'px';
@@ -5381,7 +5388,12 @@
         const homeR = homePanel.getBoundingClientRect();
         const phR = homePh.getBoundingClientRect();
         const x = scR.left + (phR.left - homeR.left);
-        const y = scR.top + (phR.top - homeR.top);
+        let y = scR.top + (phR.top - homeR.top);
+        const loginBox = document.querySelector('#adminLoginModal .calendar-modal-content, #adminLoginModal .admin-login-content, #adminLoginModal .glass-card');
+        if (loginBox) {
+          const mr = loginBox.getBoundingClientRect();
+          if (mr.height > 0) y = mr.top + mr.height / 2 - phR.height / 2;
+        }
         globalAvatar.style.width = phR.width + 'px';
         globalAvatar.style.height = phR.height + 'px';
         globalAvatar.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -7195,6 +7207,7 @@ function amSetLyricsOpen(on) {
           '<span class="am-col-title" role="cell">' +
             (active && amState.playing ? '<i class="fas fa-volume-up am-playing-ico"></i>' : '') +
             '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span></span>' +
+          '</span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
           '<span class="am-col-album" role="cell">' + escapeHtml(t.album || '—') + '</span>' +
           '<span class="am-col-year" role="cell">' + escapeHtml(t.year || '—') + '</span>' +
@@ -7470,12 +7483,31 @@ function amSetLyricsOpen(on) {
           const a = document.getElementById('amAudio');
           if (!a || !Number.isFinite(t)) return;
           try {
+            // 先画进度，再 seek，避免 timeupdate/loading 把条拉回 0
+            window.__amSeeking = true;
+            amState.audioLoading = false;
+            try { amSetSeekLoading(false); } catch (_) {}
+            const fill = document.getElementById('amSeekFill');
+            const d = a.duration;
+            if (fill && d && isFinite(d) && d > 0) {
+              fill.classList.remove('is-loading-pulse');
+              fill.style.width = (Math.max(0, Math.min(1, t / d)) * 100) + '%';
+            }
+            const cur = document.getElementById('amTimeCur');
+            if (cur) {
+              const m = Math.floor(t / 60);
+              const s = Math.floor(t % 60);
+              cur.textContent = m + ':' + String(s).padStart(2, '0');
+            }
             a.currentTime = Math.max(0, t);
             if (a.paused && amState.playing) {
               a.play().catch(() => {});
             }
             amSyncLyrics(t, { forceScroll: true });
-          } catch (_) {}
+            setTimeout(() => { window.__amSeeking = false; }, 120);
+          } catch (_) {
+            window.__amSeeking = false;
+          }
         });
       });
     };
@@ -8238,17 +8270,16 @@ function amSetLyricsOpen(on) {
         const rect = seek.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
         window.__amSeeking = true;
+        window.__amSeekPendingRatio = ratio;
         amState.audioLoading = false;
         try { amSetSeekLoading(false); } catch (_) {}
         if (seekFillEl) {
           seekFillEl.classList.remove('is-loading-pulse');
           seekFillEl.style.width = (ratio * 100) + '%';
         }
-        if (audio.duration && isFinite(audio.duration)) {
-          try { audio.currentTime = ratio * audio.duration; } catch (_) {}
-        }
+        // 拖动中只更新 UI，不改 currentTime，避免音频快进 scrub
         const cur = document.getElementById('amTimeCur');
-        if (cur && audio.duration) {
+        if (cur && audio.duration && isFinite(audio.duration)) {
           const t = ratio * audio.duration;
           const m = Math.floor(t / 60);
           const s = Math.floor(t % 60);
@@ -8258,10 +8289,18 @@ function amSetLyricsOpen(on) {
       const amSeekEnd = (e) => {
         if (!amSeeking) return;
         amSeeking = false;
-        window.__amSeeking = false;
         seek.classList.remove('is-active');
         document.body.classList.remove('is-slider-dragging');
         window.__suppressClickEffects = false;
+        // 松手再真正跳转时间
+        try {
+          const ratio = window.__amSeekPendingRatio;
+          if (typeof ratio === 'number' && audio.duration && isFinite(audio.duration)) {
+            audio.currentTime = Math.max(0, Math.min(audio.duration, ratio * audio.duration));
+          }
+        } catch (_) {}
+        window.__amSeekPendingRatio = null;
+        setTimeout(() => { window.__amSeeking = false; }, 80);
         try {
           if (e && e.pointerId != null) seek.releasePointerCapture(e.pointerId);
         } catch (_) {}
@@ -8284,8 +8323,17 @@ function amSetLyricsOpen(on) {
       seek.addEventListener('pointerup', amSeekEnd);
       seek.addEventListener('pointercancel', amSeekEnd);
       seek.addEventListener('lostpointercapture', () => {
+        if (amSeeking) {
+          try {
+            const ratio = window.__amSeekPendingRatio;
+            if (typeof ratio === 'number' && audio.duration && isFinite(audio.duration)) {
+              audio.currentTime = Math.max(0, Math.min(audio.duration, ratio * audio.duration));
+            }
+          } catch (_) {}
+        }
         amSeeking = false;
-        window.__amSeeking = false;
+        window.__amSeekPendingRatio = null;
+        setTimeout(() => { window.__amSeeking = false; }, 80);
         seek.classList.remove('is-active');
         document.body.classList.remove('is-slider-dragging');
         window.__suppressClickEffects = false;

@@ -6821,3 +6821,71 @@ button.am-player-close,
 .am-np-seek .am-player-close {
   display: none !important;
 }
+
+
+/* ===== v41: 表格列对齐 + 关闭叉无圆形玻璃底 ===== */
+
+/* 表格列强制对齐 */
+.am-track-head,
+.am-track-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 2.6fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 64px 48px !important;
+  gap: 0.75rem !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.am-track-head > span,
+.am-track-row > span,
+.am-track-head > [role="columnheader"],
+.am-track-row > [role="cell"] {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.am-col-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  min-width: 0 !important;
+}
+.am-col-title-text {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* 关闭叉：去掉圆形玻璃板，只留图标 */
+button.am-player-close,
+#amPlayerCloseBtn,
+.am-player-close {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 6px !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+.am-player-close:hover {
+  background: transparent !important;
+  color: #fff !important;
+  opacity: 1 !important;
+}
+.am-player-close i {
+  font-size: 1.15rem !important;
+}
+
+
+/* ===== v45 ===== */
+.am-seek-fill::after {
+  border-width: 3px !important; /* 白边加粗约 1.5–2px */
+  box-sizing: content-box !important;
+}
