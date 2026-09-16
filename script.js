@@ -7964,6 +7964,21 @@ function amSetLyricsOpen(on) {
   }
 
 
+  
+  function amPaintVolumeBar() {
+    const vol = document.getElementById('amVolume');
+    const audio = document.getElementById('amAudio');
+    if (!vol) return;
+    let v = Number(vol.value);
+    if (!Number.isFinite(v)) v = audio ? Number(audio.volume) : 0.85;
+    v = Math.max(0, Math.min(1, v));
+    vol.value = String(v);
+    const pct = (v * 100).toFixed(2);
+    const grad = 'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
+    vol.style.setProperty('background', grad, 'important');
+    vol.style.setProperty('background-image', grad, 'important');
+  }
+
   function amToggle() {
     const audio = document.getElementById('amAudio');
     const track = amState.index >= 0 ? amState.tracks[amState.index] : null;
@@ -8014,14 +8029,8 @@ function amSetLyricsOpen(on) {
         let v = Number(audio.volume) || 0;
         v = e.key === 'ArrowUp' ? Math.min(1, v + 0.05) : Math.max(0, v - 0.05);
         audio.volume = v;
-        if (vol) {
-          vol.value = String(v);
-          try {
-            const pct = (v * 100).toFixed(2);
-            vol.style.background =
-              'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
-          } catch (_) {}
-        }
+        if (vol) vol.value = String(v);
+        try { amPaintVolumeBar(); } catch (_) {}
         return;
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -8110,8 +8119,11 @@ function amSetLyricsOpen(on) {
       '<div class="am-pip-square">' +
         bg +
         '<div class="am-pip-fg">' +
-          '<div class="am-pip-float-head"><span class="am-pip-float-title"></span>' +
-          '<button type="button" class="am-pip-float-close" aria-label="关闭"><i class="fas fa-times"></i></button></div>' +
+          '<div class="am-pip-float-head">' +
+            '<button type="button" class="am-pip-float-close" aria-label="关闭"><i class="fas fa-times"></i></button>' +
+            '<div class="am-pip-float-title"></div>' +
+            '<div class="am-pip-float-artist"></div>' +
+          '</div>' +
           '<div class="am-pip-float-body"></div>' +
           amPipControlHtml() +
         '</div>' +
@@ -8142,11 +8154,17 @@ function amSetLyricsOpen(on) {
       '.am-pip-bg{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(28px) brightness(0.45) saturate(1.2);transform:scale(1.12);}' +
       '.am-pip-bg-empty{background:#1a1a1e;filter:none;transform:none;}' +
       '.am-pip-fg{position:relative;z-index:1;display:flex;flex-direction:column;height:100%;background:rgba(0,0,0,.28);}' +
-      '.am-pip-float-head{display:flex;align-items:center;gap:8px;padding:10px 12px;user-select:none;}' +
-      '.am-pip-float-title{flex:1;font-size:13px;opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
-      '.am-pip-float-close{border:0;background:transparent;color:#fff;cursor:pointer;padding:4px;display:inline-flex;}' +
-      '.am-pip-float-body{flex:1;overflow:auto;padding:8px 12px;}' +
-      '.am-lrc-line{padding:3px 4px;border-radius:6px;opacity:.75;}' +
+      '.am-pip-float-head{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:14px 36px 8px;user-select:none;text-align:center;}' +
+      '.am-pip-float-title{width:100%;font-size:17px;font-weight:650;line-height:1.3;opacity:.98;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}' +
+      '.am-pip-float-artist{width:100%;font-size:12px;font-weight:400;line-height:1.25;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;}' +
+      '.am-pip-float-close{position:absolute;top:8px;right:8px;border:0;background:transparent;color:#fff;cursor:pointer;padding:4px;display:inline-flex;opacity:.85;}' +
+      '.am-pip-float-body{flex:1;overflow:auto;padding:8px 12px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent;}' +
+      '.am-pip-float-body::-webkit-scrollbar{width:6px;background:transparent;}' +
+      '.am-pip-float-body::-webkit-scrollbar-track{background:transparent;}' +
+      '.am-pip-float-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:99px;border:none;}' +
+      '.am-pip-float-body::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.4);}' +
+      '.am-lrc-line{padding:4px 6px;border-radius:6px;opacity:.75;cursor:pointer;text-align:center;}' +
+      '.am-lrc-line:hover{background:rgba(255,255,255,.08);opacity:.95;}' +
       '.am-lrc-line.is-active{color:#fa2d48;font-weight:600;opacity:1;}' +
       '.am-pip-controls{display:flex;justify-content:center;gap:10px;padding:10px 12px 14px;}' +
       '.am-pip-controls button{width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}' +
@@ -8155,6 +8173,39 @@ function amSetLyricsOpen(on) {
   }
 
   /** 切歌 / 进度：同步 PiP 封面、标题、歌词、控件图标、滚动 */
+  
+  function amBindPipLyricClicks(body) {
+    if (!body) return;
+    body.querySelectorAll('.am-lrc-line').forEach(function (line) {
+      line.style.cursor = 'pointer';
+      line.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var t = Number(line.getAttribute('data-t'));
+        var a = document.getElementById('amAudio');
+        if (!a || !Number.isFinite(t)) return;
+        try {
+          window.__amSeeking = true;
+          amState.audioLoading = false;
+          try { amSetSeekLoading(false); } catch (_) {}
+          var fill = document.getElementById('amSeekFill');
+          var d = a.duration;
+          if (fill && d && isFinite(d) && d > 0) {
+            fill.classList.remove('is-loading-pulse');
+            fill.style.width = (Math.max(0, Math.min(1, t / d)) * 100) + '%';
+          }
+          a.currentTime = Math.max(0, t);
+          if (a.paused && amState.playing) a.play().catch(function () {});
+          try { amSyncLyrics(t, { forceScroll: true }); } catch (_) {}
+          try { amSyncPipContent({ smooth: true }); } catch (_) {}
+          setTimeout(function () { window.__amSeeking = false; }, 120);
+        } catch (_) {
+          window.__amSeeking = false;
+        }
+      });
+    });
+  }
+
   function amSyncPipContent(opts) {
     opts = opts || {};
     var roots = amGetPipRoots();
@@ -8171,6 +8222,8 @@ function amSetLyricsOpen(on) {
       try {
         var titleEl = root.querySelector('.am-pip-float-title');
         if (titleEl) titleEl.textContent = title;
+        var artistEl = root.querySelector('.am-pip-float-artist');
+        if (artistEl) artistEl.textContent = (track && track.artist) ? track.artist : '—';
         var bg = root.querySelector('.am-pip-bg');
         if (bg) {
           if (cover) {
@@ -8184,6 +8237,7 @@ function amSetLyricsOpen(on) {
         var body = root.querySelector('.am-pip-float-body');
         if (body && (opts.forceLyrics || opts.trackChanged)) {
           body.innerHTML = htmlLyrics;
+          amBindPipLyricClicks(body);
         }
         amRefreshPipToggleIcon(root);
         // 同步激活行并滚动
@@ -8231,6 +8285,8 @@ function amSetLyricsOpen(on) {
         amPipApplyStyle(doc);
         doc.body.innerHTML = shell;
         doc.body.querySelector('.am-pip-float-title').textContent = title;
+        var _ae = doc.body.querySelector('.am-pip-float-artist');
+        if (_ae) _ae.textContent = (track && track.artist) ? track.artist : '—';
         doc.body.querySelector('.am-pip-float-body').innerHTML = htmlLyrics;
         doc.body.querySelector('.am-pip-float-close').addEventListener('click', function () {
           try { pipWin.close(); } catch (_) {}
@@ -8256,6 +8312,8 @@ function amSetLyricsOpen(on) {
     float.innerHTML = shell;
     float.dataset.pipBound = '';
     float.querySelector('.am-pip-float-title').textContent = title;
+    var _ae2 = float.querySelector('.am-pip-float-artist');
+    if (_ae2) _ae2.textContent = (track && track.artist) ? track.artist : '—';
     float.querySelector('.am-pip-float-body').innerHTML = htmlLyrics;
     float.querySelector('.am-pip-float-close').addEventListener('click', function () {
       float.hidden = true;
@@ -8452,13 +8510,7 @@ function amNext(delta) {
     const audio = document.getElementById('amAudio');
     if (vol && audio) {
       audio.volume = Number(vol.value) || 0.85;
-      const paintVol = () => {
-        const v = Math.max(0, Math.min(1, Number(vol.value) || 0));
-        const pct = (v * 100).toFixed(2);
-        const grad = 'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
-        // 用 important 盖过样式表里写死的 85% 渐变
-        vol.style.setProperty('background', grad, 'important');
-      };
+      const paintVol = () => { try { amPaintVolumeBar(); } catch (_) {} };
       paintVol();
       const onVol = () => {
         audio.volume = Math.max(0, Math.min(1, Number(vol.value) || 0));
