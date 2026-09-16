@@ -19,7 +19,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=45">
+  <link rel="stylesheet" href="/style.css?v=47">
 </head>
 <body>
 
@@ -377,13 +377,21 @@
             <div class="am-np-meta" id="amNpMeta">—</div>
           </div>
           <div class="am-np-seek">
-            <span class="am-time" id="amTimeCur">0:00</span>
+            <span class="am-time am-time-cur" id="amTimeCur">0:00</span>
             <div class="am-seek-track" id="amSeekTrack"><div class="am-seek-fill" id="amSeekFill"></div></div>
-            <span class="am-time" id="amTimeDur">0:00</span>
+            <span class="am-time am-time-dur" id="amTimeDur">0:00</span>
           </div>
           <div class="am-np-volume">
             <i class="fas fa-volume-up"></i>
             <input type="range" id="amVolume" min="0" max="1" step="0.01" value="0.85" aria-label="音量">
+          </div>
+          <div class="am-np-actions">
+            <button type="button" class="am-np-action-btn" id="amPipLyricsBtn" title="画中画歌词" aria-label="画中画歌词">
+              <i class="fas fa-window-restore"></i>
+            </button>
+            <button type="button" class="am-np-action-btn" id="amEnterPlayerBtn" title="网页全屏播放器" aria-label="网页全屏播放器">
+              <i class="fas fa-expand"></i>
+            </button>
           </div>
         </div>
         <audio id="amAudio" preload="metadata" crossorigin="anonymous"></audio>
@@ -450,9 +458,9 @@
 </div>
 
 <div class="footer">
-  <p>© 2025-2026 MaxSui I Can, because I think I can! V2.0.0 Beta7 (v45) V2.0.0 Beta7 (v45)</p>
+  <p>© 2025-2026 MaxSui I Can, because I think I can!&nbsp;&nbsp;&nbsp;V2.0.0 Beta8 (v47)</p>
 </div>
 
-<script src="/script.js?v=45"></script>
+<script src="/script.js?v=47"></script>
 </body>
 </html>

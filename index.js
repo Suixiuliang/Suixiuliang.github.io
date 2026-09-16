@@ -8014,6 +8014,58 @@ function amSetLyricsOpen(on) {
     }, true);
   })();
 
+  
+  async function amOpenPipLyrics() {
+    const bodySrc = document.getElementById('amLyricsBody');
+    const track = typeof amGetPlayingTrack === 'function' ? amGetPlayingTrack() : null;
+    const title = (track && track.title) || '歌词';
+    const htmlLyrics = bodySrc ? bodySrc.innerHTML : '<p class="am-lyrics-empty">暂无歌词</p>';
+    // Document PiP（支持时），否则浮动窗
+    try {
+      if (window.documentPictureInPicture && window.documentPictureInPicture.requestWindow) {
+        const pipWin = await window.documentPictureInPicture.requestWindow({ width: 360, height: 520 });
+        const doc = pipWin.document;
+        doc.head.innerHTML = '<style>body{margin:0;background:#111;color:#eee;font:14px/1.6 system-ui,sans-serif;padding:12px;}h1{font-size:14px;opacity:.8;margin:0 0 10px}.am-lrc-line{padding:4px 6px;border-radius:6px}.am-lrc-line.is-active{color:#fa2d48;font-weight:600}</style>';
+        doc.body.innerHTML = '<h1></h1><div class="pip-lrc"></div>';
+        doc.body.querySelector('h1').textContent = title;
+        doc.body.querySelector('.pip-lrc').innerHTML = htmlLyrics;
+        window.__amPipWin = pipWin;
+        return;
+      }
+    } catch (err) {
+      console.warn('[am] PiP failed', err);
+    }
+    let float = document.getElementById('amPipFloat');
+    if (!float) {
+      float = document.createElement('div');
+      float.id = 'amPipFloat';
+      float.className = 'am-pip-float';
+      float.innerHTML = '<div class="am-pip-float-head"><span class="am-pip-float-title"></span><button type="button" class="am-pip-float-close" aria-label="关闭">×</button></div><div class="am-pip-float-body"></div>';
+      document.body.appendChild(float);
+      float.querySelector('.am-pip-float-close').addEventListener('click', () => { float.hidden = true; });
+      // drag head
+      const head = float.querySelector('.am-pip-float-head');
+      let dx=0,dy=0,ox=0,oy=0,drag=false;
+      head.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button')) return;
+        drag=true; ox=e.clientX; oy=e.clientY;
+        const r=float.getBoundingClientRect(); dx=r.left; dy=r.top;
+        head.setPointerCapture(e.pointerId);
+      });
+      head.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        float.style.left = (dx + e.clientX - ox) + 'px';
+        float.style.top = (dy + e.clientY - oy) + 'px';
+        float.style.right = 'auto';
+        float.style.bottom = 'auto';
+      });
+      head.addEventListener('pointerup', () => { drag=false; });
+    }
+    float.querySelector('.am-pip-float-title').textContent = title;
+    float.querySelector('.am-pip-float-body').innerHTML = htmlLyrics;
+    float.hidden = false;
+  }
+
   function amNext(delta) {
     const mode = amState.playMode || 'shuffle';
     const d = (typeof delta === 'number' ? delta : 1);
@@ -8140,6 +8192,20 @@ function amSetLyricsOpen(on) {
     }
     const lyricsBtn = document.getElementById('amLyricsBtn');
     if (lyricsBtn) lyricsBtn.addEventListener('click', () => amSetPlayerMode(true));
+    
+    const enterPlayerBtn = document.getElementById('amEnterPlayerBtn');
+    if (enterPlayerBtn && !enterPlayerBtn.dataset.bound) {
+      enterPlayerBtn.dataset.bound = '1';
+      enterPlayerBtn.addEventListener('click', () => {
+        if (typeof amSetPlayerMode === 'function') amSetPlayerMode(true);
+      });
+    }
+    const pipBtn = document.getElementById('amPipLyricsBtn');
+    if (pipBtn && !pipBtn.dataset.bound) {
+      pipBtn.dataset.bound = '1';
+      pipBtn.addEventListener('click', () => { try { amOpenPipLyrics(); } catch (_) {} });
+    }
+
     const lyricsClose = document.getElementById('amLyricsClose');
     if (lyricsClose) lyricsClose.addEventListener('click', () => {
       // 非全屏：仅收起歌词
@@ -8189,6 +8255,7 @@ function amSetLyricsOpen(on) {
       });
       audio.addEventListener('waiting', () => {
         if (window.__amSeeking) return;
+        if (window.__amSeekIgnoreUntil && performance.now() < window.__amSeekIgnoreUntil) return;
         amState.audioLoading = true;
         amSetSeekLoading(true);
       });
@@ -8199,6 +8266,16 @@ function amSetLyricsOpen(on) {
       const clearLoading = () => {
         amState.audioLoading = false;
         amSetSeekLoading(false);
+        // 加载结束立刻对齐真实进度，禁止先跳满再跳回
+        try {
+          const fill = document.getElementById('amSeekFill');
+          const a = document.getElementById('amAudio');
+          if (fill && a && a.duration && isFinite(a.duration) && a.duration > 0) {
+            fill.classList.remove('is-loading-pulse');
+            const r = Math.max(0, Math.min(1, (a.currentTime || 0) / a.duration));
+            fill.style.width = (r * 100) + '%';
+          }
+        } catch (_) {}
       };
       audio.addEventListener('canplay', clearLoading);
       audio.addEventListener('playing', clearLoading);
@@ -8212,13 +8289,14 @@ function amSetLyricsOpen(on) {
         const t = audio.currentTime || 0;
         if (window.__amSeeking) return;
         if (amState.audioLoading) {
-          // 加载中：中间亮两边暗脉冲，不跳到上一曲进度
+          // 加载中：脉冲样式，但不把「真实进度宽度」写成业务进度（结束时 clearLoading 会对齐）
           if (fill && !fill.classList.contains('is-loading-pulse')) {
-            fill.style.width = '100%';
             fill.classList.add('is-loading-pulse');
           }
+          if (fill) fill.style.width = '100%';
           return;
         }
+        if (fill) fill.classList.remove('is-loading-pulse');
         if (fill && d && isFinite(d) && d > 0) fill.style.width = ((t / d) * 100) + '%';
         else if (fill && !d) fill.style.width = '0%';
         if (cur) cur.textContent = formatAmTime(t);
@@ -8296,11 +8374,19 @@ function amSetLyricsOpen(on) {
         try {
           const ratio = window.__amSeekPendingRatio;
           if (typeof ratio === 'number' && audio.duration && isFinite(audio.duration)) {
-            audio.currentTime = Math.max(0, Math.min(audio.duration, ratio * audio.duration));
+            const wasPlaying = !audio.paused;
+            const t = Math.max(0, Math.min(audio.duration, ratio * audio.duration));
+            // 仅改 currentTime，不重载 src；短时忽略 waiting，避免误触加载态
+            window.__amSeekIgnoreUntil = performance.now() + 400;
+            audio.currentTime = t;
+            if (wasPlaying) {
+              const p = audio.play();
+              if (p && p.catch) p.catch(function(){});
+            }
           }
         } catch (_) {}
         window.__amSeekPendingRatio = null;
-        setTimeout(() => { window.__amSeeking = false; }, 80);
+        setTimeout(() => { window.__amSeeking = false; }, 120);
         try {
           if (e && e.pointerId != null) seek.releasePointerCapture(e.pointerId);
         } catch (_) {}
@@ -8327,7 +8413,10 @@ function amSetLyricsOpen(on) {
           try {
             const ratio = window.__amSeekPendingRatio;
             if (typeof ratio === 'number' && audio.duration && isFinite(audio.duration)) {
+              const wasPlaying = !audio.paused;
+              window.__amSeekIgnoreUntil = performance.now() + 400;
               audio.currentTime = Math.max(0, Math.min(audio.duration, ratio * audio.duration));
+              if (wasPlaying) { const p = audio.play(); if (p && p.catch) p.catch(function(){}); }
             }
           } catch (_) {}
         }
@@ -9187,6 +9276,29 @@ function amSetLyricsOpen(on) {
   }
 
   window.__maxsuiMoveCustomCursor = function(x,y){ try { moveCustomCursor(x,y); } catch(_){} };
+  
+  function amIsDragChromeTarget(el) {
+    if (!el || !el.closest) return false;
+    return !!(el.closest('.am-seek-track, #amSeekTrack, .am-np-volume, input[type="range"], .am-scrollbar, [data-scrollbar], .glass-scrollbar')
+      || el.classList.contains('am-seek-fill'));
+  }
+  function amIsClickableTarget(el) {
+    if (!el || !el.closest) return false;
+    if (amIsDragChromeTarget(el)) return false;
+    return !!(el.closest('button, a, [role="button"], [role="link"], input, select, textarea, label, .am-track-row, .am-playlist-item, .am-lrc-line, .nav-link, .glass-nav button, .am-ctrl, .am-np-action-btn'));
+  }
+  function amUpdateCursorChrome(target, dragging) {
+    if (!customCursor) return;
+    if (dragging || document.body.classList.contains('is-slider-dragging') || window.__amSeeking) {
+      customCursor.classList.add('is-hidden-for-drag');
+      customCursor.classList.remove('is-interactive');
+      return;
+    }
+    customCursor.classList.remove('is-hidden-for-drag');
+    if (amIsClickableTarget(target)) customCursor.classList.add('is-interactive');
+    else customCursor.classList.remove('is-interactive');
+  }
+
   function moveCustomCursor(x, y) {
     if (!customCursor) return;
     const down = customCursor.classList.contains('is-down');
@@ -9527,6 +9639,9 @@ function amSetLyricsOpen(on) {
     if (shouldSkipClickEffects(target)) {
       return;
     }
+    if (amIsDragChromeTarget(target) || document.body.classList.contains('is-slider-dragging') || window.__amSeeking) {
+      return;
+    }
 
     triggerAnimation(x, y, isRight);
     if (pointerTimer) clearInterval(pointerTimer);
@@ -9556,6 +9671,7 @@ function amSetLyricsOpen(on) {
       moveCustomCursor(e.clientX, e.clientY);
       setCursorVisible(true);
       setCursorTextMode(isTextEditingTarget(e.target));
+      try { amUpdateCursorChrome(e.target, !!(e.buttons && amIsDragChromeTarget(e.target))); } catch (_) {}
       pushTrailPoint(e.clientX, e.clientY);
     } else {
       // 磁吸中仍显示小白球（由 follow 循环定位），但不渲染尾巴

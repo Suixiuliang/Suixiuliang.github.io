@@ -6889,3 +6889,203 @@ button.am-player-close,
   border-width: 3px !important; /* 白边加粗约 1.5–2px */
   box-sizing: content-box !important;
 }
+
+
+/* ===== v47 ===== */
+
+/* 1 可点击：描边强调蓝；拖动：隐藏指示圆 */
+.custom-cursor.is-interactive {
+  border-color: #0071e3 !important;
+  box-shadow:
+    0 0 0 1.5px rgba(0, 113, 227, 0.55),
+    0 2px 10px rgba(0, 113, 227, 0.25) !important;
+}
+.custom-cursor.is-hidden-for-drag {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+body.is-slider-dragging .custom-cursor {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* 2 进度圆与轨道垂直居中 */
+.am-seek-track {
+  display: flex !important;
+  align-items: center !important;
+  overflow: visible !important;
+  height: 4px !important;
+  position: relative !important;
+}
+.am-seek-fill {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+.am-seek-fill::after {
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  margin-top: 0 !important;
+}
+
+/* 4 底栏布局：信息 | 时间 | 进度 | 时长 | 音量 | 右侧操作 */
+.am-now-playing {
+  grid-template-columns:
+    48px
+    auto
+    minmax(120px, 200px)
+    minmax(160px, 1fr)
+    auto
+    auto !important;
+  gap: 0.65rem 0.75rem !important;
+  align-items: center !important;
+}
+.am-np-seek {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  min-width: 0 !important;
+}
+.am-np-seek .am-time-cur {
+  flex: 0 0 auto !important;
+  min-width: 2.4em !important;
+  text-align: right !important;
+  opacity: 0.85 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.am-np-seek .am-seek-track {
+  flex: 1 1 auto !important;
+  min-width: 48px !important;
+}
+.am-np-seek .am-time-dur {
+  flex: 0 0 auto !important;
+  min-width: 2.4em !important;
+  text-align: left !important;
+  opacity: 0.85 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.am-np-volume {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  min-width: 88px !important;
+  max-width: 120px !important;
+}
+.am-np-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.35rem !important;
+  margin-left: auto !important;
+}
+.am-np-action-btn {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+.am-np-action-btn:hover {
+  background: rgba(255,255,255,0.16) !important;
+}
+.am-np-action-btn i {
+  font-size: 0.85rem !important;
+  line-height: 1 !important;
+  display: block !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+/* 5 圆形图标按钮：图标几何居中 */
+.am-ctrl,
+.am-np-action-btn,
+button.am-ctrl {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+}
+.am-ctrl i,
+.am-np-action-btn i,
+button.am-ctrl i {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1em !important;
+  height: 1em !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: translate(0, 0) !important;
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* PiP 浮动歌词 */
+.am-pip-float {
+  position: fixed;
+  right: 24px;
+  bottom: 96px;
+  width: 300px;
+  max-height: 60vh;
+  z-index: 10050;
+  border-radius: 14px;
+  background: rgba(20,20,24,0.92);
+  border: 0.5px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.am-pip-float[hidden] { display: none !important; }
+.am-pip-float-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: grab;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  user-select: none;
+}
+.am-pip-float-title {
+  flex: 1;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.am-pip-float-close {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.am-pip-float-body {
+  padding: 10px 12px 14px;
+  overflow: auto;
+  max-height: 50vh;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+/* 页脚版本间距 */
+.site-footer p,
+footer p {
+  letter-spacing: 0.01em;
+}
