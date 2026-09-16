@@ -6701,3 +6701,64 @@ body.is-slider-dragging { cursor: grabbing !important; }
   width: 14px !important;
   height: 14px !important;
 }
+
+
+/* ===== v39 ===== */
+
+/* 2 播放页关闭叉：整页右上角 */
+.am-player-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 30;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0.5px solid rgba(255,255,255,0.28);
+  background: rgba(20,20,24,0.55);
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.am-player.is-player-mode .am-player-close {
+  display: inline-flex !important;
+}
+.am-player.is-player-mode .am-lyrics-close {
+  display: none !important; /* 叉号改到播放器右上角 */
+}
+.am-player-close:hover {
+  background: rgba(250,45,72,0.85);
+}
+
+/* 1 无损标签：仅外框，无中括号 */
+.am-tag-lossless {
+  display: inline-block;
+  margin-left: 0.45em;
+  padding: 0.08em 0.4em;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: #fa2d48;
+  border: 1px solid rgba(250, 45, 72, 0.55);
+  border-radius: 4px;
+  vertical-align: middle;
+  line-height: 1.15;
+  background: rgba(250, 45, 72, 0.08);
+}
+
+/* 5 播放条圆缩小 1/2（相对 10px → 5px） */
+.am-seek-fill::after {
+  width: 5px !important;
+  height: 5px !important;
+  margin-top: -2.5px !important;
+  right: -2.5px !important;
+  border-width: 1.5px !important;
+}
+
+/* 7 音量条背景交给 JS 实时绘制，去掉写死 85% */
+.am-np-volume input[type=range] {
+  background: rgba(255,255,255,0.18) !important;
+}

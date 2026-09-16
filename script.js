@@ -3684,18 +3684,29 @@
   }
 
   function openAdminLoginModal() {
-    // 登录窗打开：头像飞回首页占位
+    // 登录窗打开：头像飞到「首页在当前视口一页内」的相对位置与大小（不是滚到整站首页坐标）
     try {
       const globalAvatar = document.getElementById('globalAvatar');
       const homePh = document.getElementById('homeAvatarPlaceholder');
-      if (globalAvatar && homePh) {
-        const r = homePh.getBoundingClientRect();
+      const homePanel = document.getElementById('home');
+      const sc = document.getElementById('scrollContainer');
+      if (globalAvatar && homePh && homePanel && sc) {
+        const scR = sc.getBoundingClientRect();
+        const homeR = homePanel.getBoundingClientRect();
+        const phR = homePh.getBoundingClientRect();
+        const relX = phR.left - homeR.left;
+        const relY = phR.top - homeR.top;
+        const x = scR.left + relX;
+        const y = scR.top + relY;
+        const w = phR.width;
+        const h = phR.height;
         globalAvatar.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1), width 0.55s ease, height 0.55s ease, opacity 0.3s ease';
         globalAvatar.style.opacity = '1';
-        globalAvatar.style.width = r.width + 'px';
-        globalAvatar.style.height = r.height + 'px';
-        globalAvatar.style.transform = `translate3d(${r.left}px, ${r.top}px, 0)`;
+        globalAvatar.style.width = w + 'px';
+        globalAvatar.style.height = h + 'px';
+        globalAvatar.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         window.__avatarPinnedHome = true;
+        window.__avatarPinnedHomeRect = { x, y, w, h };
       }
     } catch (_) {}
     const modal = document.getElementById('adminLoginModal');
@@ -5360,14 +5371,20 @@
       centerAvatarForOffline();
       return;
     }
-    // 登录窗打开时保持钉在首页
+    // 登录窗打开：钉在「视口内的首页相对位」
     if (window.__avatarPinnedHome) {
       const homePh = document.getElementById('homeAvatarPlaceholder');
-      if (globalAvatar && homePh) {
-        const r = homePh.getBoundingClientRect();
-        globalAvatar.style.width = r.width + 'px';
-        globalAvatar.style.height = r.height + 'px';
-        globalAvatar.style.transform = `translate3d(${r.left}px, ${r.top}px, 0)`;
+      const homePanel = document.getElementById('home');
+      const sc = document.getElementById('scrollContainer');
+      if (globalAvatar && homePh && homePanel && sc) {
+        const scR = sc.getBoundingClientRect();
+        const homeR = homePanel.getBoundingClientRect();
+        const phR = homePh.getBoundingClientRect();
+        const x = scR.left + (phR.left - homeR.left);
+        const y = scR.top + (phR.top - homeR.top);
+        globalAvatar.style.width = phR.width + 'px';
+        globalAvatar.style.height = phR.height + 'px';
+        globalAvatar.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         globalAvatar.style.opacity = '1';
       }
       return;
@@ -7098,7 +7115,17 @@ function amSetLyricsOpen(on) {
     const mul = dir === 'desc' ? -1 : 1;
     const va = String((a && a[key]) || '');
     const vb = String((b && b[key]) || '');
-    // 中文按拼音（首字）排序；英文/数字走自然比较
+    const scriptGroup = (s) => {
+      const c = (s || '').trim().charAt(0);
+      if (!c) return 2;
+      // 英文/数字优先整组在上，中文整组在下
+      if (/[a-zA-Z0-9]/.test(c)) return 0;
+      if (/[\u4e00-\u9fff]/.test(c)) return 1;
+      return 0;
+    };
+    const ga = scriptGroup(va);
+    const gb = scriptGroup(vb);
+    if (ga !== gb) return (ga - gb) * mul;
     try {
       const c = va.localeCompare(vb, 'zh-CN', { numeric: true, sensitivity: 'base' });
       if (c !== 0) return c * mul;
@@ -7168,7 +7195,7 @@ function amSetLyricsOpen(on) {
           '<span class="am-col-title" role="cell">' +
             (active && amState.playing ? '<i class="fas fa-volume-up am-playing-ico"></i>' : '') +
             '<span class="am-col-title-text"><span class="t">' + escapeHtml(t.title || '未命名歌曲') + '</span>' +
-            ((/\.flac(\?|$)/i.test(String(t.src || t.audio || t.url || ''))) ? '<span class="am-tag-lossless">[无损]</span>' : '') +
+            ((/\.flac(\?|$)/i.test(String(t.src || t.audio || t.url || ''))) ? '<span class="am-tag-lossless">无损</span>' : '') +
             '</span>' +
           '</span>' +
           '<span class="am-col-artist" role="cell">' + escapeHtml(t.artist || '—') + '</span>' +
@@ -7609,6 +7636,8 @@ function amSetLyricsOpen(on) {
     const player = document.getElementById('amPlayer');
     if (!player) return;
     amState.playerMode = !!on;
+    const pClose = document.getElementById('amPlayerCloseBtn');
+    if (pClose) pClose.hidden = !on;
     if (on) {
       amState.lyricsOpen = true;
       const pane = document.getElementById('amLyricsPane');
@@ -7969,11 +7998,12 @@ function amSetLyricsOpen(on) {
       amEnsureShuffleOrder();
       const order = amState.shuffleOrder;
       if (!order.length) return;
-      let pos = amState.shufflePos;
-      if (pos < 0) pos = 0;
+      let pos = order.indexOf(amState.index);
+      if (pos < 0) pos = (typeof amState.shufflePos === 'number' ? amState.shufflePos : 0);
       pos = (pos + d + order.length * 50) % order.length;
       amState.shufflePos = pos;
-      amPlayAt(order[pos]);
+      const nextIdx = order[pos];
+      if (typeof nextIdx === 'number' && nextIdx >= 0) amPlayAt(nextIdx);
       return;
     }
     // order
@@ -8083,10 +8113,18 @@ function amSetLyricsOpen(on) {
     if (lyricsBtn) lyricsBtn.addEventListener('click', () => amSetPlayerMode(true));
     const lyricsClose = document.getElementById('amLyricsClose');
     if (lyricsClose) lyricsClose.addEventListener('click', () => {
-      // 全屏时：关闭=退出全屏；资料库时：关闭=收起歌词
+      // 非全屏：仅收起歌词
       if (amState.playerMode) amSetPlayerMode(false);
       else amSetLyricsOpen(false);
     });
+    const playerCloseBtn = document.getElementById('amPlayerCloseBtn');
+    if (playerCloseBtn && !playerCloseBtn.dataset.bound) {
+      playerCloseBtn.dataset.bound = '1';
+      playerCloseBtn.addEventListener('click', () => {
+        if (amState.playerMode) amSetPlayerMode(false);
+        else amSetLyricsOpen(false);
+      });
+    }
     const toggle = document.getElementById('amToggleBtn');
     if (toggle) toggle.addEventListener('click', amToggle);
     const prev = document.getElementById('amPrevBtn');
@@ -8100,13 +8138,19 @@ function amSetLyricsOpen(on) {
       const paintVol = () => {
         const v = Math.max(0, Math.min(1, Number(vol.value) || 0));
         const pct = (v * 100).toFixed(2);
-        vol.style.background =
-          'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
+        const grad = 'linear-gradient(to right, #fa2d48 0%, #fa2d48 ' + pct + '%, rgba(255,255,255,0.18) ' + pct + '%, rgba(255,255,255,0.18) 100%)';
+        // 用 important 盖过样式表里写死的 85% 渐变
+        vol.style.setProperty('background', grad, 'important');
       };
       paintVol();
-      vol.addEventListener('input', () => {
-        audio.volume = Number(vol.value) || 0;
+      const onVol = () => {
+        audio.volume = Math.max(0, Math.min(1, Number(vol.value) || 0));
         paintVol();
+      };
+      vol.addEventListener('input', onVol);
+      vol.addEventListener('change', onVol);
+      vol.addEventListener('pointermove', (e) => {
+        if (e.buttons) onVol();
       });
     }
     if (audio) {
@@ -8115,6 +8159,7 @@ function amSetLyricsOpen(on) {
         amSetSeekLoading(true);
       });
       audio.addEventListener('waiting', () => {
+        if (window.__amSeeking) return;
         amState.audioLoading = true;
         amSetSeekLoading(true);
       });
@@ -8195,10 +8240,16 @@ function amSetLyricsOpen(on) {
       const amSeekFromClientX = (clientX) => {
         const rect = seek.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
-        if (audio.duration && isFinite(audio.duration)) {
-          audio.currentTime = ratio * audio.duration;
+        window.__amSeeking = true;
+        amState.audioLoading = false;
+        try { amSetSeekLoading(false); } catch (_) {}
+        if (seekFillEl) {
+          seekFillEl.classList.remove('is-loading-pulse');
+          seekFillEl.style.width = (ratio * 100) + '%';
         }
-        if (seekFillEl) seekFillEl.style.width = (ratio * 100) + '%';
+        if (audio.duration && isFinite(audio.duration)) {
+          try { audio.currentTime = ratio * audio.duration; } catch (_) {}
+        }
         const cur = document.getElementById('amTimeCur');
         if (cur && audio.duration) {
           const t = ratio * audio.duration;
