@@ -7089,3 +7089,105 @@ button.am-ctrl i {
 footer p {
   letter-spacing: 0.01em;
 }
+
+
+/* ===== v48 cursor restore ===== */
+.custom-cursor {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  pointer-events: none !important;
+  z-index: 2147483646 !important;
+}
+.custom-cursor.is-hidden-for-text,
+.custom-cursor.is-hidden-for-drag,
+body.is-slider-dragging .custom-cursor {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+
+/* ionicon 全局尺寸与对齐 */
+ion-icon {
+  font-size: 1.15em;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  display: inline-block;
+  pointer-events: none;
+}
+.am-ctrl ion-icon,
+.am-np-action-btn ion-icon,
+button ion-icon {
+  font-size: 1.05em;
+  width: 1.05em;
+  height: 1.05em;
+  display: block;
+  margin: 0 auto;
+}
+.glass-nav ion-icon,
+.nav-link ion-icon {
+  font-size: 1.1em;
+}
+
+/* PiP 正方形 + 封面模糊底 */
+.am-pip-float {
+  width: 340px !important;
+  height: 340px !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+}
+.am-pip-float .am-pip-square {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.am-pip-float .am-pip-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(28px) brightness(0.42) saturate(1.25);
+  transform: scale(1.15);
+}
+.am-pip-float .am-pip-bg-empty {
+  background: #1a1a1e;
+  filter: none;
+  transform: none;
+}
+.am-pip-float .am-pip-fg {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: rgba(0,0,0,0.28);
+}
+.am-pip-float .am-pip-float-body {
+  flex: 1;
+  max-height: none;
+  overflow: auto;
+}
+.am-pip-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 12px 14px;
+}
+.am-pip-controls button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.am-pip-controls button:hover {
+  background: rgba(255,255,255,0.22);
+}

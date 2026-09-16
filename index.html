@@ -8,8 +8,9 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="shortcut icon" type="image/png" href="/favicon.png">
   <link rel="apple-touch-icon" href="/favicon.png">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+    <script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.4.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.4.0/dist/ionicons/ionicons.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
   <!-- KaTeX：数学公式渲染 -->
@@ -19,7 +20,7 @@
   <!-- highlight.js：Visual Studio 主题语法高亮 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/vs2015.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="/style.css?v=47">
+  <link rel="stylesheet" href="/style.css?v=48">
 </head>
 <body>
 
@@ -35,7 +36,7 @@
   <!-- API 不可达时从顶部落下的液态玻璃灵动岛 -->
   <div class="boot-api-island" id="bootApiIsland" role="alert" aria-hidden="true">
     <div class="boot-api-island-pill">
-      <span class="boot-api-island-icon" aria-hidden="true"><i class="fas fa-globe"></i></span>
+      <span class="boot-api-island-icon" aria-hidden="true"><ion-icon name="globe-outline"></ion-icon></span>
       <span class="boot-api-island-text">您所在的国家/地区暂时不支持连接到后台接口</span>
     </div>
   </div>
@@ -58,26 +59,26 @@
 
 <!-- 导航栏 -->
 <nav class="glass-nav" id="mainNav">
-  <div class="logo" id="siteLogo" role="button" tabindex="0" title="连续点击 7 次可开关拖尾"><i class="fas fa-terminal"></i><span>MaxSui</span></div>
+  <div class="logo" id="siteLogo" role="button" tabindex="0" title="连续点击 7 次可开关拖尾"><ion-icon name="terminal-outline"></ion-icon><span>MaxSui</span></div>
   <div class="nav-links">
-    <a href="#home" class="nav-btn active" data-section="home" draggable="false"><i class="fas fa-home"></i><span>主页</span></a>
-    <a href="#blog" class="nav-btn" data-section="blog" draggable="false"><i class="fas fa-feather-alt"></i><span>博客</span></a>
-    <a href="#works" class="nav-btn" data-section="works" draggable="false"><i class="fas fa-laptop-code"></i><span>我的作品</span></a>
-    <a href="#playlist" class="nav-btn" data-section="playlist" draggable="false"><i class="fas fa-music"></i><span>我的歌单</span></a>
-    <a href="#contact" class="nav-btn" data-section="contact" draggable="false"><i class="fas fa-envelope"></i><span>联系我</span></a>
+    <a href="#home" class="nav-btn active" data-section="home" draggable="false"><ion-icon name="home-outline"></ion-icon><span>主页</span></a>
+    <a href="#blog" class="nav-btn" data-section="blog" draggable="false"><ion-icon name="feather-outline"></ion-icon><span>博客</span></a>
+    <a href="#works" class="nav-btn" data-section="works" draggable="false"><ion-icon name="laptop-outline"></ion-icon><span>我的作品</span></a>
+    <a href="#playlist" class="nav-btn" data-section="playlist" draggable="false"><ion-icon name="musical-notes-outline"></ion-icon><span>我的歌单</span></a>
+    <a href="#contact" class="nav-btn" data-section="contact" draggable="false"><ion-icon name="mail-outline"></ion-icon><span>联系我</span></a>
   </div>
   <!-- 博客模式下展开的头部工具栏：列表=搜索+日历；阅读=标题+元信息 -->
   <div class="blog-toolbar" id="blogToolbar">
     <div class="blog-toolbar-list" id="blogToolbarList">
       <div class="blog-search-box">
-        <i class="fas fa-search"></i>
+        <ion-icon name="search-outline"></ion-icon>
         <input type="text" id="blogSearchInput" placeholder="搜索文章...">
       </div>
-      <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><i class="fas fa-calendar-alt"></i></button>
+      <button class="calendar-btn" id="calendarBtn" title="按日期查找文章"><ion-icon name="calendar-outline"></ion-icon></button>
     </div>
     <div class="blog-toolbar-reading" id="blogToolbarReading" hidden>
       <button type="button" class="blog-nav-back-btn" id="blogArticleBack" title="返回列表" aria-label="返回列表">
-        <i class="fas fa-arrow-left"></i>
+        <ion-icon name="arrow-back-outline"></ion-icon>
       </button>
       <div class="blog-reading-main">
         <div class="blog-reading-title-wrap" id="blogReadingTitleWrap">
@@ -95,8 +96,8 @@
 <div class="calendar-modal" id="calendarModal">
   <div class="calendar-modal-content glass-card">
     <div class="calendar-header">
-      <h3><i class="fas fa-calendar-alt"></i> 选择日期查找文章</h3>
-      <button class="close-calendar" id="closeCalendarBtn"><i class="fas fa-times"></i></button>
+      <h3><ion-icon name="calendar-outline"></ion-icon> 选择日期查找文章</h3>
+      <button class="close-calendar" id="closeCalendarBtn"><ion-icon name="close-outline"></ion-icon></button>
     </div>
     <div class="calendar-body">
       <!-- Apple 风格液态玻璃自定义日历容器 -->
@@ -118,7 +119,7 @@
         <div class="article-reader-meta" id="articleReaderMeta"></div>
       </div>
       <button type="button" class="article-reader-close" id="articleReaderClose" title="关闭" aria-label="关闭">
-        <i class="fas fa-times"></i>
+        <ion-icon name="close-outline"></ion-icon>
       </button>
     </div>
     <div class="article-reader-body" id="articleReaderBody"></div>
@@ -129,8 +130,8 @@
 <div class="calendar-modal" id="adminLoginModal">
   <div class="calendar-modal-content glass-card admin-login-content">
     <div class="calendar-header">
-      <h3><i class="fas fa-shield-alt"></i> 安全登录</h3>
-      <button class="close-calendar" id="closeAdminLoginBtn" type="button"><i class="fas fa-times"></i></button>
+      <h3><ion-icon name="shield-outline"></ion-icon> 安全登录</h3>
+      <button class="close-calendar" id="closeAdminLoginBtn" type="button"><ion-icon name="close-outline"></ion-icon></button>
     </div>
     <div class="calendar-body">
       <form id="adminLoginForm" class="admin-login-form" autocomplete="off">
@@ -217,7 +218,7 @@
           <p class="slogan-sub">— MaxSui · 技术随笔 —</p>
           <div class="scroll-down-hint">
             <span>下滑查看所有博客</span>
-            <i class="fas fa-chevron-down"></i>
+            <ion-icon name="chevron-down-outline"></ion-icon>
           </div>
         </div>
       </div>
@@ -226,7 +227,7 @@
       <div class="blog-stage-duo" id="blogStageDuo">
         <aside class="blog-theme-rail" id="blogThemeRail" aria-label="博客主题">
           <div class="theme-rail-inner">
-            <div class="theme-rail-title"><i class="fas fa-tags"></i><span>主题</span></div>
+            <div class="theme-rail-title"><ion-icon name="pricetags-outline"></ion-icon><span>主题</span></div>
             <nav class="theme-rail-list" id="themeRailList">
               <button type="button" class="theme-chip active" data-category="">全部</button>
             </nav>
@@ -235,22 +236,22 @@
         <div class="blog-white-box" id="blogWhiteBox">
           <div class="white-box-inner">
             <div class="white-box-header">
-              <h2><i class="fas fa-feather-alt"></i> MaxSui 个人博客</h2>
+              <h2><ion-icon name="feather-outline"></ion-icon> MaxSui 个人博客</h2>
               <div class="blog-header-tools">
                 <div class="blog-sort-wrap" id="blogSortWrap">
                   <button type="button" class="blog-sort-btn" id="blogSortBtn" aria-haspopup="menu" aria-expanded="false" title="排序方式">
-                    <i class="fas fa-sort-amount-down"></i>
+                    <ion-icon name="swap-vertical-outline"></ion-icon>
                     <span class="blog-sort-label-text" id="blogSortLabel">发布时间</span>
                   </button>
                   <button type="button" class="blog-sort-dir-btn" id="blogSortDirBtn" title="切换升序/降序" aria-label="切换升序/降序">
-                    <i class="fas fa-arrow-down" id="blogSortDirIcon"></i>
+                    <ion-icon name="arrow-down-outline"></ion-icon>
                   </button>
                   <div class="blog-sort-menu" id="blogSortMenu" role="menu" hidden>
                     <div class="blog-sort-menu-label">排序字段</div>
-                    <button type="button" class="blog-sort-item is-active" data-sort="date" role="menuitem"><i class="far fa-calendar"></i> 发布时间</button>
-                    <button type="button" class="blog-sort-item" data-sort="title" role="menuitem"><i class="fas fa-font"></i> 名称</button>
-                    <button type="button" class="blog-sort-item" data-sort="category" role="menuitem"><i class="fas fa-tags"></i> 分类</button>
-                    <button type="button" class="blog-sort-item" data-sort="readTime" role="menuitem"><i class="far fa-clock"></i> 阅读时长</button>
+                    <button type="button" class="blog-sort-item is-active" data-sort="date" role="menuitem"><ion-icon name="calendar-outline"></ion-icon> 发布时间</button>
+                    <button type="button" class="blog-sort-item" data-sort="title" role="menuitem"><ion-icon name="text-outline"></ion-icon> 名称</button>
+                    <button type="button" class="blog-sort-item" data-sort="category" role="menuitem"><ion-icon name="pricetags-outline"></ion-icon> 分类</button>
+                    <button type="button" class="blog-sort-item" data-sort="readTime" role="menuitem"><ion-icon name="time-outline"></ion-icon> 阅读时长</button>
                   </div>
                 </div>
                 <div class="sub-count" id="postCount">加载文章...</div>
@@ -278,7 +279,7 @@
       <div class="works-header-area">
         <div class="works-avatar-placeholder" id="worksAvatarPlaceholder"></div>
         <div class="section-title-wrap">
-          <div class="section-title"><i class="fas fa-flask"></i><span>我的作品</span></div>
+          <div class="section-title"><ion-icon name="flask-outline"></ion-icon><span>我的作品</span></div>
         </div>
       </div>
       <div class="works-grid" id="worksGrid"><div class="loading-placeholder"><span class="apple-spinner is-sm" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span>加载作品...</span></div></div>
@@ -290,19 +291,19 @@
     <div class="panel-content playlist-content">
       <div class="am-player" id="amPlayer">
         <button type="button" class="am-player-close" id="amPlayerCloseBtn" title="关闭播放器" aria-label="关闭播放器" hidden>
-          <i class="fas fa-times"></i>
+          <ion-icon name="close-outline"></ion-icon>
         </button>
         <div class="playlist-avatar-slot" aria-hidden="true">
           <div class="playlist-avatar-placeholder" id="playlistAvatarPlaceholder"></div>
         </div>
         <div class="am-sidebar">
           <div class="am-sidebar-brand">
-            <i class="fas fa-music"></i>
+            <ion-icon name="musical-notes-outline"></ion-icon>
             <span>我的歌单</span>
           </div>
           <nav class="am-sidebar-nav" aria-label="歌单分类">
             <button type="button" class="am-nav-item is-active" data-am-view="library">
-              <i class="fas fa-layer-group"></i><span>资料库</span>
+              <ion-icon name="layers-outline"></ion-icon><span>资料库</span>
             </button>
           </nav>
           <div class="am-playlist-list" id="amPlaylistList">
@@ -313,13 +314,13 @@
         <div class="am-main">
           <header class="am-main-header">
             <div class="am-search">
-              <i class="fas fa-search"></i>
+              <ion-icon name="search-outline"></ion-icon>
               <input type="search" id="amSearchInput" placeholder="搜索歌曲…" autocomplete="off">
             </div>
           </header>
           <div class="am-hero" id="amHero">
             <div class="am-hero-art" id="amHeroArt" aria-hidden="true">
-              <i class="fas fa-music"></i>
+              <ion-icon name="musical-notes-outline"></ion-icon>
             </div>
             <div class="am-hero-meta">
               <p class="am-hero-kicker">播放列表</p>
@@ -327,13 +328,13 @@
               <p class="am-hero-sub" id="amHeroSub">从仓库根目录 playlist.json 加载</p>
               <div class="am-hero-actions">
                 <button type="button" class="am-btn am-btn-primary" id="amPlayAllBtn">
-                  <i class="fas fa-play"></i><span>播放</span>
+                  <ion-icon name="play-outline"></ion-icon><span>播放</span>
                 </button>
                 <button type="button" class="am-btn am-btn-secondary" id="amShuffleBtn">
-                  <i class="fas fa-random"></i><span>随机播放</span>
+                  <ion-icon name="shuffle-outline"></ion-icon><span>随机播放</span>
                 </button>
                 <button type="button" class="am-btn am-btn-secondary" id="amLyricsBtn">
-                  <i class="fas fa-expand"></i><span>进入播放器</span>
+                  <ion-icon name="expand-outline"></ion-icon><span>进入播放器</span>
                 </button>
               </div>
             </div>
@@ -354,22 +355,22 @@
         <aside class="am-lyrics-pane" id="amLyricsPane" hidden>
           <div class="am-lyrics-head">
             <span class="am-lyrics-head-label" hidden>歌词</span>
-            <button type="button" class="am-lyrics-close" id="amLyricsClose" aria-label="关闭歌词"><i class="fas fa-times"></i></button>
+            <button type="button" class="am-lyrics-close" id="amLyricsClose" aria-label="关闭歌词"><ion-icon name="close-outline"></ion-icon></button>
           </div>
           <div class="am-lyrics-body" id="amLyricsBody">
             <p class="am-lyrics-empty">选择一首有歌词的曲目</p>
           </div>
         </aside>
         <button type="button" class="am-locate-btn" id="amLocateBtn" title="定位到正在播放" aria-label="定位到正在播放" hidden>
-            <i class="fas fa-crosshairs"></i>
+            <ion-icon name="locate-outline"></ion-icon>
           </button>
         <div class="am-now-playing" id="amNowPlaying" hidden>
-          <div class="am-np-art" id="amNpArt"><i class="fas fa-music"></i></div>
+          <div class="am-np-art" id="amNpArt"><ion-icon name="musical-notes-outline"></ion-icon></div>
           <div class="am-np-controls">
-            <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><i class="fas fa-step-backward"></i></button>
-            <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><i class="fas fa-play"></i></button>
-            <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><i class="fas fa-step-forward"></i></button>
-            <button type="button" class="am-ctrl am-ctrl-mode" id="amPlayModeBtn" title="歌单内随机（点击切换）" aria-label="播放模式" data-mode="shuffle"><i class="fas fa-random"></i></button>
+            <button type="button" class="am-ctrl" id="amPrevBtn" title="上一首" aria-label="上一首"><ion-icon name="play-skip-back-outline"></ion-icon></button>
+            <button type="button" class="am-ctrl am-ctrl-main" id="amToggleBtn" title="播放/暂停" aria-label="播放/暂停"><ion-icon name="play-outline"></ion-icon></button>
+            <button type="button" class="am-ctrl" id="amNextBtn" title="下一首" aria-label="下一首"><ion-icon name="play-skip-forward-outline"></ion-icon></button>
+            <button type="button" class="am-ctrl am-ctrl-mode" id="amPlayModeBtn" title="歌单内随机（点击切换）" aria-label="播放模式" data-mode="shuffle"><ion-icon name="shuffle-outline"></ion-icon></button>
           </div>
           <div class="am-np-info">
             <div class="am-np-title" id="amNpTitle">未在播放</div>
@@ -382,15 +383,15 @@
             <span class="am-time am-time-dur" id="amTimeDur">0:00</span>
           </div>
           <div class="am-np-volume">
-            <i class="fas fa-volume-up"></i>
+            <ion-icon name="volume-high-outline"></ion-icon>
             <input type="range" id="amVolume" min="0" max="1" step="0.01" value="0.85" aria-label="音量">
           </div>
           <div class="am-np-actions">
             <button type="button" class="am-np-action-btn" id="amPipLyricsBtn" title="画中画歌词" aria-label="画中画歌词">
-              <i class="fas fa-window-restore"></i>
+              <ion-icon name="albums-outline"></ion-icon>
             </button>
             <button type="button" class="am-np-action-btn" id="amEnterPlayerBtn" title="网页全屏播放器" aria-label="网页全屏播放器">
-              <i class="fas fa-expand"></i>
+              <ion-icon name="expand-outline"></ion-icon>
             </button>
           </div>
         </div>
@@ -402,7 +403,7 @@
   <!-- ===== 联系我 (第5页) ===== -->
   <section id="contact" class="panel">
     <div class="panel-content">
-      <div class="section-title"><i class="fas fa-address-card"></i><span>联系我</span></div>
+      <div class="section-title"><ion-icon name="id-card-outline"></ion-icon><span>联系我</span></div>
       
       <div class="win7-contact-container">
         <!-- 亚力克玻璃名片 -->
@@ -415,22 +416,22 @@
             
             <div class="win7-info-list">
               <div class="win7-info-item">
-                <i class="fas fa-user-tag"></i>
+                <ion-icon name="person-outline"></ion-icon>
                 <span class="label">姓名：</span>
                 <span class="value">MaxSui</span>
               </div>
               <div class="win7-info-item">
-                <i class="fas fa-envelope"></i>
+                <ion-icon name="mail-outline"></ion-icon>
                 <span class="label">邮箱：</span>
                 <span class="value">max.sui@outlook.com</span>
               </div>
               <div class="win7-info-item">
-                <i class="fab fa-weixin"></i>
+                <ion-icon name="logo-wechat"></ion-icon>
                 <span class="label">微信：</span>
                 <span class="value">MaxSui_Official_09</span>
               </div>
               <div class="win7-info-item">
-                <i class="fab fa-qq"></i>
+                <ion-icon name="chatbubbles-outline"></ion-icon>
                 <span class="label">QQ：</span>
                 <span class="value">目前没有注册的打算</span>
               </div>
@@ -444,11 +445,11 @@
 
         <!-- 社交媒体导航 -->
         <div class="social-circles-bar">
-          <a href="https://x.com/Max_Sui_X" target="_blank" class="social-circle-btn" title="X (Twitter)"><i class="fab fa-twitter"></i></a>
-          <a href="https://www.youtube.com/@Crazy-MaxSui" target="_blank" class="social-circle-btn" title="Youtube"><i class="fab fa-youtube"></i></a>
-          <a href="https://www.facebook.com/profile.php?id=100095629053259" target="_blank" class="social-circle-btn" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-          <a href="https://www.instagram.com/maxsui2009/" target="_blank" class="social-circle-btn" title="Instagram"><i class="fab fa-instagram"></i></a>
-          <a href="https://space.bilibili.com/3546560839288857?" target="_blank" class="social-circle-btn" title="Bilibili"><i class="fab fa-bilibili"></i></a>
+          <a href="https://x.com/Max_Sui_X" target="_blank" class="social-circle-btn" title="X (Twitter)"><ion-icon name="logo-x"></ion-icon></a>
+          <a href="https://www.youtube.com/@Crazy-MaxSui" target="_blank" class="social-circle-btn" title="Youtube"><ion-icon name="logo-youtube"></ion-icon></a>
+          <a href="https://www.facebook.com/profile.php?id=100095629053259" target="_blank" class="social-circle-btn" title="Facebook"><ion-icon name="logo-facebook"></ion-icon></a>
+          <a href="https://www.instagram.com/maxsui2009/" target="_blank" class="social-circle-btn" title="Instagram"><ion-icon name="logo-instagram"></ion-icon></a>
+          <a href="https://space.bilibili.com/3546560839288857?" target="_blank" class="social-circle-btn" title="Bilibili"><ion-icon name="videocam-outline"></ion-icon></a>
         </div>
       </div>
 
@@ -458,9 +459,9 @@
 </div>
 
 <div class="footer">
-  <p>© 2025-2026 MaxSui I Can, because I think I can!&nbsp;&nbsp;&nbsp;V2.0.0 Beta8 (v47)</p>
+  <p>© 2025-2026 MaxSui I Can, because I think I can!&nbsp;&nbsp;&nbsp;V2.0.0 Beta8 (v48)</p>
 </div>
 
-<script src="/script.js?v=47"></script>
+<script src="/script.js?v=48"></script>
 </body>
 </html>
