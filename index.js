@@ -10,7 +10,7 @@
   // 图片与播放器音频均直连，不走反代（避免 CORS 控制台警报）
   const API_PROXY_ORIGIN = (typeof window !== 'undefined' && window.MAXSUI_API_BASE)
     ? String(window.MAXSUI_API_BASE).replace(/\/api\/?$/, '').replace(/\/+$/, '')
-    : 'https://maxsui-api.maxsui.workers.dev';
+    : 'https://maxsui-blog-api.netlify.app';
   function huangProxyUrl(kind, absoluteUrl) {
     return String(absoluteUrl || '');
   }
@@ -410,7 +410,7 @@
   // ---------- API 基址 ----------
   const API_CANDIDATES = [
     (typeof window !== 'undefined' && window.MAXSUI_API_BASE) ? String(window.MAXSUI_API_BASE).replace(/\/+$/, '') : null,
-    'https://maxsui-api.maxsui.workers.dev/api'
+    'https://maxsui-blog-api.netlify.app/api'
   ].filter(Boolean);
 
   let API_BASE_URL = API_CANDIDATES[0];
