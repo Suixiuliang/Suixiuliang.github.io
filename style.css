@@ -1156,7 +1156,7 @@ body.is-nav-capsule-dragging * {
 .panel-blog-content { position: relative; width: 100%; min-height: 100%; }
 .blog-cover { position: absolute; top: 0; left: 0; width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; z-index: 1; pointer-events: none; will-change: transform, opacity; }
 .cover-inner { text-align: center; padding: 1rem 2rem; max-width: 900px; transform: translateY(-30px); }
-.slogan { font-family: 'Southampton', 'Dancing Script', cursive; font-size: clamp(2.8rem, 7vw, 4.8rem); font-weight: 400; line-height: 1.25; margin-bottom: 0.6rem; letter-spacing: 0.04em; }
+.slogan { font-family: 'Dancing Script', cursive; font-size: clamp(2.8rem, 7vw, 4.8rem); font-weight: 400; line-height: 1.25; margin-bottom: 0.6rem; letter-spacing: 0.04em; }
 .slogan-sub { font-size: 1.05rem; color: rgba(255, 255, 255, 0.8); letter-spacing: 0.15em; }
 .scroll-down-hint { margin-top: 2rem; display: inline-flex; flex-direction: column; align-items: center; gap: 6px; font-size: 0.9rem; animation: bounceHint 2s infinite ease-in-out; pointer-events: auto; }
 @keyframes bounceHint { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } 60% { transform: translateY(-3px); } }
@@ -7415,4 +7415,71 @@ body.is-slider-dragging .custom-cursor {
   position: relative;
   z-index: 2;
   padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem)) !important;
+}
+
+
+/* ===== v68: slogan 回 Dancing Script；全局英文 Consolas；壁纸署名极简 ===== */
+.slogan {
+  font-family: 'Dancing Script', cursive !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+  line-height: 1.15 !important;
+}
+
+html, body, #root,
+button, input, select, textarea,
+.nav-btn, .liquid-nav-btn, .footer, .wallpaper-credit,
+.panel, .glass-card, .blog-card {
+  font-family: Consolas, "Lucida Console", "Courier New", monospace;
+}
+
+/* slogan / 欢迎手写体等特殊字体保持原样 */
+.slogan,
+.slogan *,
+.boot-welcome-line,
+.boot-welcome-line * {
+  font-family: 'Dancing Script', cursive !important;
+}
+
+/* Font Awesome 图标字体不受影响 */
+.fa, .fas, .far, .fal, .fab,
+[class^="fa-"], [class*=" fa-"] {
+  font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands", "Font Awesome 5 Free", "Font Awesome 5 Brands" !important;
+}
+
+.wallpaper-credit {
+  position: fixed !important;
+  right: max(12px, env(safe-area-inset-right, 0px)) !important;
+  bottom: max(10px, env(safe-area-inset-bottom, 0px)) !important;
+  left: auto !important;
+  z-index: 20 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  display: block !important;
+  width: auto !important;
+  max-width: min(90vw, 420px) !important;
+  text-align: right !important;
+  pointer-events: none !important;
+}
+.wallpaper-credit .wallpaper-provider {
+  display: inline !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 0.72rem !important;
+  line-height: 1.3 !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45) !important;
+  pointer-events: none !important;
+}
+.wallpaper-download {
+  display: none !important;
 }
