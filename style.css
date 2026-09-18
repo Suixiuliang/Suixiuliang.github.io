@@ -7321,3 +7321,52 @@ body.is-slider-dragging .custom-cursor {
 .am-pip-float .am-lrc-line:hover {
   background: rgba(255,255,255,0.08);
 }
+
+
+/* ===== v62: 暗色遮罩只压背景，不盖文字/头像/导航 ===== */
+.theme-transition-overlay {
+  /* 必须低于页面内容；只罩在 body 背景图之上 */
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+.theme-transition-overlay.is-dark {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* 主内容与固定 UI 抬到遮罩之上 */
+.horizontal-scroll-container,
+.footer,
+.glass-nav,
+#mainNav,
+#liquidNavHost,
+.global-avatar,
+#globalAvatar,
+.site-settings-root,
+.site-settings-fab,
+.site-settings-panel,
+.welcome-screen,
+.am-player,
+.am-now-playing {
+  position: relative;
+  z-index: 2;
+}
+.global-avatar,
+#globalAvatar {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+.glass-nav,
+#mainNav,
+#liquidNavHost {
+  z-index: 10050 !important;
+}
+.site-settings-root,
+.site-settings-fab,
+.site-settings-panel {
+  z-index: 10100 !important;
+}
+/* 壁纸加载层仍最高 */
+.wallpaper-transition {
+  z-index: 100001 !important;
+}
